@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# fy — terminal translator between English and Simplified Chinese, OpenAI-powered.
+#
+#   fy                 translate whatever is on the clipboard (auto EN<->ZH)
+#   fy <text...>       translate the given text
+#   echo x | fy        translate piped stdin
+#   fy -e <text>       also show a short explanation / pinyin / usage note
+#   fy -i              interactive REPL (one line at a time, blank line or Ctrl-D quits)
+#   fy --popup         read stdin, translate, show a macOS dialog + copy result (used by the Quick Action)
+#
+# Config (env or ~/.openai/keys.env):
+#   OPENAI_API_KEY     required
+#   FY_MODEL           model id (default: gpt-4o-mini)
+#   FY_KEY_FILE        path to a file exporting OPENAI_API_KEY (default: ~/.openai/keys.env)
+set -euo pipefail
+
+FY_MODEL="${FY_MODEL:-gpt-4o-mini}"
+FY_KEY_FILE="${FY_KEY_FILE:-$HOME/.openai/keys.env}"
+EXPLAIN=0
+POPUP=0
+INTERACTIVE=0
+
+die() { printf 'fy: %s\n' "$1" >&2; exit 1; }
+
+usage() {
+  sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+# --- load API key -----------------------------------------------------------
+load_key() {
+  if [[ -z "${OPENAI_API_KEY:-}" && -f "$FY_KEY_FILE" ]]; then
+    set -a; . "$FY_KEY_FILE"; set +a
+  fi
+  [[ -n "${OPENAI_API_KEY:-}" ]] || die "OPENAI_API_KEY not set (looked in $FY_KEY_FILE)"
+}
+
+# --- call OpenAI; prints the translation (and optional note) ----------------
+translate() {
+  local text="$1" sys
+  [[ -n "${text//[[:space:]]/}" ]] || die "nothing to translate"
+
+  sys="You are a precise translator between English and Simplified Chinese. \
+Detect the input language: if it is mainly English, translate into natural Simplified Chinese; \
+if it is mainly Chinese, translate into natural, idiomatic English. \
+Preserve meaning, tone and any technical terms. Do not add quotes or commentary."
+  if [[ "$EXPLAIN" == 1 ]]; then
+    sys+=" After the translation, add a line starting with '— ' giving a brief note: \
+for a single word or short term include part of speech and (for Chinese) pinyin and one short usage example; \
+for a sentence, note any nuance worth knowing. Keep the note to one or two short lines."
+  else
+    sys+=" Output ONLY the translation, nothing else."
+  fi
+
+  local payload resp out err
+  payload=$(jq -n --arg model "$FY_MODEL" --arg sys "$sys" --arg user "$text" \
+    '{model:$model, temperature:0.2,
+      messages:[{role:"system",content:$sys},{role:"user",content:$user}]}')
+
+  local attempt
+  resp=""
+  for attempt in 1 2 3; do
+    if resp=$(curl -sS --max-time 30 \
+      --retry 2 --retry-connrefused \
+      https://api.openai.com/v1/chat/completions \
+      -H "Authorization: Bearer $OPENAI_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d "$payload" 2>/dev/null); then
+      break
+    fi
+    resp=""
+    sleep 1
+  done
+  [[ -n "$resp" ]] || die "network error calling OpenAI (no response after retries)"
+
+  out=$(jq -r '.choices[0].message.content // empty' <<<"$resp")
+  if [[ -z "$out" ]]; then
+    err=$(jq -r '.error.message // "unknown API error"' <<<"$resp")
+    die "$err"
+  fi
+  printf '%s\n' "$out"
+}
+
+# --- pretty terminal output -------------------------------------------------
+print_result() {
+  local src="$1" out="$2" dim cyan reset
+  if [[ -t 1 ]]; then
+    dim=$'\033[2m'; cyan=$'\033[36m'; reset=$'\033[0m'
+  else
+    dim=""; cyan=""; reset=""
+  fi
+  # Echo the source dimmed only when it didn't come from explicit args on a tty,
+  # so the user can see what was translated (e.g. from clipboard).
+  if [[ -n "$src" ]]; then
+    printf '%s%s%s\n' "$dim" "$src" "$reset"
+  fi
+  printf '%s%s%s\n' "$cyan" "$out" "$reset"
+}
+
+# --- parse flags ------------------------------------------------------------
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -e|--explain) EXPLAIN=1; shift ;;
+    -i|--interactive) INTERACTIVE=1; shift ;;
+    --popup) POPUP=1; shift ;;
+    -m|--model) FY_MODEL="${2:?-m needs a model}"; shift 2 ;;
+    -h|--help) usage 0 ;;
+    --) shift; args+=("$@"); break ;;
+    -*) die "unknown option: $1 (try -h)" ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+
+load_key
+
+# --- popup mode (macOS Quick Action): stdin -> dialog + clipboard -----------
+if [[ "$POPUP" == 1 ]]; then
+  text="$(cat)"
+  out="$(translate "$text")"
+  printf '%s' "$out" | pbcopy 2>/dev/null || true
+  /usr/bin/osascript - "$out" <<'OSA' >/dev/null 2>&1 || true
+on run argv
+  display dialog (item 1 of argv) with title "翻译 · fy" buttons {"OK"} default button "OK"
+end run
+OSA
+  exit 0
+fi
+
+# --- interactive REPL -------------------------------------------------------
+if [[ "$INTERACTIVE" == 1 ]]; then
+  printf 'fy interactive — type text, blank line or Ctrl-D to quit\n' >&2
+  while IFS= read -r -p "› " line || [[ -n "${line:-}" ]]; do
+    [[ -z "${line//[[:space:]]/}" ]] && break
+    print_result "" "$(translate "$line")"
+  done
+  exit 0
+fi
+
+# --- one-shot: args > stdin > clipboard -------------------------------------
+src=""
+if [[ ${#args[@]} -gt 0 ]]; then
+  text="${args[*]}"
+elif [[ ! -t 0 ]]; then
+  text="$(cat)"
+else
+  text="$(pbpaste 2>/dev/null || true)"
+  src="$text"   # show what came off the clipboard
+  [[ -n "${text//[[:space:]]/}" ]] || die "clipboard is empty — copy some text, or run: fy <text>"
+fi
+
+print_result "$src" "$(translate "$text")"
