@@ -8,7 +8,7 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>翻译 (fy)</string>
+				<string>翻译 (AI)</string>
 			</dict>
 			<key>NSMessage</key>
 			<string>runWorkflowAsService</string>

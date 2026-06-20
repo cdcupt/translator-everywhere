@@ -1,16 +1,17 @@
 # fy — terminal translator (EN ⇄ 中文)
 
-A tiny, self-owned translator for the terminal and the macOS right-click menu, powered by
-your own OpenAI key. Built to translate Claude Code's English output (or anything else)
-without leaving the terminal or pasting into Google Translate.
+A tiny, self-owned translator for the terminal and the macOS right-click menu. Two engines:
+**AI** (OpenAI, high quality) and **Google Translate** (free, no key). Built to translate
+Claude Code's English output (or anything else) without leaving the terminal or pasting into
+a website.
 
 ## Why
 
-- **GPT-quality**, not the free Google/Bing engines — natural Chinese, real nuance.
+- **Two engines, your choice** — **AI** for quality/nuance, **Google** for instant & free.
 - **Lives in your terminal** — `fy <text>`, or `fy` to translate the clipboard.
-- **Gesture-accessible** — two-finger-tap (right-click) any selected text → **翻译 (fy)**.
-- **Yours** — ~120 lines of bash, your key stays in `~/.openai/keys.env`. No third-party app,
-  no Accessibility permissions, nothing phoning home but the OpenAI API.
+- **Gesture-accessible** — two-finger-tap (right-click) selected text → **翻译 (AI)** or **翻译 (Google)**.
+- **Yours** — ~160 lines of bash; your OpenAI key stays in `~/.openai/keys.env`. No third-party
+  app, no Accessibility permissions. AI calls OpenAI; Google uses the public translate endpoint.
 
 ## Install
 
@@ -26,34 +27,39 @@ Requires: `bash`, `curl`, `jq` (`brew install jq`), and `OPENAI_API_KEY` — rea
 ## Use
 
 ```bash
-fy                      # translate whatever is on the clipboard (auto EN⇄ZH)
+fy                      # translate whatever is on the clipboard (auto EN⇄ZH, AI)
 fy <text...>            # translate the given text
 echo "some text" | fy   # translate piped stdin
-fy -e ubiquitous        # also show part-of-speech / pinyin / a usage example
+fy -g <text...>         # use the free Google Translate engine
+fy -e ubiquitous        # (AI) also show part-of-speech / pinyin / a usage example
 fy -i                   # interactive REPL (blank line or Ctrl-D quits)
-fy -m gpt-4o "…"        # override the model for one call
+fy -m gpt-4o "…"        # override the AI model for one call
 ```
 
 Direction is auto-detected: mostly-English → Simplified Chinese, mostly-Chinese → English.
+Default engine is AI; set `FY_ENGINE=google` to flip the default, or pass `-g` per call.
 
 ### System-wide (the "two-finger tap")
 
-Select text in any app, **two-finger-tap → Services → 翻译 (fy)**. The translation appears in
-a dialog and is copied to your clipboard. Bind a hotkey under
-*System Settings → Keyboard → Keyboard Shortcuts → Services → Text → 翻译 (fy)*.
+Select text in any app, **two-finger-tap (right-click) → Services**, then pick **翻译 (AI)**
+(high quality) or **翻译 (Google)** (free). The translation appears in a dialog and is copied
+to your clipboard. Bind a hotkey to either under
+*System Settings → Keyboard → Keyboard Shortcuts → Services → Text*.
 
 ## Config
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `OPENAI_API_KEY` | (from key file) | your OpenAI key |
-| `FY_MODEL` | `gpt-4o-mini` | model id |
+| `FY_ENGINE` | `openai` | `openai` (AI) or `google` |
+| `OPENAI_API_KEY` | (from key file) | your OpenAI key (AI engine only) |
+| `FY_MODEL` | `gpt-4o-mini` | AI model id |
 | `FY_KEY_FILE` | `~/.openai/keys.env` | file that exports `OPENAI_API_KEY` |
 
 ## Uninstall
 
 ```bash
 rm ~/.local/bin/fy
-rm -rf ~/Library/Services/"Translate with fy.workflow"
+rm -rf ~/Library/Services/"Translate with fy (AI).workflow" \
+       ~/Library/Services/"Translate with fy (Google).workflow"
 /System/Library/CoreServices/pbs -flush
 ```
