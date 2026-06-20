@@ -5,7 +5,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="${FY_BIN_DIR:-$HOME/.local/bin}"
 SERVICES_DIR="$HOME/Library/Services"
-WORKFLOW="Translate with fy.workflow"
+WORKFLOWS=("Translate with fy (AI).workflow" "Translate with fy (Google).workflow")
 
 echo "fy: installing from $REPO_DIR"
 
@@ -18,12 +18,16 @@ case ":$PATH:" in
   *) echo "  ! $BIN_DIR is not on your PATH — add:  export PATH=\"$BIN_DIR:\$PATH\"" ;;
 esac
 
-# 2) install the Quick Action (macOS only)
+# 2) install the Quick Actions (macOS only)
 if [[ "$(uname)" == "Darwin" ]]; then
   mkdir -p "$SERVICES_DIR"
-  rm -rf "$SERVICES_DIR/$WORKFLOW"
-  cp -R "$REPO_DIR/quick-action/$WORKFLOW" "$SERVICES_DIR/$WORKFLOW"
-  echo "  • installed Quick Action: $SERVICES_DIR/$WORKFLOW"
+  # remove the old single-engine bundle from earlier versions, if present
+  rm -rf "$SERVICES_DIR/Translate with fy.workflow"
+  for wf in "${WORKFLOWS[@]}"; do
+    rm -rf "$SERVICES_DIR/$wf"
+    cp -R "$REPO_DIR/quick-action/$wf" "$SERVICES_DIR/$wf"
+    echo "  • installed Quick Action: $wf"
+  done
   /System/Library/CoreServices/pbs -flush >/dev/null 2>&1 || true
   echo "  • flushed Services cache"
 fi
@@ -31,17 +35,20 @@ fi
 cat <<'EOF'
 
 Done. Try it:
-  fy "I have to paste them into Google Translate."   # inline EN -> ZH
+  fy "I have to paste them into Google Translate."   # inline EN -> ZH (AI)
   fy 我的母语是中文                                    # inline ZH -> EN (auto-detect)
+  fy -g hello                                         # free Google engine
+  fy -e ubiquitous                                    # AI + pinyin / usage note
   fy                                                  # translate the clipboard
-  fy -e ubiquitous                                    # + pinyin / usage note
   fy -i                                               # interactive REPL
 
 System-wide (your "two-finger tap"):
-  Select any text, two-finger-tap (right-click) → Services → "翻译 (fy)".
-  It shows the translation in a dialog and copies it to your clipboard.
+  Select text, two-finger-tap (right-click) → Services → choose one:
+    "翻译 (AI)"      — high-quality OpenAI translation
+    "翻译 (Google)"  — free Google Translate
+  The result shows in a dialog and is copied to your clipboard.
 
-Optional — give it a keyboard shortcut:
+Optional — give either one a keyboard shortcut:
   System Settings → Keyboard → Keyboard Shortcuts… → Services → Text →
-  "翻译 (fy)", then assign a hotkey (e.g. ⌃⌥T).
+  "翻译 (AI)" / "翻译 (Google)", then assign a hotkey (e.g. ⌃⌥T).
 EOF

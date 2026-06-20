@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-# fy — terminal translator between English and Simplified Chinese, OpenAI-powered.
+# fy — terminal translator between English and Simplified Chinese.
+# Two engines: AI (OpenAI, default — high quality) and Google Translate (free, no key).
 #
 #   fy                 translate whatever is on the clipboard (auto EN<->ZH)
 #   fy <text...>       translate the given text
 #   echo x | fy        translate piped stdin
-#   fy -e <text>       also show a short explanation / pinyin / usage note
+#   fy -g <text>       use the free Google Translate engine instead of AI
+#   fy -e <text>       (AI only) also show a short explanation / pinyin / usage note
 #   fy -i              interactive REPL (one line at a time, blank line or Ctrl-D quits)
-#   fy --popup         read stdin, translate, show a macOS dialog + copy result (used by the Quick Action)
+#   fy --popup         read stdin, translate, show a macOS dialog + copy result (used by the Quick Actions)
 #
 # Config (env or ~/.openai/keys.env):
-#   OPENAI_API_KEY     required
+#   FY_ENGINE          openai | google   (default: openai)
+#   OPENAI_API_KEY     required for the AI engine
 #   FY_MODEL           model id (default: gpt-4o-mini)
 #   FY_KEY_FILE        path to a file exporting OPENAI_API_KEY (default: ~/.openai/keys.env)
 set -euo pipefail
 
+FY_ENGINE="${FY_ENGINE:-openai}"
 FY_MODEL="${FY_MODEL:-gpt-4o-mini}"
 FY_KEY_FILE="${FY_KEY_FILE:-$HOME/.openai/keys.env}"
 EXPLAIN=0
@@ -27,18 +31,58 @@ usage() {
   exit "${1:-0}"
 }
 
-# --- load API key -----------------------------------------------------------
+# --- load API key (AI engine only) ------------------------------------------
 load_key() {
+  [[ "$FY_ENGINE" == "openai" ]] || return 0
   if [[ -z "${OPENAI_API_KEY:-}" && -f "$FY_KEY_FILE" ]]; then
     set -a; . "$FY_KEY_FILE"; set +a
   fi
-  [[ -n "${OPENAI_API_KEY:-}" ]] || die "OPENAI_API_KEY not set (looked in $FY_KEY_FILE)"
+  [[ -n "${OPENAI_API_KEY:-}" ]] || die "OPENAI_API_KEY not set (looked in $FY_KEY_FILE) — or use -g for free Google"
 }
 
-# --- call OpenAI; prints the translation (and optional note) ----------------
+# --- detect Chinese so we know the target language --------------------------
+is_chinese() {
+  printf '%s' "$1" | perl -CSD -0777 -ne 'exit(/\p{Han}/ ? 0 : 1)' 2>/dev/null
+}
+
+# --- dispatch to the chosen engine ------------------------------------------
 translate() {
-  local text="$1" sys
+  local text="$1"
   [[ -n "${text//[[:space:]]/}" ]] || die "nothing to translate"
+  if [[ "$FY_ENGINE" == "google" ]]; then
+    google_translate "$text"
+  else
+    openai_translate "$text"
+  fi
+}
+
+# --- free Google Translate engine (no key) ----------------------------------
+google_translate() {
+  local text="$1" tl resp out attempt
+  if is_chinese "$text"; then tl="en"; else tl="zh-CN"; fi
+  resp=""
+  for attempt in 1 2 3; do
+    if resp=$(curl -sS --max-time 30 --retry 2 --retry-connrefused -G \
+      "https://translate.googleapis.com/translate_a/single" \
+      --data-urlencode "client=gtx" \
+      --data-urlencode "sl=auto" \
+      --data-urlencode "tl=$tl" \
+      --data-urlencode "dt=t" \
+      --data-urlencode "q=$text" 2>/dev/null); then
+      break
+    fi
+    resp=""
+    sleep 1
+  done
+  [[ -n "$resp" ]] || die "network error calling Google Translate (no response after retries)"
+  out=$(jq -r '[.[0][]?[0] // empty] | join("")' <<<"$resp" 2>/dev/null)
+  [[ -n "$out" ]] || die "Google Translate returned nothing (unexpected response)"
+  printf '%s\n' "$out"
+}
+
+# --- AI engine (OpenAI); prints the translation (and optional note) ---------
+openai_translate() {
+  local text="$1" sys
 
   sys="You are a precise translator between English and Simplified Chinese. \
 Detect the input language: if it is mainly English, translate into natural Simplified Chinese; \
@@ -102,6 +146,9 @@ args=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -e|--explain) EXPLAIN=1; shift ;;
+    -g|--google) FY_ENGINE="google"; shift ;;
+    -a|--ai|--openai) FY_ENGINE="openai"; shift ;;
+    --engine) FY_ENGINE="${2:?--engine needs openai|google}"; shift 2 ;;
     -i|--interactive) INTERACTIVE=1; shift ;;
     --popup) POPUP=1; shift ;;
     -m|--model) FY_MODEL="${2:?-m needs a model}"; shift 2 ;;
@@ -112,6 +159,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "$FY_ENGINE" in
+  openai|google) ;;
+  *) die "unknown engine: $FY_ENGINE (use openai or google)" ;;
+esac
+# Explanation notes are an AI-only capability.
+[[ "$FY_ENGINE" == "google" ]] && EXPLAIN=0
+
 load_key
 
 # --- popup mode (macOS Quick Action): stdin -> dialog + clipboard -----------
@@ -119,9 +173,10 @@ if [[ "$POPUP" == 1 ]]; then
   text="$(cat)"
   out="$(translate "$text")"
   printf '%s' "$out" | pbcopy 2>/dev/null || true
-  /usr/bin/osascript - "$out" <<'OSA' >/dev/null 2>&1 || true
+  if [[ "$FY_ENGINE" == "google" ]]; then popup_title="翻译 · Google"; else popup_title="翻译 · AI"; fi
+  /usr/bin/osascript - "$out" "$popup_title" <<'OSA' >/dev/null 2>&1 || true
 on run argv
-  display dialog (item 1 of argv) with title "翻译 · fy" buttons {"OK"} default button "OK"
+  display dialog (item 1 of argv) with title (item 2 of argv) buttons {"OK"} default button "OK"
 end run
 OSA
   exit 0
