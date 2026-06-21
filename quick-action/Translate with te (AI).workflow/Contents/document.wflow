@@ -42,7 +42,7 @@
 				<dict>
 					<key>COMMAND_STRING</key>
 					<string>export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
-"$HOME/.local/bin/fy" --popup</string>
+"$HOME/.local/bin/te" --popup</string>
 					<key>CheckedForUserDefaultShell</key>
 					<true/>
 					<key>inputMethod</key>
