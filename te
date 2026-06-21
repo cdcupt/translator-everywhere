@@ -189,8 +189,11 @@ OSA
 }
 
 # --- screen-region capture (or image file) -> OCR + translate (AI vision) ---
-# Prints the translation on success; returns non-zero (no output) if the user
-# cancels the interactive capture, so the caller can exit quietly.
+# Prints the translation on success. Distinct exit statuses so the caller can
+# tell apart a clean cancel from a real failure:
+#   0  -> success (translation on stdout)
+#   2  -> user cancelled the interactive capture (nothing to do)
+#   1  -> real error: a `die` inside (bad path, network/API failure) propagates 1.
 capture_translate() {
   local img="${1:-}" shot rc
   if [[ -n "$img" ]]; then
@@ -203,7 +206,7 @@ capture_translate() {
   /usr/sbin/screencapture -i -x "$shot" 2>/dev/null || true
   if [[ ! -s "$shot" ]]; then
     rm -f "$shot" 2>/dev/null || true
-    return 1
+    return 2
   fi
   openai_translate_image "$shot"; rc=$?
   rm -f "$shot" 2>/dev/null || true
@@ -245,8 +248,24 @@ if [[ "$TE_ENGINE" == "openai" ]]; then load_key; fi
 
 # --- capture mode (macOS): screen region or image file -> OCR + translate ---
 if [[ "$CAPTURE" == 1 ]]; then
-  out="$(capture_translate "${args[0]:-}")" || exit 0   # cancelled -> quiet exit
-  [[ -n "${out//[[:space:]]/}" ]] || exit 0
+  errf="${TMPDIR:-/tmp}/te_err_$$.txt"; rc=0
+  out="$(capture_translate "${args[0]:-}" 2>"$errf")" || rc=$?
+  if [[ "$rc" -eq 2 ]]; then            # user cancelled the capture — quiet exit
+    rm -f "$errf" 2>/dev/null || true
+    exit 0
+  fi
+  if [[ "$rc" -ne 0 ]]; then            # real error — surface it, don't fake success
+    err_msg="$(cat "$errf" 2>/dev/null)"; rm -f "$errf" 2>/dev/null || true
+    err_msg="${err_msg:-te: capture failed}"
+    if [[ "$POPUP" == 1 ]]; then show_popup "$err_msg" "翻译 · 截图 (错误)"; fi
+    printf '%s\n' "$err_msg" >&2
+    exit 1
+  fi
+  rm -f "$errf" 2>/dev/null || true
+  if [[ -z "${out//[[:space:]]/}" ]]; then   # capture worked but no text recognised
+    if [[ "$POPUP" == 1 ]]; then show_popup "未识别到文字" "翻译 · 截图"; fi
+    exit 0
+  fi
   if [[ "$POPUP" == 1 ]]; then
     printf '%s' "$out" | pbcopy 2>/dev/null || true
     show_popup "$out" "翻译 · 截图"
