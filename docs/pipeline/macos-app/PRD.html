@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRD — Translator Everywhere (macOS app)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --paper:#F7F4EE; --ink:#1B201D; --ink-soft:#5f655f; --rule:#e4ded2; --card:#FFFFFF;
+    --accent:#C8643C; --coord:#6D5B8A; --pine:#1F6F5C; --blue:#2D6CA8; --gate:#B23A3A; --gold:#B8841F;
+    --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'Inter',system-ui,sans-serif; --serif:'Fraunces',Georgia,serif; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--sans); line-height:1.6; font-size:16px; }
+  .wrap { max-width:920px; margin:0 auto; padding:0 22px 80px; overflow-x:clip; }
+  header { padding:44px 0 22px; border-bottom:2.5px solid var(--ink); }
+  .kicker { font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
+  h1 { font-family:var(--serif); font-size:clamp(2.2rem,6vw,3.4rem); line-height:1.04; font-weight:600; margin:8px 0 8px; }
+  h1 em { font-style:italic; color:var(--coord); }
+  .lede { color:var(--ink-soft); font-size:16px; max-width:680px; }
+  .meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .pill { font-family:var(--mono); font-size:11.5px; background:var(--card); border:1.5px solid var(--rule); border-radius:999px; padding:5px 13px; }
+  .pill b { color:var(--coord); }
+  h2 { font-family:var(--serif); font-size:clamp(1.45rem,3.4vw,2rem); font-weight:600; margin:42px 0 8px; }
+  h2 .n { color:var(--accent); font-style:italic; margin-right:10px; }
+  h3 { font-size:1.05rem; margin:20px 0 6px; }
+  p { margin:9px 0; } ul { margin:8px 0 8px 20px; } li { margin:5px 0; }
+  strong { color:var(--ink); }
+  code { font-family:var(--mono); font-size:.84em; background:#efe9dc; padding:1px 5px; border-radius:4px; overflow-wrap:anywhere; }
+  .fig { background:var(--card); border:1.5px solid var(--rule); border-radius:14px; padding:16px; margin:14px 0; overflow-x:auto; }
+  .fig svg { display:block; max-width:100%; height:auto; }
+  .cap { font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); margin-top:8px; text-align:center; }
+  .glance { border:2px solid var(--ink); }
+  .tablewrap { overflow-x:auto; border:1.5px solid var(--rule); border-radius:12px; margin:12px 0; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  th { background:#efe9dc; font-family:var(--mono); font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); }
+  tr:last-child td { border-bottom:none; }
+  .decision { background:#fff8ef; border:2px solid var(--gold); border-radius:14px; padding:16px 18px; margin:16px 0; }
+  .decision h3 { color:var(--gold); margin-top:0; }
+  .twocol { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+  .col { background:var(--card); border:1.5px solid var(--rule); border-radius:12px; padding:13px 15px; }
+  .col h4 { font-family:var(--serif); font-size:1.05rem; margin-bottom:4px; }
+  .in { border-left:4px solid var(--pine); } .out { border-left:4px solid var(--gate); }
+  footer { margin-top:44px; padding-top:16px; border-top:2.5px solid var(--ink); font-size:13px; color:var(--ink-soft); }
+  .tag { font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; padding:2px 7px; border-radius:5px; color:#fff; }
+  .t-must{background:var(--pine)} .t-should{background:var(--blue)} .t-later{background:var(--gold)} .t-no{background:var(--gate)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">PRD · sdd_pipeline · artifact 1 of 4</div>
+  <h1>Translator Everywhere — <em>macOS app</em></h1>
+  <p class="lede">Wrap the <code>te</code> screen-capture translator in a native menu-bar app that anyone can download from GitHub, install by dragging to Applications, and use via a global hotkey that works <strong>without touching System Settings</strong>. The whole point is a zero-friction "capture anything on screen → translate" experience for non-technical users.</p>
+  <div class="meta">
+    <span class="pill"><b>product</b> menu-bar macOS app</span>
+    <span class="pill"><b>distribution</b> GitHub Releases (.dmg)</span>
+    <span class="pill"><b>repo</b> cdcupt/translator-everywhere · /macos</span>
+    <span class="pill"><b>status</b> awaiting Gate 1</span>
+  </div>
+</header>
+
+<h2><span class="n">★</span>At a glance</h2>
+<div class="fig glance">
+<svg viewBox="0 0 880 360" role="img" aria-label="At-a-glance: the capture-translate loop, the easy-hotkey value prop, and scope">
+  <style>
+    .lbl{font-family:'IBM Plex Mono',monospace;font-size:12px;fill:#1B201D}
+    .sm{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#5f655f}
+    .hd{font-family:Fraunces,serif;font-size:15px;fill:#1B201D;font-weight:600}
+    .box{fill:#fff;stroke:#e4ded2;stroke-width:1.5;rx:10}
+  </style>
+  <!-- value prop banner -->
+  <rect x="0" y="0" width="880" height="44" fill="#6D5B8A"/>
+  <text x="20" y="27" style="font-family:Fraunces,serif;font-size:17px;fill:#fff;font-weight:600">Press a hotkey · drag a box · read the translation</text>
+  <text x="700" y="27" class="sm" fill="#e8e2f0">no key · no setup</text>
+
+  <!-- the loop -->
+  <g>
+    <rect x="20" y="78" width="150" height="60" class="box" rx="10"/>
+    <text x="95" y="104" text-anchor="middle" class="hd">⌨ Global hotkey</text>
+    <text x="95" y="123" text-anchor="middle" class="sm">app-registered (⌃⌥Y)</text>
+
+    <rect x="200" y="78" width="150" height="60" class="box" rx="10"/>
+    <text x="275" y="104" text-anchor="middle" class="hd">▢ Drag region</text>
+    <text x="275" y="123" text-anchor="middle" class="sm">screencapture -i</text>
+
+    <rect x="380" y="78" width="150" height="60" class="box" rx="10"/>
+    <text x="455" y="104" text-anchor="middle" class="hd">⊞ OCR</text>
+    <text x="455" y="123" text-anchor="middle" class="sm">Apple Vision (free)</text>
+
+    <rect x="560" y="78" width="150" height="60" class="box" rx="10"/>
+    <text x="635" y="104" text-anchor="middle" class="hd">⇄ Translate</text>
+    <text x="635" y="123" text-anchor="middle" class="sm">Google free / OpenAI</text>
+
+    <rect x="725" y="78" width="135" height="60" class="box" rx="10"/>
+    <text x="792" y="104" text-anchor="middle" class="hd">▣ Result</text>
+    <text x="792" y="123" text-anchor="middle" class="sm">popup + clipboard</text>
+
+    <g stroke="#C8643C" stroke-width="2" fill="none" marker-end="url(#ar)">
+      <line x1="170" y1="108" x2="198" y2="108"/>
+      <line x1="350" y1="108" x2="378" y2="108"/>
+      <line x1="530" y1="108" x2="558" y2="108"/>
+      <line x1="710" y1="108" x2="723" y2="108"/>
+    </g>
+  </g>
+  <defs><marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#C8643C"/></marker></defs>
+
+  <!-- three pillars -->
+  <g>
+    <rect x="20" y="180" width="270" height="150" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5" rx="12"/>
+    <text x="36" y="208" class="hd" fill="#1F6F5C">Easy install</text>
+    <text x="36" y="232" class="lbl">Download .dmg from GitHub</text>
+    <text x="36" y="252" class="lbl">Drag to Applications</text>
+    <text x="36" y="272" class="lbl">Launch · menu-bar icon 🌐</text>
+    <text x="36" y="296" class="sm">No App Store · no Terminal</text>
+    <text x="36" y="314" class="sm">no Homebrew</text>
+
+    <rect x="305" y="180" width="270" height="150" fill="#fdf3ee" stroke="#C8643C" stroke-width="1.5" rx="12"/>
+    <text x="321" y="208" class="hd" fill="#C8643C">Easy hotkey</text>
+    <text x="321" y="232" class="lbl">App registers its OWN</text>
+    <text x="321" y="252" class="lbl">global hotkey in-app —</text>
+    <text x="321" y="272" class="lbl">NOT a Quick Action you</text>
+    <text x="321" y="292" class="lbl">must bind in Settings.</text>
+    <text x="321" y="314" class="sm">This is the whole point.</text>
+
+    <rect x="590" y="180" width="270" height="150" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.5" rx="12"/>
+    <text x="606" y="208" class="hd" fill="#2D6CA8">Works for free</text>
+    <text x="606" y="232" class="lbl">Apple Vision OCR (on-</text>
+    <text x="606" y="252" class="lbl">device) + Google translate</text>
+    <text x="606" y="272" class="lbl">= zero config, no API key.</text>
+    <text x="606" y="296" class="sm">OpenAI optional upgrade</text>
+    <text x="606" y="314" class="sm">(paste own key).</text>
+  </g>
+</svg>
+<div class="cap">Fig 1 — The product in one screen: the capture→translate loop (top) standing on three pillars (easy install · easy hotkey · free by default).</div>
+</div>
+
+<h2><span class="n">1</span>Problem &amp; why now</h2>
+<p>The <code>te</code> CLI already does screen-capture translation (<code>te -c</code>): drag a region, OCR + translate, popup + clipboard. But it only serves a technical user on <em>this</em> Mac:</p>
+<ul>
+  <li><strong>Install is developer-only</strong> — clone a repo, run <code>install.sh</code>, have <code>jq</code> and an OpenAI key. A non-technical user can't.</li>
+  <li><strong>The hotkey can't be pre-set</strong> — macOS forbids a Quick Action from shipping with a keyboard shortcut, so every user must hand-bind it in System Settings → Services. That is exactly the friction we want gone.</li>
+  <li><strong>It needs the author's paid OpenAI key</strong> — there's no per-user, no-cost path.</li>
+</ul>
+<p>A native menu-bar app removes all three at once: a downloadable bundle, an app-registered global hotkey, and a free on-device default engine.</p>
+
+<h2><span class="n">2</span>Users &amp; the core job</h2>
+<div class="twocol">
+  <div class="col"><h4>Primary — the non-technical Mac user</h4><p>Watches videos / reads pages in a second language. Wants to translate <em>anything on screen</em> (a YouTube frame, an image, a PDF, a non-selectable UI) with one gesture. Will not open a terminal.</p></div>
+  <div class="col"><h4>Secondary — the power user (Erik)</h4><p>Wants the higher-quality OpenAI path and a configurable hotkey, but the same one-press flow. Keeps the existing <code>te</code> CLI too.</p></div>
+</div>
+<p><strong>Core job-to-be-done:</strong> "When I see text on my screen I can't read, let me press one key, draw a box around it, and instantly get a translation I can read and paste."</p>
+
+<h2><span class="n">3</span>Goals &amp; success criteria</h2>
+<div class="tablewrap"><table>
+  <tr><th>#</th><th>Success criterion (measurable)</th></tr>
+  <tr><td>G1</td><td>A new user goes from <strong>downloaded .dmg → working translation in &lt; 2 minutes</strong>, no terminal, no API key.</td></tr>
+  <tr><td>G2</td><td>The global hotkey is <strong>set entirely inside the app</strong> (a Preferences field), never in System Settings.</td></tr>
+  <tr><td>G3</td><td>Default engine produces a usable translation with <strong>zero configuration and zero cost</strong> (Vision OCR + Google).</td></tr>
+  <tr><td>G4</td><td>Capture→result round trip feels instant: <strong>&lt; ~3 s</strong> for the free path on a normal region.</td></tr>
+  <tr><td>G5</td><td>First-run onboarding gets the user through the <strong>Screen Recording permission</strong> without confusion.</td></tr>
+  <tr><td>G6</td><td>The app is downloadable from <strong>GitHub Releases</strong> and opens on a clean Mac (with at most one documented right-click→Open step while unsigned).</td></tr>
+</table></div>
+
+<h2><span class="n">4</span>The capture → translate flow</h2>
+<div class="fig">
+<svg viewBox="0 0 860 250" role="img" aria-label="Capture and translate sequence">
+  <style>.l{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:#1B201D}.s{font-family:'IBM Plex Mono',monospace;font-size:9.5px;fill:#5f655f}.h{font-family:Fraunces,serif;font-size:13px;fill:#1B201D;font-weight:600}</style>
+  <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#6D5B8A"/></marker></defs>
+  <!-- lanes -->
+  <text x="70" y="24" text-anchor="middle" class="h">User</text>
+  <text x="280" y="24" text-anchor="middle" class="h">Menu-bar app</text>
+  <text x="520" y="24" text-anchor="middle" class="h">Vision (local)</text>
+  <text x="740" y="24" text-anchor="middle" class="h">Translate engine</text>
+  <line x1="70" y1="34" x2="70" y2="230" stroke="#e4ded2"/>
+  <line x1="280" y1="34" x2="280" y2="230" stroke="#e4ded2"/>
+  <line x1="520" y1="34" x2="520" y2="230" stroke="#e4ded2"/>
+  <line x1="740" y1="34" x2="740" y2="230" stroke="#e4ded2"/>
+  <g stroke="#6D5B8A" stroke-width="1.6" fill="none" marker-end="url(#a2)">
+    <line x1="70" y1="60" x2="278" y2="60"/>
+    <line x1="280" y1="95" x2="280" y2="95"/>
+    <line x1="280" y1="110" x2="518" y2="110"/>
+    <line x1="520" y1="140" x2="282" y2="140"/>
+    <line x1="280" y1="165" x2="738" y2="165"/>
+    <line x1="740" y1="195" x2="282" y2="195"/>
+    <line x1="280" y1="222" x2="72" y2="222"/>
+  </g>
+  <text x="74" y="55" class="s">press hotkey ⌃⌥Y</text>
+  <text x="284" y="90" class="s">screencapture -i → user drags region</text>
+  <text x="300" y="105" class="s">PNG of region →</text>
+  <text x="300" y="135" class="s">← recognized text (on-device)</text>
+  <text x="300" y="160" class="s">send text →</text>
+  <text x="300" y="190" class="s">← translation</text>
+  <text x="74" y="217" class="s">popup dialog + copied to clipboard</text>
+</svg>
+<div class="cap">Fig 2 — One hotkey press drives capture → on-device OCR → translate → popup + clipboard. OCR is local (free, private); only the recognized text leaves the machine.</div>
+</div>
+
+<h2><span class="n">5</span>The engine decision <span class="tag t-must">Gate-1 sign-off</span></h2>
+<div class="decision">
+  <h3>⚑ Coordinator recommendation — "Both, switchable" with a FREE default</h3>
+  <p>The current <code>te -c</code> uses OpenAI vision, which requires <em>each</em> user's paid key — a non-starter for free distribution. For the app I recommend:</p>
+  <ul>
+    <li><strong>Default (no setup):</strong> <strong>Apple Vision OCR</strong> (on-device, free, private) → <strong>Google Translate</strong> (free public endpoint). Works the instant the app opens, no key.</li>
+    <li><strong>Optional upgrade:</strong> a Preferences field to paste an <strong>OpenAI key</strong> (stored in the macOS <strong>Keychain</strong>) for higher-quality AI translation. Off by default.</li>
+  </ul>
+  <p style="margin-bottom:0"><strong>This needs your explicit approval at Gate 1</strong>, because it changes the default engine away from today's OpenAI-vision path. Alternatives on the table: OpenAI-only (best quality, worst onboarding) or free-only (simplest, no AI upgrade).</p>
+</div>
+<div class="fig">
+<svg viewBox="0 0 760 220" role="img" aria-label="Engine decision flow">
+  <style>.l{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:#1B201D}.s{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#5f655f}</style>
+  <defs><marker id="a3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2D6CA8"/></marker></defs>
+  <polygon points="120,40 200,80 120,120 40,80" fill="#fff8ef" stroke="#B8841F" stroke-width="1.5"/>
+  <text x="120" y="78" text-anchor="middle" class="s">OpenAI key</text>
+  <text x="120" y="92" text-anchor="middle" class="s">in Keychain?</text>
+  <rect x="300" y="48" width="190" height="64" rx="10" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5"/>
+  <text x="395" y="76" text-anchor="middle" class="l">Vision OCR + Google</text>
+  <text x="395" y="95" text-anchor="middle" class="s">free · default · no key</text>
+  <rect x="540" y="48" width="190" height="64" rx="10" fill="#fdf3ee" stroke="#C8643C" stroke-width="1.5"/>
+  <text x="635" y="76" text-anchor="middle" class="l">OpenAI vision/translate</text>
+  <text x="635" y="95" text-anchor="middle" class="s">higher quality · opt-in</text>
+  <g stroke="#2D6CA8" stroke-width="1.6" fill="none" marker-end="url(#a3)">
+    <line x1="200" y1="80" x2="298" y2="80"/>
+    <line x1="490" y1="80" x2="538" y2="80"/>
+  </g>
+  <text x="240" y="72" class="s">no</text>
+  <text x="505" y="72" class="s">yes</text>
+  <text x="40" y="160" class="s">The engine is chosen automatically: free by default, AI only when the user opts in by</text>
+  <text x="40" y="176" class="s">adding a key. A Preferences toggle can also force "always free" regardless of key.</text>
+</svg>
+<div class="cap">Fig 3 — Engine selection. Free path is the default; OpenAI is a silent upgrade when a key is present.</div>
+</div>
+
+<h2><span class="n">6</span>Distribution</h2>
+<div class="fig">
+<svg viewBox="0 0 860 120" role="img" aria-label="Distribution pipeline">
+  <style>.l{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:#1B201D}.s{font-family:'IBM Plex Mono',monospace;font-size:9.5px;fill:#5f655f}</style>
+  <defs><marker id="a4" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1F6F5C"/></marker></defs>
+  <g>
+    <rect x="10"  y="40" width="120" height="46" rx="9" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/><text x="70"  y="62" text-anchor="middle" class="l">xcodebuild</text><text x="70" y="77" text-anchor="middle" class="s">Release .app</text>
+    <rect x="165" y="40" width="120" height="46" rx="9" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/><text x="225" y="62" text-anchor="middle" class="l">package</text><text x="225" y="77" text-anchor="middle" class="s">.dmg / .zip</text>
+    <rect x="320" y="40" width="140" height="46" rx="9" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/><text x="390" y="62" text-anchor="middle" class="l">GitHub Release</text><text x="390" y="77" text-anchor="middle" class="s">tagged + asset</text>
+    <rect x="495" y="40" width="120" height="46" rx="9" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/><text x="555" y="62" text-anchor="middle" class="l">download</text><text x="555" y="77" text-anchor="middle" class="s">any Mac user</text>
+    <rect x="650" y="40" width="200" height="46" rx="9" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5"/><text x="750" y="62" text-anchor="middle" class="l">drag → Applications</text><text x="750" y="77" text-anchor="middle" class="s">launch · grant permission</text>
+  </g>
+  <g stroke="#1F6F5C" stroke-width="1.6" fill="none" marker-end="url(#a4)">
+    <line x1="130" y1="63" x2="163" y2="63"/><line x1="285" y1="63" x2="318" y2="63"/><line x1="460" y1="63" x2="493" y2="63"/><line x1="615" y1="63" x2="648" y2="63"/>
+  </g>
+</svg>
+<div class="cap">Fig 4 — Build → package → GitHub Release → download → drag-install. v1 ships <strong>unsigned</strong> (documented right-click→Open); Developer-ID signing + notarization is a fast-follow.</div>
+</div>
+
+<h2><span class="n">7</span>Scope</h2>
+<div class="twocol">
+  <div class="col in"><h4>In — v1 <span class="tag t-must">must</span></h4>
+    <ul>
+      <li>Menu-bar app (no Dock app) with a status item + menu.</li>
+      <li>"Capture &amp; Translate" command + app-registered <strong>global hotkey</strong>.</li>
+      <li>Region capture → <strong>Vision OCR</strong> → translate → popup + clipboard.</li>
+      <li>Preferences: hotkey, engine (free / OpenAI key), translation direction default.</li>
+      <li>First-run onboarding incl. <strong>Screen Recording</strong> permission guidance.</li>
+      <li>OpenAI key stored in <strong>Keychain</strong> (never on disk in clear).</li>
+      <li>Packaged <strong>.dmg</strong> published to GitHub Releases; README install guide.</li>
+    </ul>
+  </div>
+  <div class="col" style="border-left:4px solid #2D6CA8"><h4>Should <span class="tag t-should">if cheap</span> / Later <span class="tag t-later">v2</span></h4>
+    <ul>
+      <li><span class="tag t-should">should</span> "Launch at login" toggle.</li>
+      <li><span class="tag t-should">should</span> Translate-clipboard &amp; translate-selection menu items (reuse <code>te</code> logic).</li>
+      <li><span class="tag t-later">later</span> Developer-ID signing + notarization (no Gatekeeper warning).</li>
+      <li><span class="tag t-later">later</span> History of recent translations; in-place overlay instead of a dialog.</li>
+      <li><span class="tag t-later">later</span> Auto-update.</li>
+    </ul>
+  </div>
+  <div class="col out"><h4>Out <span class="tag t-no">not now</span></h4>
+    <ul>
+      <li>App Store distribution / sandboxing.</li>
+      <li>iOS / Windows / Linux.</li>
+      <li>Replacing the <code>te</code> CLI (it stays as-is).</li>
+      <li>Using 9relay or any shared backend — the app calls providers directly / on-device.</li>
+      <li>Accounts, telemetry, analytics.</li>
+    </ul>
+  </div>
+</div>
+
+<h2><span class="n">8</span>Constraints &amp; non-negotiables</h2>
+<ul>
+  <li><strong>Privacy:</strong> OCR is on-device (Vision). Only recognized text is sent to a translate engine; images never leave the Mac. No telemetry.</li>
+  <li><strong>Secrets:</strong> a user's OpenAI key lives only in the <strong>Keychain</strong>; never committed, logged, or written to the repo. No bundled author key.</li>
+  <li><strong>No 9relay backend</strong> — it's a personal CLI relay, not a product backend. The app talks to providers directly (Google public endpoint / OpenAI with the user's own key).</li>
+  <li><strong>Repo:</strong> lives in <code>cdcupt/translator-everywhere</code> under <code>/macos</code>; the <code>te</code> CLI + Quick Actions are untouched.</li>
+  <li><strong>Build:</strong> this Mac builds macOS apps via <code>DEVELOPER_DIR</code> override + <code>xcodegen</code> (Xcode 26.5). Swift + SwiftUI/AppKit, no third-party services.</li>
+</ul>
+
+<h2><span class="n">9</span>Open questions for the PM (Gate 1)</h2>
+<ol>
+  <li><strong>Engine default</strong> — approve "Both, switchable / free default" (§5)? Or prefer OpenAI-only or free-only?</li>
+  <li><strong>App name &amp; menu-bar icon</strong> — ship as "Translator Everywhere"? Any icon preference (the designer will propose options)?</li>
+  <li><strong>Default hotkey</strong> — ⌃⌥Y acceptable as the out-of-box default (user-changeable)?</li>
+  <li><strong>Unsigned v1</strong> — OK to ship unsigned first (one right-click→Open), with notarization as a fast-follow?</li>
+</ol>
+
+<footer>PRD · Translator Everywhere macOS app · sdd_pipeline artifact 1/4 · next: kickoff consult → Design Document (DESIGN.html) → <strong>Gate 1</strong>. Engine decision (§5) and the §9 questions ride to Gate 1 for PM sign-off.</footer>
+
+</div>
+</body>
+</html>
