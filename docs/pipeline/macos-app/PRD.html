@@ -63,6 +63,19 @@
   </div>
 </header>
 
+<div class="decision" style="background:#f3fbf7;border-color:#1F6F5C">
+  <h3 style="color:#1F6F5C">✓ Gate 1 — APPROVED by the PM (2026-06-21)</h3>
+  <p style="margin-bottom:4px">Design confirmed; build may proceed to the Tech Document. Locked decisions:</p>
+  <ul style="margin-bottom:0">
+    <li><strong>Brand/icon:</strong> Status icon A (译 rounded-square badge, Simplified 译) + App icon 1; app name "Translator Everywhere".</li>
+    <li><strong>Auth:</strong> Google + Apple; button order Apple-before-Google.</li>
+    <li><strong>Signing:</strong> Developer-ID signed + notarized in v1 (required by Sign in with Apple).</li>
+    <li><strong>Backend host:</strong> <code>api.translator.daichenlab.com</code> — own service on BWH (not 9relay).</li>
+    <li><strong>Engine:</strong> free default (Vision + Google), OpenAI optional (user key in Keychain).</li>
+    <li><strong>Hotkey default:</strong> ⌃⌥Y (user-changeable). <strong>Summarize:</strong> client-side via the active engine.</li>
+  </ul>
+</div>
+
 <h2><span class="n">★</span>At a glance</h2>
 <div class="fig glance">
 <svg viewBox="0 0 880 430" role="img" aria-label="At-a-glance: capture loop, vocabulary notebook, local-first storage with optional cloud sync">
