@@ -167,6 +167,67 @@
   .onb-stepbtns .btn{width:100%;}
   .onb-step{display:none;} .onb-step.show{display:block;}
 
+  /* notebook */
+  .notebook{width:760px;max-width:100%;}
+  .nb-toolbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #ece9e2;background:#f8f6f1;flex-wrap:wrap;}
+  .nb-search{flex:1;min-width:150px;display:flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--winline);border-radius:8px;padding:6px 11px;}
+  .nb-search input{border:none;outline:none;background:transparent;font-family:var(--sys);font-size:13px;width:100%;color:var(--ink);}
+  .nb-search svg{flex:0 0 auto;}
+  .syncchip{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap;border:1px solid;transition:.12s;}
+  .syncchip .dot{width:8px;height:8px;border-radius:50%;display:block;}
+  .syncchip.local{background:#f4f2ec;border-color:#cfccc4;color:var(--soft);} .syncchip.local .dot{background:#9a978f;}
+  .syncchip.syncing{background:#fff8ef;border-color:var(--gold);color:var(--gold);} .syncchip.syncing .dot{background:var(--gold);}
+  .syncchip.synced{background:#eef4fb;border-color:#2D6CA8;color:#2D6CA8;} .syncchip.synced .dot{background:#2D6CA8;}
+  .syncchip.offline{background:#fbeeee;border-color:var(--gate);color:var(--gate);} .syncchip.offline .dot{background:var(--gate);}
+  .nb-tact{display:flex;gap:8px;}
+  .btn-purple{background:#6D5B8A;color:#fff;} .btn-purple:hover{background:#5c4d76;}
+  .nb-tablewrap{max-height:330px;overflow:auto;}
+  table.nb{width:100%;border-collapse:collapse;font-size:13px;}
+  table.nb th{position:sticky;top:0;background:#efe9dc;font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--soft);text-align:left;padding:8px 10px;z-index:1;}
+  table.nb td{padding:9px 10px;border-bottom:1px solid #ece9e2;vertical-align:top;}
+  table.nb tr.sel td{background:#eef4fb;}
+  table.nb tr{cursor:pointer;}
+  table.nb tr:hover td{background:#f6f4ee;}
+  table.nb tr.sel:hover td{background:#e6eefa;}
+  .nb-cell-sub{display:block;font-size:11px;color:#8d8a83;margin-top:2px;}
+  .nb-lang{font-family:var(--mono);font-size:11px;color:var(--soft);}
+  .nb-date{font-family:var(--mono);font-size:11px;color:var(--soft);white-space:nowrap;}
+  .nb-chk{width:15px;height:15px;accent-color:var(--blue);cursor:pointer;}
+  .badge-sm{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:999px;white-space:nowrap;}
+  .badge-sm.free{background:#e7f4ee;color:var(--pine);border:1px solid var(--pine);}
+  .badge-sm.ai{background:#fdf0e9;color:var(--accent);border:1px solid var(--accent);}
+  .nb-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid #ece9e2;background:#f8f6f1;flex-wrap:wrap;gap:8px;}
+  .nb-selcount{font-family:var(--mono);font-size:11px;color:var(--soft);}
+  .btn-del{background:#fff;color:var(--gate);border:1px solid #e2b8b8;}
+  .btn-del:hover{background:#fbeeee;}
+  .nb-empty{padding:48px 24px;text-align:center;}
+  .nb-empty .ill{width:54px;height:60px;margin:0 auto 16px;}
+  .nb-empty h3{font-family:var(--serif);font-size:20px;font-weight:600;margin-bottom:8px;}
+  .nb-empty p{font-size:13px;color:var(--soft);max-width:340px;margin:0 auto;line-height:1.5;}
+  .nb-empty .kbd{font-family:var(--mono);color:var(--accent);background:#fdf0e9;padding:1px 6px;border-radius:5px;}
+  .nb-toggles{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
+  .nb-toggles button{font-family:var(--mono);font-size:11px;background:transparent;border:1px solid var(--rule);border-radius:999px;padding:5px 13px;cursor:pointer;color:var(--soft);}
+  .nb-toggles button.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+  /* account pane */
+  .acct-state{display:none;} .acct-state.show{display:block;}
+  .local-fine{background:#f3fbf7;border:1px solid var(--pine);border-radius:11px;padding:14px 16px;margin-bottom:18px;}
+  .local-fine strong{font-family:var(--serif);font-size:14.5px;color:var(--pine);display:block;margin-bottom:5px;}
+  .local-fine p{font-size:12.5px;color:var(--soft);line-height:1.5;}
+  .signbtn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;font-family:var(--sys);font-size:14px;padding:11px;border-radius:10px;cursor:pointer;margin-bottom:10px;border:1px solid transparent;transition:.12s;}
+  .signbtn.apple{background:var(--ink);color:#fff;} .signbtn.apple:hover{background:#000;}
+  .signbtn.google{background:#fff;color:var(--ink);border-color:#cfccc4;} .signbtn.google:hover{background:#f6f4ee;}
+  .privacy-line{font-size:11.5px;color:#9a978f;margin-top:10px;line-height:1.5;}
+  .privacy-line a{color:var(--blue);text-decoration:none;} .privacy-line a:hover{text-decoration:underline;}
+  .acct-head{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+  .avatar{width:48px;height:48px;border-radius:50%;background:#6D5B8A;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:22px;color:#fff;flex:0 0 auto;}
+  .acct-head .name{font-family:var(--serif);font-size:17px;font-weight:600;}
+  .acct-head .em{font-size:12.5px;color:var(--soft);}
+  .acct-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid #ece9e2;}
+  .acct-row .lbl{font-size:13px;} .acct-row .sub{font-size:11.5px;color:#9a978f;margin-top:2px;}
+  .acct-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;}
+  .btn-del-acct{background:#fff;color:var(--gate);border:1px solid #e2b8b8;}
+  .btn-del-acct:hover{background:#fbeeee;}
+
   .legend{font-family:var(--mono);font-size:11px;color:var(--soft);text-align:center;margin-top:14px;}
   footer{margin-top:30px;padding-top:14px;border-top:2.5px solid var(--ink);font-size:12.5px;color:var(--soft);}
 
@@ -175,8 +236,12 @@
     .frow > label{text-align:left;}
     .stage{min-height:auto;}
     .screenwrap{padding:14px;}
-    .prefs,.result,.onb{width:100%;}
+    .prefs,.result,.onb,.notebook{width:100%;}
     .menu-dd{right:8px;width:230px;}
+    .nb-search{order:3;flex-basis:100%;}
+    table.nb th:nth-child(5),table.nb td:nth-child(5),
+    table.nb th:nth-child(4),table.nb td:nth-child(4){display:none;}
+    .acct-row{flex-wrap:wrap;gap:6px;}
   }
 </style>
 </head>
@@ -191,6 +256,7 @@
 <div class="switch" role="tablist" aria-label="Screen switcher">
   <button class="on" data-screen="menu">◔ Menu-bar menu</button>
   <button data-screen="result">▣ Result popup</button>
+  <button data-screen="notebook">▤ Notebook</button>
   <button data-screen="prefs">⚙ Preferences</button>
   <button data-screen="onboard">✦ Onboarding</button>
 </div>
@@ -218,6 +284,8 @@
   <div class="menu-dd" id="menuDD" style="display:none">
     <div class="mrow" onclick="show('result');closeMenu()"><span>Capture &amp; Translate</span><span class="sc">⌃⌥Y</span></div>
     <div class="mrow" onclick="show('result');closeMenu()"><span>Translate Clipboard</span><span class="sc">⌃⌥V</span></div>
+    <div class="sep"></div>
+    <div class="mrow" onclick="show('notebook');closeMenu()"><span>Open Notebook…</span><span class="sc">⌃⌥N</span></div>
     <div class="sep"></div>
     <div class="mrow" onclick="show('prefs');closeMenu()"><span>Preferences…</span><span class="sc">⌘,</span></div>
     <div class="mrow" onclick="show('prefs');prefTab('about');closeMenu()"><span>About Translator Everywhere</span><span class="sc"></span></div>
@@ -276,6 +344,103 @@
       </div>
     </div>
 
+    <!-- ===== NOTEBOOK SCREEN ===== -->
+    <div class="screen" id="s-notebook">
+      <div class="macwin notebook">
+        <div class="titlebar"><span class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></span><span class="tt">Notebook</span></div>
+
+        <!-- WITH ROWS -->
+        <div id="nb-filled">
+          <div class="nb-toolbar">
+            <div class="nb-search">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.2" stroke="#9a978f" stroke-width="1.4"/><line x1="9" y1="9" x2="13" y2="13" stroke="#9a978f" stroke-width="1.4"/></svg>
+              <input type="text" placeholder="Search captures…" aria-label="Search captures">
+            </div>
+            <span class="syncchip synced" id="nbChip" onclick="show('prefs');prefTab('account');acctState('in')" title="Click to manage in Account">
+              <span class="dot"></span><span id="nbChipLabel">Synced ✓ · erik@gmail.com</span>
+            </span>
+            <span class="nb-tact">
+              <button class="btn btn-sec" onclick="alert('Export ▾\n\n• As CSV…\n• As Markdown…')">Export ▾</button>
+              <button class="btn btn-purple" onclick="alert('Building your study list from the selected captures, through your active engine (no server AI)…')">Summarize ★</button>
+            </span>
+          </div>
+          <div class="nb-tablewrap">
+            <table class="nb">
+              <thead><tr>
+                <th style="width:28px"></th><th>Source</th><th>Translation</th><th>Langs</th><th>Engine</th><th>Tag</th><th>Date</th>
+              </tr></thead>
+              <tbody id="nbBody">
+                <tr class="sel" onclick="toggleRow(this,event)">
+                  <td><input class="nb-chk" type="checkbox" checked onclick="event.stopPropagation();syncSel()"></td>
+                  <td>電車とホームの間が…<span class="nb-cell-sub">platform announcement</span></td>
+                  <td>Please mind the gap…<span class="nb-cell-sub">between train and platform</span></td>
+                  <td class="nb-lang">JA→EN</td>
+                  <td><span class="badge-sm free">FREE</span></td>
+                  <td>travel</td>
+                  <td class="nb-date">Jun 20</td>
+                </tr>
+                <tr onclick="toggleRow(this,event)">
+                  <td><input class="nb-chk" type="checkbox" onclick="event.stopPropagation();syncSel()"></td>
+                  <td>把发票贴在报销单上</td>
+                  <td>Stick the receipt on the form</td>
+                  <td class="nb-lang">ZH→EN</td>
+                  <td><span class="badge-sm ai">AI</span></td>
+                  <td>—</td>
+                  <td class="nb-date">Jun 20</td>
+                </tr>
+                <tr onclick="toggleRow(this,event)">
+                  <td><input class="nb-chk" type="checkbox" onclick="event.stopPropagation();syncSel()"></td>
+                  <td>Departures</td>
+                  <td>出发 / 离港</td>
+                  <td class="nb-lang">EN→ZH</td>
+                  <td><span class="badge-sm free">FREE</span></td>
+                  <td>airport</td>
+                  <td class="nb-date">Jun 19</td>
+                </tr>
+                <tr onclick="toggleRow(this,event)">
+                  <td><input class="nb-chk" type="checkbox" onclick="event.stopPropagation();syncSel()"></td>
+                  <td>Reschedule for free up to 24h</td>
+                  <td>24小时内可免费改签</td>
+                  <td class="nb-lang">EN→ZH</td>
+                  <td><span class="badge-sm ai">AI</span></td>
+                  <td>travel</td>
+                  <td class="nb-date">Jun 18</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="nb-foot">
+            <span class="nb-selcount" id="nbSelCount">1 of 4 selected</span>
+            <button class="btn btn-del" onclick="alert('Delete 1 capture?\n\nThis removes it from this Mac (and the cloud, if you\\'re synced). This can\\'t be undone.\n\n[ Delete ]  [ Cancel ]')">Delete selected</button>
+          </div>
+        </div>
+
+        <!-- EMPTY -->
+        <div id="nb-empty" style="display:none">
+          <div class="nb-empty">
+            <svg class="ill" viewBox="0 0 54 60" fill="none">
+              <rect x="2" y="2" width="50" height="56" rx="8" stroke="#cfccc4" stroke-width="2"/>
+              <line x1="12" y1="16" x2="42" y2="16" stroke="#cfccc4" stroke-width="2"/>
+              <line x1="12" y1="28" x2="42" y2="28" stroke="#cfccc4" stroke-width="2"/>
+              <line x1="12" y1="40" x2="32" y2="40" stroke="#cfccc4" stroke-width="2"/>
+              <path d="M42 46 l8 -8 l6 6 l-8 8 z" fill="#6D5B8A"/>
+            </svg>
+            <h3>No captures yet</h3>
+            <p>Press <span class="kbd">⌃⌥Y</span> and drag a box around any text — every translation you make lands here automatically.</p>
+          </div>
+        </div>
+      </div>
+      <div class="nb-toggles">
+        <button class="on" id="nbTglFilled" onclick="nbView('filled')">with captures</button>
+        <button id="nbTglEmpty" onclick="nbView('empty')">empty state</button>
+        <span style="width:14px"></span>
+        <button id="nbTglLocal" onclick="nbSync('local')">chip: local</button>
+        <button class="on" id="nbTglSynced" onclick="nbSync('synced')">chip: synced</button>
+        <button id="nbTglSyncing" onclick="nbSync('syncing')">chip: syncing</button>
+        <button id="nbTglOffline" onclick="nbSync('offline')">chip: offline</button>
+      </div>
+    </div>
+
     <!-- ===== PREFERENCES SCREEN ===== -->
     <div class="screen" id="s-prefs">
       <div class="macwin prefs">
@@ -283,6 +448,7 @@
         <div class="pref-tabs">
           <button class="on" data-tab="general" onclick="prefTab('general',this)"><span class="ic">⚙</span>General</button>
           <button data-tab="engine" onclick="prefTab('engine',this)"><span class="ic">⇄</span>Engine</button>
+          <button data-tab="account" onclick="prefTab('account',this)"><span class="ic">◉</span>Account</button>
           <button data-tab="about" onclick="prefTab('about',this)"><span class="ic">ⓘ</span>About</button>
         </div>
         <div class="pref-body">
@@ -330,6 +496,49 @@
               <div class="keynote">🔒 Stored only in your macOS Keychain — never written to disk or sent anywhere but OpenAI.</div>
             </div>
           </div>
+          <!-- ACCOUNT -->
+          <div class="pane" id="p-account">
+            <!-- signed out -->
+            <div class="acct-state show" id="acct-out">
+              <div class="local-fine">
+                <strong>Your notebook already works on this Mac.</strong>
+                <p>Local-only is completely fine — sign in only to sync your notebook across several Macs.</p>
+              </div>
+              <button class="signbtn apple" onclick="acctState('in')">
+                <svg width="15" height="18" viewBox="0 0 14 17" fill="#fff"><path d="M11.5 9c0-1.7 1.4-2.5 1.4-2.6-0.8-1.1-2-1.3-2.4-1.3-1-.1-2 .6-2.5.6s-1.3-.6-2.2-.6c-1.1 0-2.2.7-2.7 1.7-1.2 2-.3 5 .8 6.6.6.8 1.2 1.7 2.1 1.6.8 0 1.1-.5 2.1-.5s1.3.5 2.2.5c.9 0 1.5-.8 2-1.6.4-.6.6-1.2.7-1.2-.1 0-1.4-.6-1.5-2.2zM9.9 3.6c.4-.5.7-1.3.6-2-.6 0-1.4.4-1.8.9-.4.4-.8 1.2-.7 1.9.7.1 1.4-.3 1.9-.8z"/></svg>
+                Sign in with Apple
+              </button>
+              <button class="signbtn google" onclick="acctState('in')">
+                <svg width="16" height="16" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.6 9.2c0-.6-.1-1.2-.2-1.8H9v3.5h4.8a4.1 4.1 0 0 1-1.8 2.7v2.2h2.9c1.7-1.6 2.7-3.9 2.7-6.6z"/><path fill="#34A853" d="M9 18c2.4 0 4.5-.8 6-2.2l-2.9-2.2c-.8.5-1.8.9-3.1.9-2.4 0-4.4-1.6-5.1-3.8H.9v2.3A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.9 10.7a5.4 5.4 0 0 1 0-3.4V5H.9a9 9 0 0 0 0 8l3-2.3z"/><path fill="#EA4335" d="M9 3.6c1.3 0 2.5.5 3.4 1.3l2.6-2.6A9 9 0 0 0 .9 5l3 2.3C4.6 5.2 6.6 3.6 9 3.6z"/></svg>
+                Sign in with Google
+              </button>
+              <p class="privacy-line">We only ever store text vocabulary rows — never your screen images. <a href="#" onclick="return false">Privacy Policy ↗</a></p>
+            </div>
+            <!-- signed in -->
+            <div class="acct-state" id="acct-in">
+              <div class="acct-head">
+                <div class="avatar">E</div>
+                <div>
+                  <div class="name">Erik</div>
+                  <div class="em">erik@gmail.com · via Google</div>
+                </div>
+              </div>
+              <div class="acct-row">
+                <div><div class="lbl">Sync this notebook</div><div class="sub">Last synced just now · 142 entries</div></div>
+                <button class="toggle" id="syncToggle" onclick="this.classList.toggle('off')"><span class="kb"></span></button>
+              </div>
+              <div class="acct-row" style="border-bottom:1px solid #ece9e2;padding-bottom:16px;">
+                <div class="acct-actions">
+                  <button class="btn btn-sec" onclick="acctState('out')">Sign out</button>
+                  <span class="sub" style="margin:0;">keeps the local copy on this Mac</span>
+                </div>
+              </div>
+              <div style="margin-top:16px;">
+                <button class="btn btn-del-acct" onclick="if(confirm('Delete your account and everything synced to the cloud?\\n\\nYour notebook stays on this Mac — only the cloud copy and your account are removed. This can\\'t be undone.')) acctState('out')">Delete account &amp; cloud data</button>
+                <p class="privacy-line" style="margin-top:8px;color:var(--gate);">Destructive — removes the cloud copy and your account. Your local notebook is untouched.</p>
+              </div>
+            </div>
+          </div>
           <!-- ABOUT -->
           <div class="pane" id="p-about">
             <div class="about">
@@ -343,14 +552,14 @@
                 </div>
                 <div>
                   <h3>Translator Everywhere</h3>
-                  <div class="ver">Version 1.0 (1) · unsigned build</div>
+                  <div class="ver">Version 1.0 (1) · signed &amp; notarized</div>
                   <a href="#" onclick="return false">github.com/cdcupt/translator-everywhere ↗</a>
                 </div>
               </div>
               <hr>
               <p>Built on the <code style="font-family:var(--mono)">te</code> command-line translator. The CLI still works alongside this app — same capture pipeline.</p>
-              <p>OCR runs entirely on-device via Apple Vision. Only recognized text is sent to the translation engine.</p>
-              <p style="color:#9a978f;">MIT License · © 2026</p>
+              <p>OCR runs entirely on-device via Apple Vision. Only recognized text is sent to the translation engine; the cloud stores text vocabulary only.</p>
+              <p style="color:#9a978f;">MIT License · © 2026 · <a href="#" onclick="return false" style="color:var(--blue);text-decoration:none;">Privacy Policy ↗</a></p>
             </div>
           </div>
         </div>
@@ -405,14 +614,15 @@
 </div><!-- /stage -->
 <div class="legend">Faux-macOS simulation · all interactions are local to this page · no real capture or network happens</div>
 
-<footer>Mockup · Translator Everywhere · sdd_pipeline artifact 2/4 (companion to DESIGN.html) · for PM Gate 1 click-through.</footer>
+<footer>Mockup (rev 2) · Translator Everywhere · sdd_pipeline artifact 2/4 (companion to DESIGN.html) · for PM Gate 1 click-through. Surfaces: Menu · Result · <strong>Notebook</strong> · Preferences (incl. <strong>Account</strong>) · Onboarding.</footer>
 </div>
 
 <script>
   const hints = {
     menu:"Tip: click the globe icon in the menu bar to open the menu.",
     result:"Result popup near the captured region. Flip the state chips below.",
-    prefs:"Preferences window — switch the General / Engine / About tabs.",
+    notebook:"Vocabulary Notebook — click rows to select, flip the empty state and sync-chip below.",
+    prefs:"Preferences window — switch the General / Engine / Account / About tabs.",
     onboard:"First-run flow. Step 2 handles the Screen-Recording relaunch."
   };
   function show(name){
@@ -484,6 +694,43 @@
       : 'Free runs OCR on-device and translates via Google. No key, no cost — it works the moment you open the app.';
   }
   function testKey(){document.getElementById('keyOk').classList.add('show');}
+
+  // notebook
+  function nbView(v){
+    document.getElementById('nb-filled').style.display = v==='filled'?'block':'none';
+    document.getElementById('nb-empty').style.display = v==='empty'?'block':'none';
+    document.getElementById('nbTglFilled').classList.toggle('on',v==='filled');
+    document.getElementById('nbTglEmpty').classList.toggle('on',v==='empty');
+  }
+  const chipText={local:'Local only',syncing:'Syncing…',synced:'Synced ✓ · erik@gmail.com',offline:'Offline'};
+  function nbSync(s){
+    const chip=document.getElementById('nbChip');
+    chip.className='syncchip '+s;
+    document.getElementById('nbChipLabel').textContent=chipText[s];
+    ['local','syncing','synced','offline'].forEach(k=>{
+      const b=document.getElementById('nbTgl'+k.charAt(0).toUpperCase()+k.slice(1));
+      if(b) b.classList.toggle('on',k===s);
+    });
+  }
+  function toggleRow(tr,e){
+    if(e.target.classList.contains('nb-chk')) return; // checkbox handles itself
+    const cb=tr.querySelector('.nb-chk'); cb.checked=!cb.checked;
+    tr.classList.toggle('sel',cb.checked); syncSel();
+  }
+  function syncSel(){
+    const rows=[...document.querySelectorAll('#nbBody tr')];
+    let n=0;
+    rows.forEach(r=>{const c=r.querySelector('.nb-chk'); r.classList.toggle('sel',c.checked); if(c.checked)n++;});
+    document.getElementById('nbSelCount').textContent = n+' of '+rows.length+' selected';
+  }
+
+  // account
+  function acctState(s){
+    document.getElementById('acct-out').classList.toggle('show',s==='out');
+    document.getElementById('acct-in').classList.toggle('show',s==='in');
+    // keep the notebook sync chip honest with the account state
+    if(s==='out') nbSync('local'); else nbSync('synced');
+  }
 
   // onboarding
   let obStepN=1;

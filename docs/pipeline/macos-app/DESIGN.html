@@ -65,8 +65,8 @@
   <div class="meta">
     <span class="pill"><b>app</b> Translator Everywhere</span>
     <span class="pill"><b>kind</b> menu-bar agent · <code>LSUIElement</code></span>
-    <span class="pill"><b>surfaces</b> 4 · Menu · Result · Preferences · Onboarding</span>
-    <span class="pill"><b>status</b> Gate 1 review surface</span>
+    <span class="pill"><b>surfaces</b> 6 · Menu · Result · Notebook · Preferences · Onboarding</span>
+    <span class="pill"><b>status</b> Gate 1 review surface · rev 2 (notebook + sync)</span>
   </div>
 </header>
 
@@ -75,16 +75,18 @@
   <div><a href="#interaction">1 · Interaction model (states)</a></div>
   <div><a href="#menu">2a · Menu-bar menu</a></div>
   <div><a href="#result">2b · Result popup (+ variants)</a></div>
-  <div><a href="#prefs">2c · Preferences window</a></div>
-  <div><a href="#onboard">2d · First-run onboarding</a></div>
+  <div><a href="#notebook">2c · Vocabulary Notebook window</a></div>
+  <div><a href="#prefs">2d · Preferences window</a></div>
+  <div><a href="#account">2e · Preferences ▸ Account</a></div>
+  <div><a href="#onboard">2f · First-run onboarding</a></div>
   <div><a href="#brand">3 · Brand &amp; status-icon concepts</a></div>
-  <div><a href="#copy">4 · Empty / error / permission copy</a></div>
+  <div><a href="#copy">4 · Empty / error / permission / notebook / account copy</a></div>
 </div>
 
 <!-- ============================ AT A GLANCE ============================ -->
 <h2 id="glance"><span class="n">★</span>At a glance — screen map</h2>
 <div class="fig glance">
-<svg viewBox="0 0 880 430" role="img" aria-label="Information architecture: the menu-bar item, its menu, and the four surfaces">
+<svg viewBox="0 0 880 600" role="img" aria-label="Information architecture: the menu-bar item, its menu, and the six surfaces including Notebook and Account">
   <style>
     .lbl{font-family:'IBM Plex Mono',monospace;font-size:12px;fill:#1B201D}
     .sm{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#5f655f}
@@ -100,63 +102,89 @@
   <text x="770" y="24" class="sm" fill="#fff">NSStatusItem</text>
 
   <!-- dropdown menu -->
-  <rect x="640" y="54" width="220" height="148" rx="12" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/>
-  <text x="656" y="76" class="lbl">Capture &amp; Translate  ⌃⌥Y</text>
-  <text x="656" y="98" class="lbl">Translate Clipboard</text>
-  <line x1="652" y1="110" x2="848" y2="110" stroke="#e4ded2"/>
-  <text x="656" y="130" class="lbl">Preferences…  ⌘,</text>
-  <text x="656" y="152" class="lbl">About</text>
-  <text x="656" y="174" class="lbl">Quit  ⌘Q</text>
-  <text x="656" y="194" class="sm">the only entry point — no Dock, no window</text>
+  <rect x="632" y="54" width="234" height="194" rx="12" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/>
+  <text x="648" y="76" class="lbl">Capture &amp; Translate  ⌃⌥Y</text>
+  <text x="648" y="98" class="lbl">Translate Clipboard</text>
+  <line x1="644" y1="110" x2="854" y2="110" stroke="#e4ded2"/>
+  <text x="648" y="130" class="lbl" fill="#6D5B8A">Open Notebook…  ⌃⌥N</text>
+  <line x1="644" y1="142" x2="854" y2="142" stroke="#e4ded2"/>
+  <text x="648" y="162" class="lbl">Preferences…  ⌘,</text>
+  <text x="648" y="184" class="lbl">About</text>
+  <text x="648" y="206" class="lbl">Quit  ⌘Q</text>
+  <text x="648" y="232" class="sm">the only entry point — no Dock, no window</text>
   <line x1="744" y1="31" x2="744" y2="52" stroke="#6D5B8A" stroke-width="1.6" marker-end="url(#g-ar)"/>
 
-  <!-- four surfaces -->
+  <!-- six surfaces — two rows of three -->
   <g>
-    <rect x="20" y="250" width="195" height="150" rx="12" fill="#fdf3ee" stroke="#C8643C" stroke-width="1.5"/>
-    <text x="36" y="276" class="hd" fill="#C8643C">Result popup</text>
-    <text x="36" y="300" class="sm">NSPanel, grabs focus</text>
-    <text x="36" y="318" class="sm">translation (large)</text>
-    <text x="36" y="336" class="sm">source text (dim)</text>
-    <text x="36" y="354" class="sm">copied ✓ · engine badge</text>
-    <text x="36" y="380" class="sm">+ no-text / error states</text>
+    <!-- row 1 -->
+    <rect x="20" y="300" width="265" height="138" rx="12" fill="#fdf3ee" stroke="#C8643C" stroke-width="1.5"/>
+    <text x="36" y="326" class="hd" fill="#C8643C">Result popup</text>
+    <text x="36" y="350" class="sm">NSPanel, grabs focus</text>
+    <text x="36" y="368" class="sm">translation (large) · source (dim)</text>
+    <text x="36" y="386" class="sm">engine badge · ★ saved chip (new)</text>
+    <text x="36" y="404" class="sm">auto-saves every capture →</text>
+    <text x="36" y="422" class="sm">+ no-text / error states</text>
 
-    <rect x="235" y="250" width="195" height="150" rx="12" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.5"/>
-    <text x="251" y="276" class="hd" fill="#2D6CA8">Preferences</text>
-    <text x="251" y="300" class="sm">toolbar-tab window</text>
-    <text x="251" y="318" class="sm">General · hotkey</text>
-    <text x="251" y="336" class="sm">Engine · free / OpenAI</text>
-    <text x="251" y="354" class="sm">About · version, links</text>
-    <text x="251" y="380" class="sm">opened from menu ⌘,</text>
+    <rect x="307" y="300" width="265" height="138" rx="12" fill="#f5f1fb" stroke="#6D5B8A" stroke-width="2"/>
+    <rect x="307" y="300" width="265" height="22" rx="11" fill="#6D5B8A"/><text x="323" y="316" class="sm" fill="#fff">NEW · own window</text>
+    <text x="323" y="346" class="hd" fill="#6D5B8A">Vocabulary Notebook</text>
+    <text x="323" y="368" class="sm">resizable window (⌃⌥N)</text>
+    <text x="323" y="386" class="sm">table · search · multi-select</text>
+    <text x="323" y="404" class="sm">delete · export CSV/MD · summarize</text>
+    <text x="323" y="422" class="sm">sync-status chip in toolbar</text>
 
-    <rect x="450" y="250" width="195" height="150" rx="12" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5"/>
-    <text x="466" y="276" class="hd" fill="#1F6F5C">Onboarding</text>
-    <text x="466" y="300" class="sm">first launch only</text>
-    <text x="466" y="318" class="sm">1 · Welcome</text>
-    <text x="466" y="336" class="sm">2 · Screen Recording</text>
-    <text x="466" y="354" class="sm">3 · Done · try it</text>
-    <text x="466" y="380" class="sm">handles relaunch</text>
+    <rect x="594" y="300" width="265" height="138" rx="12" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.5"/>
+    <text x="610" y="326" class="hd" fill="#2D6CA8">Preferences</text>
+    <text x="610" y="350" class="sm">toolbar-tab window</text>
+    <text x="610" y="368" class="sm">General · hotkey</text>
+    <text x="610" y="386" class="sm">Engine · free / OpenAI</text>
+    <text x="610" y="404" class="sm">About · version, links</text>
+    <text x="610" y="422" class="sm">opened from menu ⌘,</text>
 
-    <rect x="665" y="250" width="195" height="150" rx="12" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/>
-    <text x="681" y="276" class="hd">About</text>
-    <text x="681" y="300" class="sm">version + build</text>
-    <text x="681" y="318" class="sm">GitHub repo link</text>
-    <text x="681" y="336" class="sm">te CLI mention</text>
-    <text x="681" y="354" class="sm">license</text>
-    <text x="681" y="380" class="sm">(also a Prefs tab)</text>
+    <!-- row 2 -->
+    <rect x="20" y="452" width="265" height="138" rx="12" fill="#f5f1fb" stroke="#6D5B8A" stroke-width="2"/>
+    <rect x="20" y="452" width="265" height="22" rx="11" fill="#6D5B8A"/><text x="36" y="468" class="sm" fill="#fff">NEW · Prefs tab</text>
+    <text x="36" y="498" class="hd" fill="#6D5B8A">Account</text>
+    <text x="36" y="520" class="sm">signed-out: Apple / Google sign-in</text>
+    <text x="36" y="538" class="sm">"local-only is completely fine"</text>
+    <text x="36" y="556" class="sm">signed-in: email · sync toggle</text>
+    <text x="36" y="574" class="sm">Sign out · Delete account + data</text>
+
+    <rect x="307" y="452" width="265" height="138" rx="12" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5"/>
+    <text x="323" y="478" class="hd" fill="#1F6F5C">Onboarding</text>
+    <text x="323" y="502" class="sm">first launch only</text>
+    <text x="323" y="520" class="sm">1 · Welcome</text>
+    <text x="323" y="538" class="sm">2 · Screen Recording</text>
+    <text x="323" y="556" class="sm">3 · Done · try it</text>
+    <text x="323" y="574" class="sm">handles relaunch</text>
+
+    <rect x="594" y="452" width="265" height="138" rx="12" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/>
+    <text x="610" y="478" class="hd">About</text>
+    <text x="610" y="502" class="sm">version + build (now signed)</text>
+    <text x="610" y="520" class="sm">GitHub repo link</text>
+    <text x="610" y="538" class="sm">te CLI mention</text>
+    <text x="610" y="556" class="sm">license · privacy policy ↗</text>
+    <text x="610" y="574" class="sm">(also a Prefs tab)</text>
   </g>
   <g stroke="#6D5B8A" stroke-width="1.4" fill="none" marker-end="url(#g-ar)">
-    <path d="M700 202 C600 230 300 220 117 248"/>
-    <path d="M720 202 C600 230 420 224 332 248"/>
-    <path d="M748 202 Q700 226 560 248"/>
-    <path d="M770 202 C800 226 780 232 762 248"/>
+    <path d="M690 248 C520 280 300 270 150 298"/>
+    <path d="M720 248 C560 280 460 280 432 298"/>
+    <path d="M748 248 Q740 274 725 298"/>
+    <path d="M700 248 C380 320 200 380 150 450"/>
+    <path d="M720 248 C500 360 440 400 430 450"/>
+    <path d="M770 248 C840 360 760 410 722 450"/>
   </g>
 </svg>
-<div class="cap">Fig 1 — One menu-bar item is the whole app. Its menu opens four surfaces. The Result popup is what users see most; Onboarding runs once.</div>
+<div class="cap">Fig 1 — One menu-bar item is the whole app. Its menu now opens <strong>six</strong> surfaces. Two are new for rev 2: the <span style="color:#6D5B8A;font-weight:600">Vocabulary Notebook</span> (its own resizable window, reached via "Open Notebook" ⌃⌥N) and the <span style="color:#6D5B8A;font-weight:600">Account</span> preferences tab. The Result popup is what users see most — it now auto-saves every capture to the notebook; Onboarding still runs once.</div>
 </div>
 
 <!-- ============================ INTERACTION MODEL ============================ -->
 <h2 id="interaction"><span class="n">1</span>Interaction model — the capture flow as states</h2>
 <p>One hotkey press drives a short-lived state machine. The user only ever sees three things: the native crosshair, then (briefly) nothing while we work, then the result panel. Every non-happy path resolves into a clear, dismissible panel — never a silent dead end, except a deliberate <strong>Esc-cancel</strong>, which returns to idle with no UI at all.</p>
+<div class="note" style="border-color:var(--pine);background:#f3fbf7">
+  <h3 style="color:var(--pine)">★ Auto-save &amp; background sync (rev 2)</h3>
+  <p><strong>Every successful translation is auto-saved to the Vocabulary Notebook</strong> — the user never has to press "save." On the <code>result</code> state we surface this with a quiet <strong>"★ Saved to Notebook"</strong> affordance sitting beside "✓ Copied", so it reassures without competing with the translation. No-text and error states save nothing. When the user is <em>signed in</em>, the new row also <strong>syncs in the background</strong> (the sync client pushes it up); when local-only, it just lands in the on-device store. Sync never blocks the popup — the result is shown instantly and syncing happens after dismissal. The notebook window's toolbar reflects the live sync state (Local only / Syncing… / Synced ✓ / Offline).</p>
+</div>
 <div class="fig">
 <svg viewBox="0 0 880 470" role="img" aria-label="State diagram of the capture-to-result flow">
   <style>
@@ -276,7 +304,7 @@
 <h2 id="menu"><span class="n">2a</span>Menu-bar menu</h2>
 <p>The status item is a monochrome template glyph that adapts to light/dark menu bars automatically. Click it → this menu. It is the only always-available entry point.</p>
 <div class="fig">
-<svg viewBox="0 0 560 320" role="img" aria-label="Wireframe of the menu-bar dropdown menu">
+<svg viewBox="0 0 560 360" role="img" aria-label="Wireframe of the menu-bar dropdown menu">
   <style>.mi{font-family:-apple-system,'Inter',sans-serif;font-size:14px;fill:#1B201D}.sh{font-family:-apple-system,'Inter',sans-serif;font-size:13px;fill:#9a978f}</style>
   <!-- desktop strip -->
   <rect x="0" y="0" width="560" height="34" fill="#2c2c2e"/>
@@ -288,8 +316,8 @@
   <!-- highlight active item -->
   <polygon points="448,34 456,44 440,44" fill="#fff"/>
   <!-- menu panel -->
-  <rect x="300" y="44" width="248" height="244" rx="13" fill="#fbfbfd" stroke="#d9d6cf" stroke-width="1"/>
-  <rect x="300" y="44" width="248" height="244" rx="13" fill="none" stroke="#00000010" stroke-width="1"/>
+  <rect x="300" y="44" width="248" height="290" rx="13" fill="#fbfbfd" stroke="#d9d6cf" stroke-width="1"/>
+  <rect x="300" y="44" width="248" height="290" rx="13" fill="none" stroke="#00000010" stroke-width="1"/>
   <!-- highlighted first row -->
   <rect x="306" y="52" width="236" height="30" rx="7" fill="#3b6cf0"/>
   <text x="320" y="72" class="mi" fill="#fff">Capture &amp; Translate</text>
@@ -297,22 +325,27 @@
   <text x="320" y="104" class="mi">Translate Clipboard</text>
   <text x="500" y="104" class="sh" text-anchor="end">⌃⌥V</text>
   <line x1="314" y1="120" x2="534" y2="120" stroke="#e4e2db"/>
-  <text x="320" y="148" class="mi">Preferences…</text>
-  <text x="500" y="148" class="sh" text-anchor="end">⌘,</text>
-  <text x="320" y="180" class="mi">About Translator Everywhere</text>
-  <line x1="314" y1="196" x2="534" y2="196" stroke="#e4e2db"/>
-  <text x="320" y="224" class="mi">Quit</text>
-  <text x="500" y="224" class="sh" text-anchor="end">⌘Q</text>
+  <!-- new: Open Notebook -->
+  <text x="320" y="148" class="mi" fill="#6D5B8A">Open Notebook…</text>
+  <text x="500" y="148" class="sh" text-anchor="end">⌃⌥N</text>
+  <line x1="314" y1="164" x2="534" y2="164" stroke="#e4e2db"/>
+  <text x="320" y="192" class="mi">Preferences…</text>
+  <text x="500" y="192" class="sh" text-anchor="end">⌘,</text>
+  <text x="320" y="224" class="mi">About Translator Everywhere</text>
+  <line x1="314" y1="240" x2="534" y2="240" stroke="#e4e2db"/>
+  <text x="320" y="268" class="mi">Quit</text>
+  <text x="500" y="268" class="sh" text-anchor="end">⌘Q</text>
   <!-- callouts -->
   <text x="20" y="120" class="sh" font-family="IBM Plex Mono" font-size="11" fill="#5f655f">primary action,</text>
   <text x="20" y="136" class="sh" font-family="IBM Plex Mono" font-size="11" fill="#5f655f">shows the live hotkey →</text>
   <line x1="160" y1="120" x2="304" y2="67" stroke="#C8643C" stroke-width="1.2" stroke-dasharray="3 3"/>
-  <text x="20" y="232" class="sh" font-family="IBM Plex Mono" font-size="11" fill="#5f655f">⌃⌥V reuses te clipboard logic</text>
-  <line x1="170" y1="228" x2="304" y2="98" stroke="#2D6CA8" stroke-width="1.1" stroke-dasharray="3 3"/>
+  <text x="20" y="152" class="sh" font-family="IBM Plex Mono" font-size="11" fill="#6D5B8A">NEW — opens the</text>
+  <text x="20" y="168" class="sh" font-family="IBM Plex Mono" font-size="11" fill="#6D5B8A">notebook window</text>
+  <line x1="150" y1="150" x2="304" y2="143" stroke="#6D5B8A" stroke-width="1.2" stroke-dasharray="3 3"/>
 </svg>
-<div class="cap">Fig 3 — Menu-bar menu. The "Capture &amp; Translate" row echoes the user's current hotkey so the binding is always discoverable. "Translate Clipboard" is the cheap <span class="tag t-info">should</span> from PRD §7.</div>
+<div class="cap">Fig 3 — Menu-bar menu (rev 2). The "Capture &amp; Translate" row echoes the user's current hotkey so the binding is always discoverable. "Translate Clipboard" is the cheap <span class="tag t-info">should</span> from PRD §7. New <span style="color:#6D5B8A;font-weight:600">"Open Notebook…" (⌃⌥N)</span> opens the Vocabulary Notebook window, set off in its own group between the capture actions and Preferences.</div>
 </div>
-<p><strong>Behaviour notes.</strong> The hotkey label is data-bound to the recorded shortcut — change it in Preferences and the menu updates. If Screen Recording isn't granted yet, "Capture &amp; Translate" still works but routes to onboarding step 2. "About" opens the same content as the Preferences About tab in a compact standalone panel.</p>
+<p><strong>Behaviour notes.</strong> The hotkey label is data-bound to the recorded shortcut — change it in Preferences and the menu updates. If Screen Recording isn't granted yet, "Capture &amp; Translate" still works but routes to onboarding step 2. <strong>"Open Notebook…"</strong> brings the notebook window forward (creating it on first use) and always works — it needs no permission and no account. "About" opens the same content as the Preferences About tab in a compact standalone panel.</p>
 
 <!-- ============================ 2b RESULT ============================ -->
 <h2 id="result"><span class="n">2b</span>Result popup</h2>
@@ -340,9 +373,9 @@
   <text x="274" y="188" class="cap2">SOURCE · JA</text>
   <text x="274" y="208" class="src">電車とホームの間が広く空いて</text>
   <text x="274" y="226" class="src">いるところがあります。ご注意ください。</text>
-  <!-- copied + actions -->
-  <rect x="274" y="244" width="92" height="0"/>
+  <!-- copied + saved + actions -->
   <text x="274" y="250" font-family="IBM Plex Mono" font-size="11" fill="#1F6F5C">✓ Copied to clipboard</text>
+  <text x="274" y="232" font-family="IBM Plex Mono" font-size="11" fill="#6D5B8A">★ Saved to Notebook</text>
   <!-- buttons -->
   <rect x="470" y="236" width="62" height="24" rx="7" fill="#fff" stroke="#cfccc4"/>
   <text x="501" y="252" text-anchor="middle" font-family="-apple-system,Inter" font-size="12" fill="#1B201D">Copy</text>
@@ -360,7 +393,7 @@
   <text x="648" y="74" class="cap2">AI (orange)</text>
   <line x1="608" y1="46" x2="644" y2="48" stroke="#1F6F5C" stroke-width="1.1" stroke-dasharray="3 3"/>
 </svg>
-<div class="cap">Fig 4 — Result popup, success. Translation in the serif display face; recognized source dim below; "Copied ✓" confirms the silent clipboard write; the engine badge reads <span class="tag t-free">FREE</span> or <span class="tag t-ai">AI</span>.</div>
+<div class="cap">Fig 4 — Result popup, success. Translation in the serif display face; recognized source dim below; "Copied ✓" confirms the silent clipboard write and a quiet "★ Saved to Notebook" (rev 2) confirms the auto-save; the engine badge reads <span class="tag t-free">FREE</span> or <span class="tag t-ai">AI</span>.</div>
 </div>
 
 <h3>Variants — no-text and error</h3>
@@ -396,9 +429,153 @@
 <div class="cap">Fig 5 — Left: <strong>no-text-found</strong> (recoverable, Try Again re-arms the crosshair). Right: <strong>error</strong> — message names the real cause (offline / engine down / bad key) and offers Retry plus, for key/engine problems, Preferences. The recognized text is still copied where possible.</div>
 </div>
 
-<!-- ============================ 2c PREFERENCES ============================ -->
-<h2 id="prefs"><span class="n">2c</span>Preferences window</h2>
-<p>A standard macOS toolbar-tab preferences window (three tabs: <strong>General</strong>, <strong>Engine</strong>, <strong>About</strong>), the only "real" window the app shows. Fixed width, height adapts per tab.</p>
+<!-- ============================ 2c NOTEBOOK ============================ -->
+<h2 id="notebook"><span class="n">2c</span>Vocabulary Notebook window <span class="tag t-info">new · rev 2</span></h2>
+<p>The notebook is the app's second real window — a <strong>standalone, resizable</strong> document-style window (not a popover), opened from "Open Notebook…" (⌃⌥N). It is where every capture lives: a reverse-chronological table the user can search, multi-select, delete, export, and summarize. It works fully <strong>local-only</strong>; a toolbar sync chip reflects cloud state when the user is signed in. The window is deliberately quiet and information-dense — Fraunces only for the empty-state hero, otherwise the system face so it reads like a real macOS list view.</p>
+<div class="fig">
+<svg viewBox="0 0 880 470" role="img" aria-label="Vocabulary Notebook window wireframe with a table of saved captures">
+  <style>
+    .nt{font-family:-apple-system,Inter,sans-serif;font-size:12.5px;fill:#1B201D}
+    .ntd{font-family:-apple-system,Inter,sans-serif;font-size:11.5px;fill:#8d8a83}
+    .nth{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;fill:#9a978f}
+    .ntm{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#5f655f}
+    .cap2{font-family:IBM Plex Mono,monospace;font-size:10px;fill:#5f655f}
+  </style>
+  <!-- window -->
+  <rect x="40" y="14" width="800" height="442" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
+  <!-- title bar -->
+  <rect x="40" y="14" width="800" height="46" rx="14" fill="#f4f2ec"/>
+  <rect x="40" y="40" width="800" height="20" fill="#f4f2ec"/>
+  <circle cx="62" cy="37" r="6" fill="#ff5f57"/><circle cx="80" cy="37" r="6" fill="#febc2e"/><circle cx="98" cy="37" r="6" fill="#28c840"/>
+  <text x="440" y="41" text-anchor="middle" font-family="-apple-system,Inter" font-size="13" font-weight="600" fill="#1B201D">Notebook</text>
+  <!-- toolbar: search + sync chip + actions -->
+  <line x1="40" y1="60" x2="840" y2="60" stroke="#ece9e2"/>
+  <!-- search field -->
+  <rect x="60" y="72" width="230" height="28" rx="8" fill="#fff" stroke="#cfccc4"/>
+  <circle cx="78" cy="86" r="5" fill="none" stroke="#9a978f" stroke-width="1.4"/><line x1="82" y1="90" x2="87" y2="95" stroke="#9a978f" stroke-width="1.4"/>
+  <text x="96" y="90" class="ntd">Search captures…</text>
+  <!-- sync chip -->
+  <rect x="306" y="72" width="150" height="28" rx="14" fill="#eef4fb" stroke="#2D6CA8"/>
+  <circle cx="324" cy="86" r="4" fill="#2D6CA8"/>
+  <text x="336" y="90" class="ntm" fill="#2D6CA8">Synced ✓ · erik@…</text>
+  <!-- right actions -->
+  <rect x="612" y="72" width="74" height="28" rx="8" fill="#fff" stroke="#cfccc4"/><text x="649" y="90" text-anchor="middle" class="nt">Export ▾</text>
+  <rect x="694" y="72" width="126" height="28" rx="8" fill="#6D5B8A"/><text x="757" y="90" text-anchor="middle" class="nt" fill="#fff">Summarize ★</text>
+  <!-- table header -->
+  <rect x="40" y="112" width="800" height="26" fill="#efe9dc"/>
+  <text x="60"  y="129" class="nth">SOURCE</text>
+  <text x="300" y="129" class="nth">TRANSLATION</text>
+  <text x="556" y="129" class="nth">LANGS</text>
+  <text x="636" y="129" class="nth">ENGINE</text>
+  <text x="708" y="129" class="nth">TAG</text>
+  <text x="780" y="129" class="nth">DATE</text>
+  <line x1="40" y1="138" x2="840" y2="138" stroke="#e4ded2"/>
+  <!-- row 1 (selected) -->
+  <rect x="40" y="138" width="800" height="46" fill="#eef4fb"/>
+  <rect x="48" y="153" width="13" height="13" rx="3" fill="#3b6cf0"/><path d="M51 159 l2.5 2.5 l4.5 -5" stroke="#fff" stroke-width="1.4" fill="none"/>
+  <text x="68" y="159" class="nt">電車とホームの間が…</text>
+  <text x="68" y="176" class="ntd">platform announcement</text>
+  <text x="300" y="159" class="nt">Please mind the gap…</text>
+  <text x="300" y="176" class="ntd">between train and platform</text>
+  <text x="556" y="165" class="ntm">JA→EN</text>
+  <rect x="636" y="151" width="46" height="18" rx="9" fill="#e7f4ee" stroke="#1F6F5C"/><text x="659" y="164" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#1F6F5C">FREE</text>
+  <text x="708" y="165" class="ntd">travel</text>
+  <text x="780" y="165" class="ntm">Jun 20</text>
+  <line x1="40" y1="184" x2="840" y2="184" stroke="#ece9e2"/>
+  <!-- row 2 -->
+  <rect x="48" y="199" width="13" height="13" rx="3" fill="#fff" stroke="#cfccc4"/>
+  <text x="68" y="205" class="nt">把发票贴在报销单上</text>
+  <text x="300" y="205" class="nt">Stick the receipt on the form</text>
+  <text x="556" y="211" class="ntm">ZH→EN</text>
+  <rect x="636" y="197" width="46" height="18" rx="9" fill="#fdf0e9" stroke="#C8643C"/><text x="659" y="210" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#C8643C">AI</text>
+  <text x="708" y="211" class="ntd">—</text>
+  <text x="780" y="211" class="ntm">Jun 20</text>
+  <line x1="40" y1="230" x2="840" y2="230" stroke="#ece9e2"/>
+  <!-- row 3 -->
+  <rect x="48" y="245" width="13" height="13" rx="3" fill="#fff" stroke="#cfccc4"/>
+  <text x="68" y="251" class="nt">Departures</text>
+  <text x="300" y="251" class="nt">出发 / 离港</text>
+  <text x="556" y="257" class="ntm">EN→ZH</text>
+  <rect x="636" y="243" width="46" height="18" rx="9" fill="#e7f4ee" stroke="#1F6F5C"/><text x="659" y="256" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#1F6F5C">FREE</text>
+  <text x="708" y="257" class="ntd">airport</text>
+  <text x="780" y="257" class="ntm">Jun 19</text>
+  <line x1="40" y1="276" x2="840" y2="276" stroke="#ece9e2"/>
+  <!-- row 4 -->
+  <rect x="48" y="291" width="13" height="13" rx="3" fill="#fff" stroke="#cfccc4"/>
+  <text x="68" y="297" class="nt">Reschedule for free up to 24h</text>
+  <text x="300" y="297" class="nt">24小时内可免费改签</text>
+  <text x="556" y="303" class="ntm">EN→ZH</text>
+  <rect x="636" y="289" width="46" height="18" rx="9" fill="#fdf0e9" stroke="#C8643C"/><text x="659" y="302" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#C8643C">AI</text>
+  <text x="708" y="303" class="ntd">travel</text>
+  <text x="780" y="303" class="ntm">Jun 18</text>
+  <line x1="40" y1="322" x2="840" y2="322" stroke="#ece9e2"/>
+  <!-- footer bar: selection + delete -->
+  <rect x="40" y="416" width="800" height="40" rx="0" fill="#f4f2ec"/>
+  <rect x="40" y="416" width="800" height="2" fill="#ece9e2"/>
+  <text x="60" y="441" class="ntm">1 of 4 selected</text>
+  <rect x="694" y="424" width="126" height="24" rx="7" fill="#fff" stroke="#e2b8b8"/><text x="757" y="440" text-anchor="middle" class="nt" fill="#B23A3A">Delete selected</text>
+  <!-- callouts -->
+  <text x="464" y="84" class="cap2">sync chip ↑ ·</text>
+  <text x="464" y="96" class="cap2">live state</text>
+</svg>
+<div class="cap">Fig 5 — Vocabulary Notebook window. A reverse-chronological table: source, translation, language pair, <span class="tag t-free">FREE</span>/<span class="tag t-ai">AI</span> engine badge, optional tag, date. Toolbar holds a search field, a <strong>sync-status chip</strong>, <strong>Export ▾</strong> (CSV / Markdown), and <strong>Summarize ★</strong>. Rows are multi-selectable (checkboxes); the footer shows the count and a destructive <strong>Delete selected</strong>.</div>
+</div>
+
+<h3>Sync-status chip — the four states</h3>
+<p>The chip in the notebook toolbar is the single place the user reads "where does my data live?" It is calm by default and only colours up when it has something to say.</p>
+<div class="fig">
+<svg viewBox="0 0 880 90" role="img" aria-label="The four sync-status chip states">
+  <style>.cm{font-family:'IBM Plex Mono',monospace;font-size:11px}.cl{font-family:'IBM Plex Mono',monospace;font-size:9.5px;fill:#9a978f}</style>
+  <!-- local only -->
+  <rect x="20" y="24" width="190" height="30" rx="15" fill="#f4f2ec" stroke="#cfccc4"/>
+  <circle cx="42" cy="39" r="4" fill="#9a978f"/><text x="54" y="43" class="cm" fill="#5f655f">Local only</text>
+  <text x="20" y="74" class="cl">default · no account</text>
+  <!-- syncing -->
+  <rect x="232" y="24" width="190" height="30" rx="15" fill="#fff8ef" stroke="#B8841F"/>
+  <circle cx="254" cy="39" r="4" fill="#B8841F"/><text x="266" y="43" class="cm" fill="#B8841F">Syncing…</text>
+  <text x="232" y="74" class="cl">push/pull in progress</text>
+  <!-- synced -->
+  <rect x="444" y="24" width="220" height="30" rx="15" fill="#eef4fb" stroke="#2D6CA8"/>
+  <circle cx="466" cy="39" r="4" fill="#2D6CA8"/><text x="478" y="43" class="cm" fill="#2D6CA8">Synced ✓ · erik@gmail.com</text>
+  <text x="444" y="74" class="cl">signed in · up to date · shows email</text>
+  <!-- offline -->
+  <rect x="686" y="24" width="174" height="30" rx="15" fill="#fbeeee" stroke="#B23A3A"/>
+  <circle cx="708" cy="39" r="4" fill="#B23A3A"/><text x="720" y="43" class="cm" fill="#B23A3A">Offline</text>
+  <text x="686" y="74" class="cl">signed in, no network</text>
+</svg>
+<div class="cap">Fig 6 — Sync-status chip states. <strong>Local only</strong> (grey, the default), <strong>Syncing…</strong> (amber, transient), <strong>Synced ✓ (email)</strong> (blue, signed-in &amp; current), <strong>Offline</strong> (red, signed-in but unreachable — local store still works, will sync when back). Clicking the chip jumps to Preferences ▸ Account.</div>
+</div>
+
+<h3>Summarize → study list</h3>
+<p>The <strong>Summarize ★</strong> action runs <em>client-side</em> over the selected rows (or all rows if none selected), sending them through the <strong>active translation engine</strong> — exactly like a capture, no server AI. The result is a generated <strong>study list</strong>: items grouped by theme with a short example sentence each. It opens in a sheet over the notebook with <strong>Copy</strong> and <strong>Export</strong>. With the Free engine it produces a simple grouped list; with the OpenAI engine it produces richer example sentences. This honours PRD §5 ("no server AI") — the summary is computed on the user's Mac through whatever engine they already chose.</p>
+
+<h3>Empty state</h3>
+<div class="fig">
+<svg viewBox="0 0 880 280" role="img" aria-label="Vocabulary Notebook empty state">
+  <style>.eh{font-family:Fraunces,serif;font-size:19px;font-weight:600;fill:#1B201D}.eb{font-family:-apple-system,Inter,sans-serif;font-size:13px;fill:#5f655f}.cap2{font-family:IBM Plex Mono,monospace;font-size:10px;fill:#5f655f}</style>
+  <rect x="40" y="14" width="800" height="252" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
+  <rect x="40" y="14" width="800" height="46" rx="14" fill="#f4f2ec"/><rect x="40" y="40" width="800" height="20" fill="#f4f2ec"/>
+  <circle cx="62" cy="37" r="6" fill="#ff5f57"/><circle cx="80" cy="37" r="6" fill="#febc2e"/><circle cx="98" cy="37" r="6" fill="#28c840"/>
+  <text x="440" y="41" text-anchor="middle" font-family="-apple-system,Inter" font-size="13" font-weight="600">Notebook</text>
+  <line x1="40" y1="60" x2="840" y2="60" stroke="#ece9e2"/>
+  <!-- empty hero -->
+  <g transform="translate(415,96)">
+    <rect x="0" y="0" width="50" height="56" rx="8" fill="none" stroke="#cfccc4" stroke-width="2"/>
+    <line x1="10" y1="14" x2="40" y2="14" stroke="#cfccc4" stroke-width="2"/>
+    <line x1="10" y1="26" x2="40" y2="26" stroke="#cfccc4" stroke-width="2"/>
+    <line x1="10" y1="38" x2="30" y2="38" stroke="#cfccc4" stroke-width="2"/>
+    <path d="M40 44 l8 -8 l6 6 l-8 8 z" fill="#6D5B8A"/>
+  </g>
+  <text x="440" y="188" text-anchor="middle" class="eh">No captures yet</text>
+  <text x="440" y="214" text-anchor="middle" class="eb">Press ⌃⌥Y and drag a box around any text — every</text>
+  <text x="440" y="232" text-anchor="middle" class="eb">translation you make lands here automatically.</text>
+</svg>
+<div class="cap">Fig 7 — Notebook empty state. A quiet illustration plus the one instruction that fills it. No "Add" button — the notebook fills itself from captures, so the empty state simply teaches the capture gesture.</div>
+</div>
+
+<!-- ============================ 2d PREFERENCES ============================ -->
+<h2 id="prefs"><span class="n">2d</span>Preferences window</h2>
+<p>A standard macOS toolbar-tab preferences window (now <strong>four</strong> tabs: <strong>General</strong>, <strong>Engine</strong>, <strong>Account</strong>, <strong>About</strong>), the only multi-tab window the app shows. Fixed width, height adapts per tab. The <strong>Account</strong> tab is new in rev 2 and is specified in §2e.</p>
 
 <h3>General</h3>
 <div class="fig">
@@ -408,10 +585,11 @@
   <!-- traffic lights -->
   <circle cx="210" cy="34" r="6" fill="#ff5f57"/><circle cx="228" cy="34" r="6" fill="#febc2e"/><circle cx="246" cy="34" r="6" fill="#28c840"/>
   <!-- toolbar tabs -->
-  <rect x="318" y="22" width="58" height="40" rx="9" fill="#ecebe6"/>
-  <text x="347" y="40" text-anchor="middle" font-size="15">⚙</text><text x="347" y="56" text-anchor="middle" class="tt">General</text>
-  <text x="406" y="40" text-anchor="middle" font-size="15" opacity="0.6">⇄</text><text x="406" y="56" text-anchor="middle" class="tt">Engine</text>
-  <text x="462" y="40" text-anchor="middle" font-size="15" opacity="0.6">ⓘ</text><text x="462" y="56" text-anchor="middle" class="tt">About</text>
+  <rect x="300" y="22" width="58" height="40" rx="9" fill="#ecebe6"/>
+  <text x="329" y="40" text-anchor="middle" font-size="15">⚙</text><text x="329" y="56" text-anchor="middle" class="tt">General</text>
+  <text x="388" y="40" text-anchor="middle" font-size="15" opacity="0.6">⇄</text><text x="388" y="56" text-anchor="middle" class="tt">Engine</text>
+  <text x="444" y="40" text-anchor="middle" font-size="15" opacity="0.6">◉</text><text x="444" y="56" text-anchor="middle" class="tt">Account</text>
+  <text x="502" y="40" text-anchor="middle" font-size="15" opacity="0.6">ⓘ</text><text x="502" y="56" text-anchor="middle" class="tt">About</text>
   <line x1="190" y1="70" x2="690" y2="70" stroke="#e4e2db"/>
   <!-- hotkey row -->
   <text x="340" y="106" text-anchor="end" class="lab">Capture hotkey</text>
@@ -446,10 +624,11 @@
   <style>.lab{font-family:-apple-system,Inter,sans-serif;font-size:13px;fill:#1B201D}.hint{font-family:-apple-system,Inter,sans-serif;font-size:11.5px;fill:#9a978f}.tt{font-family:-apple-system,Inter,sans-serif;font-size:12px;fill:#5f655f}</style>
   <rect x="190" y="14" width="500" height="292" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
   <circle cx="210" cy="34" r="6" fill="#ff5f57"/><circle cx="228" cy="34" r="6" fill="#febc2e"/><circle cx="246" cy="34" r="6" fill="#28c840"/>
-  <text x="347" y="40" text-anchor="middle" font-size="15" opacity="0.6">⚙</text><text x="347" y="56" text-anchor="middle" class="tt">General</text>
-  <rect x="378" y="22" width="56" height="40" rx="9" fill="#ecebe6"/>
-  <text x="406" y="40" text-anchor="middle" font-size="15">⇄</text><text x="406" y="56" text-anchor="middle" class="tt">Engine</text>
-  <text x="462" y="40" text-anchor="middle" font-size="15" opacity="0.6">ⓘ</text><text x="462" y="56" text-anchor="middle" class="tt">About</text>
+  <text x="329" y="40" text-anchor="middle" font-size="15" opacity="0.6">⚙</text><text x="329" y="56" text-anchor="middle" class="tt">General</text>
+  <rect x="360" y="22" width="56" height="40" rx="9" fill="#ecebe6"/>
+  <text x="388" y="40" text-anchor="middle" font-size="15">⇄</text><text x="388" y="56" text-anchor="middle" class="tt">Engine</text>
+  <text x="444" y="40" text-anchor="middle" font-size="15" opacity="0.6">◉</text><text x="444" y="56" text-anchor="middle" class="tt">Account</text>
+  <text x="502" y="40" text-anchor="middle" font-size="15" opacity="0.6">ⓘ</text><text x="502" y="56" text-anchor="middle" class="tt">About</text>
   <line x1="190" y1="70" x2="690" y2="70" stroke="#e4e2db"/>
   <!-- segmented control -->
   <text x="240" y="100" class="lab">Translation engine</text>
@@ -480,27 +659,87 @@
   <style>.lab{font-family:-apple-system,Inter,sans-serif;font-size:13px;fill:#1B201D}.hint{font-family:-apple-system,Inter,sans-serif;font-size:11.5px;fill:#9a978f}.tt{font-family:-apple-system,Inter,sans-serif;font-size:12px;fill:#5f655f}</style>
   <rect x="190" y="14" width="500" height="222" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
   <circle cx="210" cy="34" r="6" fill="#ff5f57"/><circle cx="228" cy="34" r="6" fill="#febc2e"/><circle cx="246" cy="34" r="6" fill="#28c840"/>
-  <text x="347" y="40" text-anchor="middle" font-size="15" opacity="0.6">⚙</text><text x="347" y="56" text-anchor="middle" class="tt">General</text>
-  <text x="406" y="40" text-anchor="middle" font-size="15" opacity="0.6">⇄</text><text x="406" y="56" text-anchor="middle" class="tt">Engine</text>
-  <rect x="436" y="22" width="52" height="40" rx="9" fill="#ecebe6"/>
-  <text x="462" y="40" text-anchor="middle" font-size="15">ⓘ</text><text x="462" y="56" text-anchor="middle" class="tt">About</text>
+  <text x="329" y="40" text-anchor="middle" font-size="15" opacity="0.6">⚙</text><text x="329" y="56" text-anchor="middle" class="tt">General</text>
+  <text x="388" y="40" text-anchor="middle" font-size="15" opacity="0.6">⇄</text><text x="388" y="56" text-anchor="middle" class="tt">Engine</text>
+  <text x="444" y="40" text-anchor="middle" font-size="15" opacity="0.6">◉</text><text x="444" y="56" text-anchor="middle" class="tt">Account</text>
+  <rect x="476" y="22" width="52" height="40" rx="9" fill="#ecebe6"/>
+  <text x="502" y="40" text-anchor="middle" font-size="15">ⓘ</text><text x="502" y="56" text-anchor="middle" class="tt">About</text>
   <line x1="190" y1="70" x2="690" y2="70" stroke="#e4e2db"/>
   <!-- icon -->
   <rect x="300" y="92" width="56" height="56" rx="14" fill="#1B201D"/>
   <path d="M316 120 h24 M328 108 v24 M321 112 q7 6 14 0 M321 128 q7 -6 14 0" stroke="#F7F4EE" stroke-width="1.6" fill="none"/>
   <text x="372" y="108" font-family="Fraunces,serif" font-size="17" fill="#1B201D" font-weight="600">Translator Everywhere</text>
-  <text x="372" y="128" class="hint">Version 1.0 (1) · unsigned build</text>
+  <text x="372" y="128" class="hint">Version 1.0 (1) · signed &amp; notarized</text>
   <text x="372" y="150" font-family="IBM Plex Mono" font-size="12" fill="#3b6cf0">github.com/cdcupt/translator-everywhere ↗</text>
   <line x1="300" y1="172" x2="580" y2="172" stroke="#ece9e2"/>
-  <text x="300" y="196" class="hint">Built on the <tspan font-family="IBM Plex Mono" fill="#5f655f">te</tspan> command-line translator. The CLI</text>
-  <text x="300" y="214" class="hint">still works alongside this app — same capture pipeline.</text>
-  <text x="300" y="232" class="hint">MIT License · OCR runs on-device via Apple Vision.</text>
+  <text x="300" y="196" class="hint">Built on the <tspan font-family="IBM Plex Mono" fill="#5f655f">te</tspan> CLI · OCR on-device via Apple Vision.</text>
+  <text x="300" y="214" class="hint">MIT License · <tspan fill="#3b6cf0">Privacy Policy ↗</tspan> · cloud stores text only.</text>
 </svg>
 <div class="cap">Fig 8 — Preferences ▸ About. App name, version/build, a GitHub link, the <code>te</code> CLI mention (PRD), license, and the on-device-OCR privacy line. The standalone "About" menu item shows this same content.</div>
 </div>
 
-<!-- ============================ 2d ONBOARDING ============================ -->
-<h2 id="onboard"><span class="n">2d</span>First-run onboarding</h2>
+<!-- ============================ 2e ACCOUNT ============================ -->
+<h2 id="account"><span class="n">2e</span>Preferences ▸ Account <span class="tag t-info">new · rev 2</span></h2>
+<p>The Account tab is where sync is turned on — and, just as importantly, where the app reassures users who never want an account. Its <strong>signed-out</strong> state leads with the "local is fine" message <em>before</em> the sign-in buttons, so signing in reads as an optional upgrade, never a wall. Its <strong>signed-in</strong> state shows the account, the sync toggle and last-synced time, and the two exits: Sign out (reversible) and Delete account &amp; cloud data (destructive, confirmed).</p>
+<div class="fig">
+<svg viewBox="0 0 880 340" role="img" aria-label="Account tab — signed out and signed in states">
+  <style>.lab{font-family:-apple-system,Inter,sans-serif;font-size:13px;fill:#1B201D}.hint{font-family:-apple-system,Inter,sans-serif;font-size:11.5px;fill:#9a978f}.tt{font-family:-apple-system,Inter,sans-serif;font-size:12px;fill:#5f655f}.big{font-family:Fraunces,serif;font-size:15px;font-weight:600;fill:#1B201D}.cap2{font-family:IBM Plex Mono,monospace;font-size:10px;fill:#5f655f}</style>
+
+  <!-- ===== SIGNED OUT ===== -->
+  <rect x="16" y="34" width="420" height="290" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
+  <circle cx="36" cy="54" r="6" fill="#ff5f57"/><circle cx="54" cy="54" r="6" fill="#febc2e"/><circle cx="72" cy="54" r="6" fill="#28c840"/>
+  <text x="226" y="58" text-anchor="middle" class="tt" font-weight="600">Account · signed out</text>
+  <line x1="16" y1="74" x2="436" y2="74" stroke="#e4e2db"/>
+  <!-- local is fine, leads -->
+  <rect x="36" y="88" width="380" height="62" rx="10" fill="#f3fbf7" stroke="#1F6F5C"/>
+  <text x="52" y="110" class="big" fill="#1F6F5C">Your notebook already works on this Mac.</text>
+  <text x="52" y="130" class="hint" fill="#5f655f">Local-only is completely fine. Sign in only to sync</text>
+  <text x="52" y="144" class="hint" fill="#5f655f">your notebook across several Macs.</text>
+  <!-- apple button -->
+  <rect x="36" y="166" width="380" height="38" rx="9" fill="#1B201D"/>
+  <text x="226" y="190" text-anchor="middle" class="lab" fill="#fff"> Sign in with Apple</text>
+  <!-- google button -->
+  <rect x="36" y="212" width="380" height="38" rx="9" fill="#fff" stroke="#cfccc4"/>
+  <circle cx="62" cy="231" r="8" fill="none" stroke="#4285F4" stroke-width="3"/><path d="M62 231 h8" stroke="#4285F4" stroke-width="3"/>
+  <text x="234" y="236" text-anchor="middle" class="lab">Sign in with Google</text>
+  <text x="36" y="276" class="hint">We only ever store text vocabulary rows — never your</text>
+  <text x="36" y="290" class="hint">screen images. <tspan fill="#3b6cf0">Privacy Policy ↗</tspan></text>
+  <text x="36" y="312" class="cap2" fill="#1F6F5C">↑ "local is fine" leads, sign-in is the upgrade</text>
+
+  <!-- ===== SIGNED IN ===== -->
+  <rect x="460" y="34" width="420" height="290" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
+  <circle cx="480" cy="54" r="6" fill="#ff5f57"/><circle cx="498" cy="54" r="6" fill="#febc2e"/><circle cx="516" cy="54" r="6" fill="#28c840"/>
+  <text x="670" y="58" text-anchor="middle" class="tt" font-weight="600">Account · signed in</text>
+  <line x1="460" y1="74" x2="880" y2="74" stroke="#e4e2db"/>
+  <!-- avatar + email -->
+  <circle cx="504" cy="108" r="20" fill="#6D5B8A"/><text x="504" y="114" text-anchor="middle" font-family="Fraunces,serif" font-size="18" fill="#fff">E</text>
+  <text x="536" y="102" class="big">Erik</text>
+  <text x="536" y="120" class="hint" fill="#5f655f">erik@gmail.com · via Google</text>
+  <line x1="480" y1="140" x2="860" y2="140" stroke="#ece9e2"/>
+  <!-- sync toggle row -->
+  <text x="480" y="166" class="lab">Sync this notebook</text>
+  <rect x="794" y="154" width="38" height="22" rx="11" fill="#28c840"/><circle cx="821" cy="165" r="8" fill="#fff"/>
+  <text x="480" y="186" class="hint">Last synced just now · 142 entries</text>
+  <line x1="480" y1="202" x2="860" y2="202" stroke="#ece9e2"/>
+  <!-- sign out -->
+  <rect x="480" y="216" width="120" height="32" rx="8" fill="#fff" stroke="#cfccc4"/>
+  <text x="540" y="237" text-anchor="middle" class="lab">Sign out</text>
+  <text x="612" y="231" class="hint">keeps the local copy</text>
+  <text x="612" y="245" class="hint">on this Mac</text>
+  <!-- delete -->
+  <rect x="480" y="258" width="240" height="32" rx="8" fill="#fff" stroke="#e2b8b8"/>
+  <text x="600" y="279" text-anchor="middle" class="lab" fill="#B23A3A">Delete account &amp; cloud data</text>
+  <text x="480" y="312" class="hint" fill="#B23A3A">destructive · confirms first · removes the VPS copy</text>
+</svg>
+<div class="cap">Fig 9 — Account tab, both states. <strong>Signed out</strong> (left): the green "your notebook already works on this Mac… sign in only to sync across Macs" panel leads, then <strong>Sign in with Apple</strong> / <strong>Sign in with Google</strong>, then the text-only privacy line. <strong>Signed in</strong> (right): avatar + email + provider, a <strong>sync toggle</strong>, "Last synced…", <strong>Sign out</strong> (keeps local copy), and the destructive <strong>Delete account &amp; cloud data</strong> (confirms first).</div>
+</div>
+<div class="note">
+  <h3>Detail — what "Delete account &amp; cloud data" does</h3>
+  <p>It is the only destructive control in the app, so it confirms with a sheet: <em>"Delete your account and everything synced to the cloud? Your notebook stays on this Mac — only the cloud copy and your account are removed. This can't be undone."</em> Buttons: <strong>Delete</strong> (red) / <strong>Cancel</strong>. It satisfies PRD §5/§10 (account + data deletion) and §6's privacy commitment. <strong>Sign out</strong>, by contrast, is non-destructive — it stops syncing and forgets the token but leaves both the local notebook and the cloud copy intact, so signing back in restores sync.</p>
+</div>
+
+<!-- ============================ 2f ONBOARDING ============================ -->
+<h2 id="onboard"><span class="n">2f</span>First-run onboarding</h2>
 <p>Three short steps in a single centred window, shown only on first launch (or when permission is missing). The middle step is the one that matters — it makes the Screen-Recording-then-relaunch dance painless.</p>
 <div class="fig">
 <svg viewBox="0 0 880 330" role="img" aria-label="Three onboarding steps wireframes">
@@ -607,7 +846,7 @@
 </div>
 
 <!-- ============================ COPY ============================ -->
-<h2 id="copy"><span class="n">4</span>Empty / error / permission copy</h2>
+<h2 id="copy"><span class="n">4</span>Empty / error / permission / notebook / account copy</h2>
 <p>Actual user-facing strings (EN). The result UI itself shows the translated content; these are the system messages around it. Tone: plain, calm, never blaming the user, always pointing to the next action.</p>
 
 <h3>No text / empty</h3>
@@ -634,7 +873,34 @@
 <div class="copy"><span class="k">test · failure</span><span class="s">✕ That key didn't work. Double-check it and try again.</span></div>
 <div class="copy"><span class="k">keychain note</span><span class="s">🔒 Stored only in your macOS Keychain — never written to disk or sent anywhere but OpenAI.</span></div>
 
-<footer>Design Document · Translator Everywhere macOS app · sdd_pipeline artifact 2/4 · companion: <code>mockup.html</code> (clickable). Next: PM Gate 1 → Tech Document. Surfaces: Menu · Result (+no-text/error) · Preferences (General/Engine/About) · Onboarding (3 steps). Recommended icon: Concept A.</footer>
+<h3>Notebook (rev 2)</h3>
+<div class="copy"><span class="k">result popup · saved affordance</span><span class="s">★ Saved to Notebook</span></div>
+<div class="copy"><span class="k">notebook · empty title</span><span class="s">No captures yet</span></div>
+<div class="copy"><span class="k">notebook · empty body</span><span class="s">Press ⌃⌥Y and drag a box around any text — every translation you make lands here automatically.</span></div>
+<div class="copy"><span class="k">notebook · search placeholder</span><span class="s">Search captures…</span></div>
+<div class="copy"><span class="k">notebook · selection footer</span><span class="s">1 of 4 selected   ·   [ Delete selected ]</span></div>
+<div class="copy"><span class="k">notebook · delete confirm</span><span class="s">Delete 1 capture? This removes it from this Mac (and the cloud, if you're synced). This can't be undone.   [ Delete ] [ Cancel ]</span></div>
+<div class="copy"><span class="k">notebook · export menu</span><span class="s">Export ▾  →  As CSV…   ·   As Markdown…</span></div>
+<div class="copy"><span class="k">notebook · summarize empty</span><span class="s">Summarize needs at least one capture. Translate something first, then come back.</span></div>
+<div class="copy"><span class="k">summarize · running</span><span class="s">Building your study list from 142 captures…</span></div>
+
+<h3>Sync-status chip (rev 2)</h3>
+<div class="copy"><span class="k">chip · local only</span><span class="s">Local only</span></div>
+<div class="copy"><span class="k">chip · syncing</span><span class="s">Syncing…</span></div>
+<div class="copy"><span class="k">chip · synced</span><span class="s">Synced ✓ · erik@gmail.com</span></div>
+<div class="copy"><span class="k">chip · offline</span><span class="s">Offline — changes will sync when you're back online</span></div>
+
+<h3>Account (rev 2)</h3>
+<div class="copy"><span class="k">signed-out · local-is-fine</span><span class="s">Your notebook already works on this Mac. Local-only is completely fine — sign in only to sync your notebook across several Macs.</span></div>
+<div class="copy"><span class="k">signed-out · buttons</span><span class="s">[  Sign in with Apple ]   [ Sign in with Google ]</span></div>
+<div class="copy"><span class="k">signed-out · privacy line</span><span class="s">We only ever store text vocabulary rows — never your screen images. Privacy Policy ↗</span></div>
+<div class="copy"><span class="k">signed-in · identity</span><span class="s">erik@gmail.com · via Google</span></div>
+<div class="copy"><span class="k">signed-in · last synced</span><span class="s">Last synced just now · 142 entries</span></div>
+<div class="copy"><span class="k">signed-in · sign out hint</span><span class="s">Sign out — keeps the local copy on this Mac. Sign back in anytime to resume sync.</span></div>
+<div class="copy"><span class="k">delete · button</span><span class="s">Delete account &amp; cloud data</span></div>
+<div class="copy"><span class="k">delete · confirm</span><span class="s">Delete your account and everything synced to the cloud? Your notebook stays on this Mac — only the cloud copy and your account are removed. This can't be undone.   [ Delete ] [ Cancel ]</span></div>
+
+<footer>Design Document (rev 2) · Translator Everywhere macOS app · sdd_pipeline artifact 2/4 · companion: <code>mockup.html</code> (clickable). Next: PM Gate 1 → Tech Document. Surfaces: Menu (+Open Notebook) · Result (+no-text/error, ★saved) · <strong>Notebook</strong> · Preferences (General/Engine/<strong>Account</strong>/About) · Onboarding (3 steps). Recommended icon: Concept A.</footer>
 
 </div>
 </body>
