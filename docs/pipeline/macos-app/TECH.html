@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tech Document — Translator Everywhere (infrastructure + backend)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --paper:#F7F4EE; --ink:#1B201D; --ink-soft:#5f655f; --rule:#e4ded2; --card:#FFFFFF;
+    --accent:#C8643C; --coord:#6D5B8A; --pine:#1F6F5C; --blue:#2D6CA8; --gate:#B23A3A; --gold:#B8841F;
+    --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'Inter',system-ui,sans-serif; --serif:'Fraunces',Georgia,serif; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--sans); line-height:1.6; font-size:16px; }
+  .wrap { max-width:920px; margin:0 auto; padding:0 22px 80px; overflow-x:clip; }
+  header { padding:44px 0 22px; border-bottom:2.5px solid var(--ink); }
+  .kicker { font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
+  h1 { font-family:var(--serif); font-size:clamp(2.2rem,6vw,3.4rem); line-height:1.04; font-weight:600; margin:8px 0 8px; }
+  h1 em { font-style:italic; color:var(--coord); }
+  .lede { color:var(--ink-soft); font-size:16px; max-width:700px; }
+  .meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .pill { font-family:var(--mono); font-size:11.5px; background:var(--card); border:1.5px solid var(--rule); border-radius:999px; padding:5px 13px; }
+  .pill b { color:var(--coord); }
+  h2 { font-family:var(--serif); font-size:clamp(1.45rem,3.4vw,2rem); font-weight:600; margin:42px 0 8px; scroll-margin-top:20px; }
+  h2 .n { color:var(--accent); font-style:italic; margin-right:10px; }
+  h3 { font-size:1.05rem; margin:22px 0 6px; }
+  h4 { font-family:var(--serif); font-size:1.02rem; margin:0 0 4px; }
+  p { margin:9px 0; } ul { margin:8px 0 8px 20px; } li { margin:5px 0; }
+  ol { margin:8px 0 8px 22px; } ol li { margin:6px 0; }
+  strong { color:var(--ink); }
+  code { font-family:var(--mono); font-size:.84em; background:#efe9dc; padding:1px 5px; border-radius:4px; overflow-wrap:anywhere; }
+  pre { font-family:var(--mono); font-size:12px; background:#232824; color:#e9e4d8; border-radius:12px; padding:14px 16px; margin:12px 0; overflow-x:auto; line-height:1.5; }
+  pre .c { color:#9bb89f; } pre .s { color:#d9a679; } pre .k { color:#c79ad6; }
+  .fig { background:var(--card); border:1.5px solid var(--rule); border-radius:14px; padding:16px; margin:14px 0; overflow-x:auto; }
+  .fig svg { display:block; max-width:100%; height:auto; }
+  .cap { font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); margin-top:8px; text-align:center; }
+  .glance { border:2px solid var(--ink); }
+  .tablewrap { overflow-x:auto; border:1.5px solid var(--rule); border-radius:12px; margin:12px 0; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; min-width:520px; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  th { background:#efe9dc; font-family:var(--mono); font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); }
+  tr:last-child td { border-bottom:none; }
+  .reco { background:#f3fbf7; border:2px solid var(--pine); border-radius:14px; padding:14px 16px; margin:16px 0; }
+  .reco h3 { color:var(--pine); margin-top:0; }
+  .note { background:#fff8ef; border:2px solid var(--gold); border-radius:14px; padding:14px 16px; margin:16px 0; }
+  .note h3 { color:var(--gold); margin-top:0; }
+  .callout { background:#eef4fb; border-left:4px solid var(--blue); border-radius:0 10px 10px 0; padding:12px 16px; margin:14px 0; }
+  .danger { background:#fbeeee; border-left:4px solid var(--gate); border-radius:0 10px 10px 0; padding:12px 16px; margin:14px 0; }
+  .twocol { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+  .col { background:var(--card); border:1.5px solid var(--rule); border-radius:12px; padding:13px 15px; }
+  .col h4 { font-family:var(--serif); font-size:1.02rem; margin-bottom:4px; }
+  .tag { font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; padding:2px 7px; border-radius:5px; color:#fff; display:inline-block; }
+  .t-must{background:var(--pine)} .t-info{background:var(--blue)} .t-later{background:var(--gold)} .t-no{background:var(--gate)} .t-ai{background:var(--accent)}
+  .toc { background:var(--card); border:1.5px solid var(--rule); border-radius:12px; padding:14px 18px; margin:18px 0; columns:2; column-gap:24px; font-size:13.5px; }
+  .toc a { color:var(--coord); text-decoration:none; } .toc a:hover { text-decoration:underline; }
+  .toc div { break-inside:avoid; margin:3px 0; }
+  .placeholder { border:2px dashed #b9b3a6; border-radius:14px; padding:18px 20px; margin:18px 0; background:repeating-linear-gradient(135deg,#fbfaf7,#fbfaf7 10px,#f4f1ea 10px,#f4f1ea 20px); }
+  .placeholder h2 { margin-top:0; }
+  .placeholder .who { font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); }
+  footer { margin-top:44px; padding-top:16px; border-top:2.5px solid var(--ink); font-size:13px; color:var(--ink-soft); }
+  @media (max-width:520px){ .toc{columns:1;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Tech Document · sdd_pipeline · artifact 3 of 4 · part A — infrastructure + backend</div>
+  <h1>Translator Everywhere — <em>Tech</em></h1>
+  <p class="lede">The build-level blueprint. This is one merged Tech Document; this part specifies the <strong>infrastructure and backend</strong> — the small auth + sync service that lets a signed-in user's vocabulary notebook follow them across Macs. Translation, OCR, and AI all stay on the client; the server only ever holds <strong>text vocab rows + user identity</strong>. Diagram-first: every flow is drawn before it is described. The Frontend and QA workers extend this same file below.</p>
+  <div class="meta">
+    <span class="pill"><b>service</b> translator-everywhere · own service on BWH</span>
+    <span class="pill"><b>host</b> <code>api.translator.daichenlab.com</code></span>
+    <span class="pill"><b>auth</b> Google · Apple → own JWT session</span>
+    <span class="pill"><b>store</b> Postgres · text rows only</span>
+    <span class="pill"><b>repo</b> cdcupt/translator-everywhere · <code>/server</code></span>
+  </div>
+</header>
+
+<div class="toc" aria-label="Contents">
+  <div><a href="#glance">★ At a glance — master tech diagram</a></div>
+  <div><a href="#stack">1 · Backend stack choice</a></div>
+  <div><a href="#data">2 · Data model (ER)</a></div>
+  <div><a href="#auth">3 · Auth flows (Apple + Google)</a></div>
+  <div><a href="#sync">4 · Sync API + merge model</a></div>
+  <div><a href="#deploy">5 · Deployment on BWH</a></div>
+  <div><a href="#security">6 · Security &amp; privacy</a></div>
+  <div><a href="#contract">7 · App ↔ backend contract</a></div>
+  <div><a href="#fe">8 · Frontend / macOS app architecture</a></div>
+  <div><a href="#qa">9 · QA test plan — placeholder</a></div>
+</div>
+
+<!-- ============================ AT A GLANCE ============================ -->
+<h2 id="glance"><span class="n">★</span>At a glance — master tech diagram</h2>
+<div class="fig glance">
+<svg viewBox="0 0 880 560" role="img" aria-label="Whole-system tech diagram: app modules, on-device pipeline, two translation engines, and the auth + sync backend">
+  <style>
+    .lbl{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:#1B201D}
+    .sm{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+    .hd{font-family:Fraunces,serif;font-size:13.5px;fill:#1B201D;font-weight:600}
+  </style>
+  <defs>
+    <marker id="m-ink" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5f655f"/></marker>
+    <marker id="m-acc" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#C8643C"/></marker>
+    <marker id="m-blu" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2D6CA8"/></marker>
+  </defs>
+
+  <!-- ============== DEVICE ============== -->
+  <rect x="14" y="40" width="430" height="350" rx="14" fill="#fbfaf7" stroke="#1F6F5C" stroke-width="1.5"/>
+  <text x="30" y="62" class="hd" fill="#1F6F5C">macOS app — the user's Mac</text>
+
+  <!-- app modules -->
+  <rect x="30" y="74" width="194" height="44" rx="8" fill="#fff" stroke="#e4ded2"/><text x="127" y="92" text-anchor="middle" class="lbl">Menu-bar UI · hotkey</text><text x="127" y="107" text-anchor="middle" class="sm">capture · result · prefs · notebook</text>
+  <rect x="240" y="74" width="190" height="44" rx="8" fill="#fff" stroke="#e4ded2"/><text x="335" y="92" text-anchor="middle" class="lbl">Vision OCR (on-device)</text><text x="335" y="107" text-anchor="middle" class="sm">PNG → text · image discarded</text>
+
+  <!-- pipeline strip -->
+  <rect x="30" y="128" width="400" height="40" rx="8" fill="#f3fbf7" stroke="#1F6F5C" stroke-dasharray="4 3"/>
+  <text x="44" y="146" class="sm" fill="#1F6F5C">ON-DEVICE PIPELINE</text>
+  <text x="44" y="160" class="sm">hotkey → drag → capture → OCR → translate → result → ★ save</text>
+
+  <rect x="30" y="180" width="194" height="44" rx="8" fill="#fff" stroke="#e4ded2"/><text x="127" y="198" text-anchor="middle" class="lbl">Local notebook</text><text x="127" y="213" text-anchor="middle" class="sm">SwiftData / SQLite</text>
+  <rect x="240" y="180" width="190" height="44" rx="8" fill="#fff" stroke="#e4ded2"/><text x="335" y="198" text-anchor="middle" class="lbl">Keychain</text><text x="335" y="213" text-anchor="middle" class="sm">OpenAI key · session JWT</text>
+
+  <rect x="30" y="236" width="400" height="42" rx="8" fill="#eef4fb" stroke="#2D6CA8"/><text x="230" y="254" text-anchor="middle" class="lbl">Sync client — only when signed in</text><text x="230" y="269" text-anchor="middle" class="sm">push/pull vocab rows · text only · last-write-wins</text>
+
+  <rect x="30" y="290" width="400" height="42" rx="8" fill="#fff" stroke="#e4ded2"/><text x="230" y="308" text-anchor="middle" class="lbl">Auth client — ASAuthorizationController (Apple) · ASWebAuthSession + PKCE (Google)</text><text x="230" y="323" text-anchor="middle" class="sm">gets provider token → exchanges for our session JWT</text>
+
+  <text x="30" y="354" class="sm">Translation goes DIRECT to the engine — never through our server.</text>
+  <text x="30" y="370" class="sm">Local-only users never contact the backend at all.</text>
+
+  <!-- ============== ENGINES ============== -->
+  <rect x="470" y="48" width="170" height="40" rx="9" fill="#fdf3ee" stroke="#C8643C"/><text x="555" y="65" text-anchor="middle" class="lbl">Google Translate</text><text x="555" y="79" text-anchor="middle" class="sm">free public endpoint</text>
+  <rect x="470" y="98" width="170" height="40" rx="9" fill="#fdf3ee" stroke="#C8643C"/><text x="555" y="115" text-anchor="middle" class="lbl">OpenAI API</text><text x="555" y="129" text-anchor="middle" class="sm">user's own key (opt-in)</text>
+  <text x="660" y="74" class="sm">two engines ·</text>
+  <text x="660" y="86" class="sm">switchable ·</text>
+  <text x="660" y="98" class="sm">free default</text>
+
+  <!-- ============== BACKEND ============== -->
+  <rect x="470" y="180" width="396" height="210" rx="14" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.5"/>
+  <text x="486" y="204" class="hd" fill="#2D6CA8">translator-everywhere service · BWH</text>
+  <text x="486" y="220" class="sm">api.translator.daichenlab.com · TLS via shared Caddy</text>
+
+  <rect x="486" y="232" width="174" height="44" rx="8" fill="#fff" stroke="#cfe0f2"/><text x="573" y="250" text-anchor="middle" class="lbl">Auth endpoints</text><text x="573" y="265" text-anchor="middle" class="sm">verify Apple/Google · issue JWT</text>
+  <rect x="676" y="232" width="174" height="44" rx="8" fill="#fff" stroke="#cfe0f2"/><text x="763" y="250" text-anchor="middle" class="lbl">Sync API (REST/JSON)</text><text x="763" y="265" text-anchor="middle" class="sm">GET/POST /vocab · DELETE</text>
+
+  <rect x="486" y="288" width="364" height="46" rx="8" fill="#fff" stroke="#cfe0f2"/><text x="668" y="307" text-anchor="middle" class="lbl">Postgres — own DB + role on shared instance</text><text x="668" y="322" text-anchor="middle" class="sm">users · vocab_items · text rows only</text>
+
+  <text x="486" y="352" class="sm">NO OCR · NO translation · NO AI on the server.</text>
+  <text x="486" y="367" class="sm">Stores recognized TEXT + identity only. Stateless API + JWT.</text>
+
+  <!-- arrows device→engine (translate) -->
+  <g stroke="#C8643C" stroke-width="1.6" fill="none" marker-end="url(#m-acc)">
+    <path d="M430 150 C450 130 455 100 468 80"/>
+    <path d="M430 150 C450 135 455 120 468 118"/>
+  </g>
+  <text x="438" y="128" class="sm" fill="#C8643C">translate</text>
+
+  <!-- arrows device→backend (auth + sync, TLS) -->
+  <g stroke="#2D6CA8" stroke-width="1.6" fill="none" marker-end="url(#m-blu)">
+    <path d="M430 257 C452 257 458 255 468 254"/>
+    <path d="M430 311 C452 300 458 270 468 268"/>
+  </g>
+  <text x="436" y="248" class="sm" fill="#2D6CA8">sync (TLS)</text>
+  <text x="436" y="300" class="sm" fill="#2D6CA8">auth (TLS)</text>
+
+  <!-- ============== KEY DECISIONS STRIP ============== -->
+  <rect x="14" y="408" width="852" height="138" rx="14" fill="#232824"/>
+  <text x="34" y="432" style="font-family:Fraunces,serif;font-size:14px;fill:#fff;font-weight:600">Key decisions</text>
+  <g style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;fill:#e9e4d8">
+    <text x="34"  y="458">STACK</text>      <text x="34"  y="474" fill="#9bb89f">Go + chi + sqlc</text>      <text x="34"  y="488" fill="#bcb9b2">+ goose migrations</text>
+    <text x="246" y="458">AUTH</text>       <text x="246" y="474" fill="#d9a679">Apple + Google</text>     <text x="246" y="488" fill="#bcb9b2">→ our JWT session</text>
+    <text x="458" y="458">SYNC</text>       <text x="458" y="474" fill="#c79ad6">last-write-wins/row</text> <text x="458" y="488" fill="#bcb9b2">tombstones · since=</text>
+    <text x="670" y="458">HOST</text>       <text x="670" y="474" fill="#9bb89f">BWH · own DB+role</text>   <text x="670" y="488" fill="#bcb9b2">own Caddy snippet</text>
+
+    <text x="34"  y="514">SHIP</text>       <text x="34"  y="528" fill="#9bb89f">GHA → GHCR image</text>    <text x="246" y="514">PRIVACY</text>    <text x="246" y="528" fill="#d9a679">text rows only · no AI server-side</text>
+    <text x="670" y="514">SECRETS</text>    <text x="670" y="528" fill="#9bb89f">env file on VPS</text>
+  </g>
+</svg>
+<div class="cap">Fig 1 — The whole system on one screen. The Mac runs the full capture pipeline and both translation engines locally; the backend is a thin stateless Go API + Postgres that only verifies identity and stores text vocab rows. The dark strip is the locked decision set the rest of this document expands.</div>
+</div>
+
+<!-- ============================ 1 STACK ============================ -->
+<h2 id="stack"><span class="n">1</span>Backend stack choice</h2>
+<p>This is a <strong>small CRUD + auth sync service</strong>, not a heavy application: a handful of JSON endpoints, one Postgres database, JWT verification, and OAuth/OIDC token validation. The right stack is boring, fast to deploy, light on RAM, and a clean fit with the existing BWH apps (several of which ship as containers built via <strong>GitHub Actions → GHCR</strong>). It must coexist politely on a shared box — small memory footprint, single static binary preferred.</p>
+
+<div class="reco">
+  <h3>Recommended — Go + <code>chi</code> + <code>sqlc</code> + <code>goose</code>, shipped as a single container</h3>
+  <ul style="margin-bottom:6px">
+    <li><strong>Language:</strong> Go 1.22+. Compiles to one static binary; tiny container (~15–25&nbsp;MB), low idle RAM (tens of MB) — ideal for a shared VPS that already runs 9relay, BillMind, scenario-english.</li>
+    <li><strong>Web framework:</strong> <code>chi</code> — a stdlib-compatible router with middleware (logging, recover, real-IP, rate-limit). Minimal surface, no ORM magic. Handlers are plain <code>net/http</code>.</li>
+    <li><strong>DB access:</strong> <code>pgx</code> driver + <code>sqlc</code> (compile SQL → type-safe Go). No runtime ORM; queries are reviewable SQL.</li>
+    <li><strong>Migrations:</strong> <code>goose</code> — plain, ordered <code>.sql</code> files run on deploy. The shared-Postgres pattern in BillMind/scenario-english already uses ordered SQL migrations.</li>
+    <li><strong>Auth libs:</strong> <code>golang-jwt/jwt</code> for our session tokens; <code>coreos/go-oidc</code> + <code>jwks</code> caching to verify Apple &amp; Google identity tokens (handles key rotation).</li>
+    <li><strong>Container:</strong> multi-stage Dockerfile, built in CI (GHA) and pushed to <strong>GHCR</strong>, exactly like the other BWH apps; pulled + run on the VPS via compose.</li>
+  </ul>
+  <p style="margin-bottom:0"><strong>One-line rationale:</strong> a single tiny static Go binary is the cheapest, most operationally consistent way to add an auth+sync JSON API to an already-crowded shared VPS.</p>
+</div>
+
+<h3>Top alternative — and why not (for v1)</h3>
+<div class="tablewrap"><table>
+  <tr><th>Stack</th><th>Strength</th><th>Why not the default here</th></tr>
+  <tr><td><strong>Go + chi + sqlc</strong> <span class="tag t-must">pick</span></td><td>Tiny static binary, ~tens-of-MB RAM, trivial container, no GC pauses worth worrying about, great fit with GHA→GHCR.</td><td>—</td></tr>
+  <tr><td><strong>Node + Fastify + Prisma/Drizzle</strong> <span class="tag t-info">alt</span></td><td>Fast to write, huge ecosystem, OAuth libs everywhere, JSON-native.</td><td>Heavier runtime &amp; image, more idle RAM on a shared box, Prisma engine adds weight. Fine choice if the team is JS-first; second pick.</td></tr>
+  <tr><td>Python + FastAPI + SQLModel</td><td>Very readable, great DX, Pydantic validation.</td><td>Largest idle footprint of the three; async DB story more fiddly. BillMind is Swift-server, scenario-english is Python — no strong pull either way, and Go wins on footprint.</td></tr>
+  <tr><td>Rust + axum + sqlx</td><td>Smallest/fastest of all.</td><td>Overkill for a CRUD sync API; slower to iterate. Reserve for hot paths we don't have.</td></tr>
+</table></div>
+<p>Go is the recommendation; <strong>Node + Fastify + Drizzle</strong> is the named fallback if the team prefers a JS toolchain. Either way the architecture below is identical — only the handler language changes.</p>
+
+<!-- ============================ 2 DATA MODEL ============================ -->
+<h2 id="data"><span class="n">2</span>Data model</h2>
+<p>Two tables. <code>users</code> is identity only (which provider, which subject, an email for display). <code>vocab_items</code> is the synced notebook row — a near-mirror of the on-device row, plus the fields that make sync correct: a client-generated <strong>UUID</strong> for idempotent upsert, an <strong>updated_at</strong> for last-write-wins, and a <strong>deleted</strong> tombstone so deletes propagate instead of resurrecting.</p>
+<div class="fig">
+<svg viewBox="0 0 880 430" role="img" aria-label="Entity-relationship diagram: users one-to-many vocab_items">
+  <style>
+    .et{font-family:Fraunces,serif;font-size:14px;fill:#fff;font-weight:600}
+    .fl{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:#1B201D}
+    .ty{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#5f655f}
+    .pk{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#C8643C}
+    .nt{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#5f655f}
+  </style>
+  <defs><marker id="er-rel" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto"><path d="M0,0 L9,5 L0,10" fill="none" stroke="#2D6CA8" stroke-width="1.4"/></marker></defs>
+
+  <!-- users table -->
+  <rect x="30" y="40" width="300" height="184" rx="10" fill="#fff" stroke="#6D5B8A" stroke-width="1.6"/>
+  <rect x="30" y="40" width="300" height="30" rx="10" fill="#6D5B8A"/><rect x="30" y="56" width="300" height="14" fill="#6D5B8A"/>
+  <text x="46" y="61" class="et">users</text>
+  <text x="46" y="92"  class="fl">id</text>            <text x="170" y="92"  class="ty">uuid / bigint</text> <text x="300" y="92"  text-anchor="end" class="pk">PK</text>
+  <text x="46" y="114" class="fl">provider</text>      <text x="170" y="114" class="ty">text  apple|google</text>
+  <text x="46" y="136" class="fl">provider_subject</text> <text x="210" y="136" class="ty">text</text>      <text x="300" y="136" text-anchor="end" class="pk">UQ↓</text>
+  <text x="46" y="158" class="fl">email</text>         <text x="170" y="158" class="ty">text  nullable</text>
+  <text x="46" y="180" class="fl">created_at</text>    <text x="170" y="180" class="ty">timestamptz</text>
+  <line x1="30" y1="192" x2="330" y2="192" stroke="#ece9e2"/>
+  <text x="46" y="210" class="nt" fill="#6D5B8A">UNIQUE (provider, provider_subject)</text>
+
+  <!-- vocab_items table -->
+  <rect x="500" y="40" width="350" height="360" rx="10" fill="#fff" stroke="#2D6CA8" stroke-width="1.6"/>
+  <rect x="500" y="40" width="350" height="30" rx="10" fill="#2D6CA8"/><rect x="500" y="56" width="350" height="14" fill="#2D6CA8"/>
+  <text x="516" y="61" class="et">vocab_items</text>
+  <text x="516" y="92"  class="fl">id</text>            <text x="650" y="92"  class="ty">uuid / bigint</text> <text x="836" y="92"  text-anchor="end" class="pk">PK</text>
+  <text x="516" y="114" class="fl">user_id</text>       <text x="650" y="114" class="ty">→ users.id</text>    <text x="836" y="114" text-anchor="end" class="pk">FK</text>
+  <text x="516" y="136" class="fl">client_uuid</text>   <text x="650" y="136" class="ty">uuid</text>          <text x="836" y="136" text-anchor="end" class="pk">UQ↓</text>
+  <text x="516" y="158" class="fl">source_text</text>   <text x="650" y="158" class="ty">text</text>
+  <text x="516" y="180" class="fl">translation</text>   <text x="650" y="180" class="ty">text</text>
+  <text x="516" y="202" class="fl">src_lang</text>      <text x="650" y="202" class="ty">text</text>
+  <text x="516" y="224" class="fl">tgt_lang</text>      <text x="650" y="224" class="ty">text</text>
+  <text x="516" y="246" class="fl">engine</text>        <text x="650" y="246" class="ty">text  free|openai</text>
+  <text x="516" y="268" class="fl">tag</text>           <text x="650" y="268" class="ty">text  nullable</text>
+  <text x="516" y="290" class="fl">deleted</text>       <text x="650" y="290" class="ty">bool  tombstone</text>
+  <text x="516" y="312" class="fl">created_at</text>    <text x="650" y="312" class="ty">timestamptz</text>
+  <text x="516" y="334" class="fl">updated_at</text>    <text x="650" y="334" class="ty">timestamptz</text>
+  <line x1="500" y1="346" x2="850" y2="346" stroke="#ece9e2"/>
+  <text x="516" y="364" class="nt" fill="#2D6CA8">UNIQUE (user_id, client_uuid)</text>
+  <text x="516" y="382" class="nt" fill="#2D6CA8">INDEX (user_id, updated_at)</text>
+
+  <!-- relationship -->
+  <path d="M330 130 C420 130 420 230 498 230" fill="none" stroke="#2D6CA8" stroke-width="1.6" marker-end="url(#er-rel)"/>
+  <text x="372" y="172" class="nt" fill="#2D6CA8">1 ── ∞</text>
+  <text x="356" y="188" class="nt">one user, many rows</text>
+</svg>
+<div class="cap">Fig 2 — ER diagram. <code>users</code> is keyed by the provider identity (Apple/Google subject); <code>vocab_items</code> belongs to one user and is keyed for sync by <code>(user_id, client_uuid)</code>. The <code>deleted</code> tombstone + <code>updated_at</code> drive last-write-wins merge and idempotent upsert.</div>
+</div>
+
+<div class="tablewrap"><table>
+  <tr><th>Table · column</th><th>Type</th><th>Notes</th></tr>
+  <tr><td><strong>users.id</strong></td><td>uuid (gen) PK</td><td>Our internal id; what the session JWT <code>sub</code> carries.</td></tr>
+  <tr><td>users.provider</td><td>text</td><td><code>apple</code> | <code>google</code>.</td></tr>
+  <tr><td>users.provider_subject</td><td>text</td><td>The stable subject from the provider's id_token (<code>sub</code>). Part of the unique key.</td></tr>
+  <tr><td>users.email</td><td>text, nullable</td><td>Display only (Apple may withhold / relay it). Never a lookup key.</td></tr>
+  <tr><td>users.created_at</td><td>timestamptz</td><td>First sign-in.</td></tr>
+  <tr><td><strong>vocab_items.id</strong></td><td>uuid PK</td><td>Server row id.</td></tr>
+  <tr><td>vocab_items.user_id</td><td>uuid FK → users.id</td><td><code>ON DELETE CASCADE</code> — account deletion wipes rows.</td></tr>
+  <tr><td>vocab_items.client_uuid</td><td>uuid</td><td>Generated on-device when the row is created; makes upsert idempotent across retries/devices.</td></tr>
+  <tr><td>source_text · translation</td><td>text</td><td>The captured text and its translation. <strong>No images, ever.</strong></td></tr>
+  <tr><td>src_lang · tgt_lang</td><td>text</td><td>e.g. <code>ja</code>, <code>en</code>.</td></tr>
+  <tr><td>engine</td><td>text</td><td><code>free</code> | <code>openai</code> (provenance badge).</td></tr>
+  <tr><td>tag</td><td>text, nullable</td><td>Optional user tag.</td></tr>
+  <tr><td>deleted</td><td>bool, default false</td><td>Tombstone — a delete sets this + bumps <code>updated_at</code>; the row is kept so the delete syncs to other devices, then GC'd later.</td></tr>
+  <tr><td>created_at · updated_at</td><td>timestamptz</td><td><code>updated_at</code> is the last-write-wins clock and the <code>?since=</code> cursor.</td></tr>
+</table></div>
+
+<h3>Constraints &amp; indexes</h3>
+<ul>
+  <li><strong>UNIQUE (provider, provider_subject)</strong> on <code>users</code> — one account per provider identity; the upsert key at sign-in.</li>
+  <li><strong>UNIQUE (user_id, client_uuid)</strong> on <code>vocab_items</code> — idempotent upsert target; a re-pushed row updates rather than duplicates.</li>
+  <li><strong>INDEX (user_id, updated_at)</strong> — powers <code>GET /vocab?since=</code> (the only hot query) efficiently.</li>
+  <li>FK <code>vocab_items.user_id → users.id</code> with <strong>ON DELETE CASCADE</strong> — supports one-statement account deletion.</li>
+</ul>
+
+<!-- ============================ 3 AUTH ============================ -->
+<h2 id="auth"><span class="n">3</span>Auth flows</h2>
+<p>Both providers follow the same shape: the <strong>app</strong> drives the native sign-in, gets a provider <strong>identity token</strong>, and POSTs it to our <code>/auth/&lt;provider&gt;</code> endpoint. The server <strong>verifies that token against the provider's public keys</strong> (handling key rotation via a cached JWKS), upserts the user, and returns <strong>our own session JWT</strong>. From then on the app authenticates to the sync API with <em>our</em> token — the provider is out of the loop. Sign-out is purely client-side token disposal plus an optional server revocation note.</p>
+
+<h3>Sign in with Apple — native</h3>
+<div class="fig">
+<svg viewBox="0 0 880 360" role="img" aria-label="Sequence diagram: Sign in with Apple">
+  <style>
+    .actor{font-family:Fraunces,serif;font-size:12.5px;fill:#1B201D;font-weight:600}
+    .msg{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#1B201D}
+    .msl{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+  </style>
+  <defs><marker id="sq-a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1B201D"/></marker></defs>
+  <!-- lifelines -->
+  <text x="90"  y="34" text-anchor="middle" class="actor">macOS app</text>
+  <text x="330" y="34" text-anchor="middle" class="actor">Apple</text>
+  <text x="600" y="34" text-anchor="middle" class="actor">our backend</text>
+  <text x="800" y="34" text-anchor="middle" class="actor">Postgres</text>
+  <g stroke="#cfccc4" stroke-width="1.2" stroke-dasharray="3 4">
+    <line x1="90" y1="44" x2="90" y2="340"/><line x1="330" y1="44" x2="330" y2="340"/><line x1="600" y1="44" x2="600" y2="340"/><line x1="800" y1="44" x2="800" y2="340"/>
+  </g>
+  <!-- messages -->
+  <g stroke="#1B201D" stroke-width="1.4" fill="none" marker-end="url(#sq-a)">
+    <line x1="90" y1="68" x2="328" y2="68"/>
+    <line x1="330" y1="104" x2="92" y2="104"/>
+    <line x1="90" y1="140" x2="598" y2="140"/>
+    <line x1="600" y1="176" x2="332" y2="176"/>
+    <line x1="330" y1="206" x2="598" y2="206"/>
+    <line x1="600" y1="242" x2="798" y2="242"/>
+    <line x1="800" y1="272" x2="602" y2="272"/>
+    <line x1="600" y1="308" x2="92" y2="308"/>
+  </g>
+  <text x="100" y="62"  class="msg">ASAuthorizationController → request Apple ID</text>
+  <text x="100" y="98"  class="msg">identityToken (signed JWT) + authorizationCode + name?</text>
+  <text x="100" y="134" class="msg">POST /auth/apple { identity_token }</text>
+  <text x="340" y="170" class="msg">fetch Apple public keys (JWKS, cached, rotates)</text>
+  <text x="340" y="200" class="msg">JWKS keys</text>
+  <text x="610" y="236" class="msg">verify sig · iss=apple · aud=bundleID · exp</text>
+  <text x="610" y="266" class="msl">UPSERT user (provider=apple, subject=sub)</text>
+  <text x="610" y="296" class="msg">→ users.id</text>
+  <text x="100" y="302" class="msg">200 { session_jwt, user }  → store JWT in Keychain</text>
+</svg>
+<div class="cap">Fig 3 — Sign in with Apple. The app uses the native <code>ASAuthorizationController</code>; the server verifies the Apple <strong>identity JWT</strong> against Apple's JWKS (cached, auto-refreshed for <strong>key rotation</strong>), checks <code>iss</code>/<code>aud</code>(our bundle id)/<code>exp</code>, upserts the user by <code>(apple, sub)</code>, and returns our session JWT. Apple may relay/withhold email — we store whatever is provided, for display only.</div>
+</div>
+
+<h3>Sign in with Google — OAuth 2.0 + PKCE</h3>
+<div class="fig">
+<svg viewBox="0 0 880 380" role="img" aria-label="Sequence diagram: Sign in with Google with PKCE">
+  <style>
+    .actor{font-family:Fraunces,serif;font-size:12.5px;fill:#1B201D;font-weight:600}
+    .msg{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#1B201D}
+    .msl{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+  </style>
+  <defs><marker id="sg-a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1B201D"/></marker></defs>
+  <text x="90"  y="34" text-anchor="middle" class="actor">macOS app</text>
+  <text x="330" y="34" text-anchor="middle" class="actor">Google</text>
+  <text x="600" y="34" text-anchor="middle" class="actor">our backend</text>
+  <text x="800" y="34" text-anchor="middle" class="actor">Postgres</text>
+  <g stroke="#cfccc4" stroke-width="1.2" stroke-dasharray="3 4">
+    <line x1="90" y1="44" x2="90" y2="362"/><line x1="330" y1="44" x2="330" y2="362"/><line x1="600" y1="44" x2="600" y2="362"/><line x1="800" y1="44" x2="800" y2="362"/>
+  </g>
+  <g stroke="#1B201D" stroke-width="1.4" fill="none" marker-end="url(#sg-a)">
+    <line x1="90" y1="74" x2="328" y2="74"/>
+    <line x1="330" y1="110" x2="92" y2="110"/>
+    <line x1="90" y1="150" x2="328" y2="150"/>
+    <line x1="330" y1="186" x2="92" y2="186"/>
+    <line x1="90" y1="222" x2="598" y2="222"/>
+    <line x1="600" y1="258" x2="332" y2="258"/>
+    <line x1="600" y1="294" x2="798" y2="294"/>
+    <line x1="600" y1="338" x2="92" y2="338"/>
+  </g>
+  <text x="100" y="68"  class="msg">ASWebAuthenticationSession → /authorize?code_challenge=S256, redirect=app scheme</text>
+  <text x="100" y="104" class="msg">user consents → redirect with auth code</text>
+  <text x="100" y="144" class="msg">POST /token { code, code_verifier }  (PKCE, no client secret on device)</text>
+  <text x="100" y="180" class="msg">{ id_token (JWT), access_token }</text>
+  <text x="100" y="216" class="msg">POST /auth/google { id_token }</text>
+  <text x="610" y="252" class="msg">verify id_token vs Google JWKS · iss · aud=clientID · exp</text>
+  <text x="610" y="288" class="msl">UPSERT user (provider=google, subject=sub)</text>
+  <text x="100" y="332" class="msg">200 { session_jwt, user }  → store JWT in Keychain</text>
+</svg>
+<div class="cap">Fig 4 — Sign in with Google (Authorization Code + <strong>PKCE</strong>, the correct flow for a native app with no safe client secret). The app gets the <code>id_token</code> and hands it to us; we verify it against Google's JWKS (<code>iss</code>/<code>aud</code>/<code>exp</code>), upsert by <code>(google, sub)</code>, and issue our session JWT. The Google token-exchange can also run server-side if we prefer to keep the exchange off-device; both are noted.</div>
+</div>
+
+<div class="callout">
+  <strong>Session token lifecycle.</strong> Our session JWT is short-ish lived (e.g. <strong>access ~1h</strong>) and paired with a longer-lived <strong>refresh token</strong> (e.g. 30–90 days) so the app rarely re-runs the provider dance. <code>POST /auth/refresh</code> swaps a valid refresh token for a fresh access JWT. <strong>Sign-out</strong> deletes both tokens from the Keychain and calls <code>POST /auth/signout</code> (best-effort) to drop the server-side refresh record; the local notebook is untouched (per DESIGN §2e). Access JWTs are signed with a server secret (HS256) or a server keypair (RS256) — secret/keys live in the VPS env file.</p>
+</div>
+
+<!-- ============================ 4 SYNC API ============================ -->
+<h2 id="sync"><span class="n">4</span>Sync API</h2>
+<p>The sync API is deliberately tiny: exchange an identity token for a session, pull rows changed <strong>since</strong> a cursor, push a <strong>batch</strong> of local rows, delete the account. Everything is authenticated with the session JWT in an <code>Authorization: Bearer</code> header. The merge rule is <strong>last-write-wins per row</strong> keyed on <code>updated_at</code>, with <strong>tombstones</strong> carrying deletes.</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Method · path</th><th>Auth</th><th>Purpose</th></tr>
+  <tr><td><code>POST /auth/apple</code></td><td>public</td><td>Verify Apple identity token → upsert user → return session JWT + refresh token.</td></tr>
+  <tr><td><code>POST /auth/google</code></td><td>public</td><td>Verify Google id_token → upsert user → return session JWT + refresh token.</td></tr>
+  <tr><td><code>POST /auth/refresh</code></td><td>refresh token</td><td>Exchange a valid refresh token for a new access JWT.</td></tr>
+  <tr><td><code>POST /auth/signout</code></td><td>Bearer JWT</td><td>Best-effort revoke the refresh token server-side. (Local copy kept.)</td></tr>
+  <tr><td><code>GET /vocab?since=&lt;ts&gt;</code></td><td>Bearer JWT</td><td>Return all this user's rows (incl. tombstones) with <code>updated_at &gt; since</code>. Pull half of sync.</td></tr>
+  <tr><td><code>POST /vocab</code></td><td>Bearer JWT</td><td><strong>Batch upsert</strong> of local rows by <code>(user_id, client_uuid)</code>; per-row last-write-wins. Push half of sync.</td></tr>
+  <tr><td><code>DELETE /account</code></td><td>Bearer JWT</td><td>Delete the user + all rows (CASCADE). Backs "Delete account &amp; cloud data".</td></tr>
+  <tr><td><code>GET /healthz</code></td><td>public</td><td>Liveness/readiness (DB ping) for the status page &amp; deploy smoke-test.</td></tr>
+</table></div>
+
+<h3>JSON shapes (brief)</h3>
+<pre><span class="c">// POST /vocab — request: batch upsert</span>
+{ <span class="s">"items"</span>: [
+  { <span class="s">"client_uuid"</span>:<span class="s">"e3b0…"</span>, <span class="s">"source_text"</span>:<span class="s">"電車とホーム…"</span>, <span class="s">"translation"</span>:<span class="s">"Please mind…"</span>,
+    <span class="s">"src_lang"</span>:<span class="s">"ja"</span>, <span class="s">"tgt_lang"</span>:<span class="s">"en"</span>, <span class="s">"engine"</span>:<span class="s">"free"</span>, <span class="s">"tag"</span>:<span class="s">"travel"</span>,
+    <span class="s">"deleted"</span>:<span class="k">false</span>, <span class="s">"updated_at"</span>:<span class="s">"2026-06-21T10:14:02Z"</span> }
+] }
+
+<span class="c">// POST /vocab — response: server-authoritative rows after merge (for conflicts)</span>
+{ <span class="s">"applied"</span>:1, <span class="s">"conflicts"</span>:[ <span class="c">/* rows where server updated_at was newer */</span> ], <span class="s">"server_time"</span>:<span class="s">"…Z"</span> }
+
+<span class="c">// GET /vocab?since=2026-06-20T00:00:00Z — response</span>
+{ <span class="s">"items"</span>:[ { <span class="s">"client_uuid"</span>:<span class="s">"…"</span>, …, <span class="s">"deleted"</span>:<span class="k">true</span>, <span class="s">"updated_at"</span>:<span class="s">"…Z"</span> } ], <span class="s">"server_time"</span>:<span class="s">"…Z"</span> }
+
+<span class="c">// POST /auth/google|apple — response</span>
+{ <span class="s">"session_jwt"</span>:<span class="s">"eyJ…"</span>, <span class="s">"refresh_token"</span>:<span class="s">"…"</span>, <span class="s">"user"</span>:{ <span class="s">"id"</span>:<span class="s">"…"</span>, <span class="s">"email"</span>:<span class="s">"erik@…"</span>, <span class="s">"provider"</span>:<span class="s">"google"</span> } }</pre>
+
+<h3>The merge — last-write-wins per row</h3>
+<div class="fig">
+<svg viewBox="0 0 880 380" role="img" aria-label="Sequence diagram of a sync cycle: push local, pull remote, merge">
+  <style>
+    .actor{font-family:Fraunces,serif;font-size:12.5px;fill:#1B201D;font-weight:600}
+    .msg{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#1B201D}
+    .msl{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+    .box{fill:#eef4fb;stroke:#2D6CA8;stroke-width:1.2}
+  </style>
+  <defs><marker id="sy-a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2D6CA8"/></marker></defs>
+  <text x="140" y="34" text-anchor="middle" class="actor">app · sync client</text>
+  <text x="540" y="34" text-anchor="middle" class="actor">our backend</text>
+  <text x="780" y="34" text-anchor="middle" class="actor">Postgres</text>
+  <g stroke="#cfccc4" stroke-width="1.2" stroke-dasharray="3 4">
+    <line x1="140" y1="44" x2="140" y2="362"/><line x1="540" y1="44" x2="540" y2="362"/><line x1="780" y1="44" x2="780" y2="362"/>
+  </g>
+  <!-- push -->
+  <rect class="box" x="60" y="56" width="160" height="22" rx="6"/><text x="140" y="71" text-anchor="middle" class="msl">① PUSH local changes</text>
+  <g stroke="#2D6CA8" stroke-width="1.4" fill="none" marker-end="url(#sy-a)">
+    <line x1="140" y1="96" x2="538" y2="96"/>
+    <line x1="540" y1="132" x2="778" y2="132"/>
+    <line x1="780" y1="162" x2="542" y2="162"/>
+    <line x1="540" y1="192" x2="142" y2="192"/>
+  </g>
+  <text x="150" y="90"  class="msg">POST /vocab { items: rows where dirty }</text>
+  <text x="550" y="126" class="msl">UPSERT by (user_id, client_uuid);</text>
+  <text x="550" y="156" class="msl">keep MAX(updated_at) per row</text>
+  <text x="150" y="186" class="msg">{ applied, conflicts, server_time }</text>
+  <!-- pull -->
+  <rect class="box" x="60" y="208" width="160" height="22" rx="6"/><text x="140" y="223" text-anchor="middle" class="msl">② PULL remote changes</text>
+  <g stroke="#2D6CA8" stroke-width="1.4" fill="none" marker-end="url(#sy-a)">
+    <line x1="140" y1="248" x2="538" y2="248"/>
+    <line x1="540" y1="284" x2="778" y2="284"/>
+    <line x1="540" y1="314" x2="142" y2="314"/>
+  </g>
+  <text x="150" y="242" class="msg">GET /vocab?since=last_sync</text>
+  <text x="550" y="278" class="msl">SELECT … WHERE updated_at &gt; since</text>
+  <text x="150" y="308" class="msg">{ items: changed + tombstones, server_time }</text>
+  <!-- merge -->
+  <rect class="box" x="60" y="330" width="320" height="22" rx="6" fill="#f3fbf7" stroke="#1F6F5C"/>
+  <text x="220" y="345" text-anchor="middle" class="msl" fill="#1F6F5C">③ MERGE: per row keep newer updated_at · apply tombstones · set last_sync = server_time</text>
+</svg>
+<div class="cap">Fig 5 — A sync cycle. <strong>① Push</strong> dirty local rows (batch upsert, idempotent on <code>client_uuid</code>); <strong>② Pull</strong> everything changed since the last cursor (including tombstones); <strong>③ Merge</strong> locally, keeping the newer <code>updated_at</code> per row and applying deletes. The cursor advances to the server's clock so the next cycle is incremental. Sync is best-effort &amp; background — it never blocks the capture popup.</div>
+</div>
+<ul>
+  <li><strong>Last-write-wins per row:</strong> on both sides, the copy with the greater <code>updated_at</code> wins. Simple, deterministic, good enough for a personal notebook (no field-level merge needed).</li>
+  <li><strong>Tombstones:</strong> a delete is a row with <code>deleted=true</code> and a bumped <code>updated_at</code> — it travels through sync so other devices remove it too. A periodic job purges tombstones older than e.g. 90 days.</li>
+  <li><strong>Idempotency:</strong> <code>(user_id, client_uuid)</code> means a retried push never duplicates; the same row just re-upserts.</li>
+  <li><strong>Cursor:</strong> the app stores <code>last_sync = server_time</code> from the pull and sends it as <code>?since=</code> next time — incremental, cheap, single-index scan.</li>
+</ul>
+
+<!-- ============================ 5 DEPLOY ============================ -->
+<h2 id="deploy"><span class="n">5</span>Deployment on BWH</h2>
+<p>The service is a <strong>good multi-tenant citizen</strong> on the shared BWH box. It adds itself through its <strong>own Caddy snippet</strong> (one <code>import</code> line into the shared <code>9relay-caddy</code> config), binds a free localhost port, and uses its <strong>own database + role</strong> on the shared Postgres. It never edits another app's config and never touches 9relay / BillMind / scenario-english.</p>
+<div class="fig">
+<svg viewBox="0 0 880 360" role="img" aria-label="Infrastructure diagram: Caddy to container to Postgres on the shared BWH box">
+  <style>
+    .lbl{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:#1B201D}
+    .sm{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+    .hd{font-family:Fraunces,serif;font-size:13px;fill:#1B201D;font-weight:600}
+  </style>
+  <defs><marker id="dp-a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2D6CA8"/></marker></defs>
+  <!-- internet -->
+  <rect x="20" y="150" width="120" height="56" rx="10" fill="#fff" stroke="#e4ded2"/><text x="80" y="174" text-anchor="middle" class="lbl">macOS app</text><text x="80" y="190" text-anchor="middle" class="sm">HTTPS :443</text>
+  <!-- BWH box -->
+  <rect x="170" y="30" width="690" height="300" rx="14" fill="#fbfaf7" stroke="#1B201D" stroke-width="1.5"/>
+  <text x="188" y="52" class="hd">Shared BWH box (multi-tenant)</text>
+  <!-- caddy -->
+  <rect x="190" y="70" width="180" height="80" rx="10" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.5"/>
+  <text x="280" y="92" text-anchor="middle" class="lbl">9relay-caddy :443</text>
+  <text x="280" y="110" text-anchor="middle" class="sm">TLS · the ONLY shared</text>
+  <text x="280" y="124" text-anchor="middle" class="sm">edge. imports per-app</text>
+  <text x="280" y="138" text-anchor="middle" class="sm">caddy-snippets/*.caddy</text>
+  <!-- our snippet -->
+  <rect x="190" y="166" width="180" height="58" rx="10" fill="#f3fbf7" stroke="#1F6F5C" stroke-dasharray="4 3"/>
+  <text x="280" y="186" text-anchor="middle" class="sm" fill="#1F6F5C">translator.caddy (OURS)</text>
+  <text x="280" y="202" text-anchor="middle" class="sm">api.translator.daichenlab</text>
+  <text x="280" y="216" text-anchor="middle" class="sm">.com → reverse_proxy</text>
+  <!-- container -->
+  <rect x="430" y="86" width="190" height="84" rx="10" fill="#fff" stroke="#C8643C" stroke-width="1.5"/>
+  <text x="525" y="108" text-anchor="middle" class="lbl">translator-everywhere</text>
+  <text x="525" y="124" text-anchor="middle" class="sm">Go container (GHCR image)</text>
+  <text x="525" y="140" text-anchor="middle" class="sm">127.0.0.1:81xx</text>
+  <text x="525" y="156" text-anchor="middle" class="sm">free localhost port</text>
+  <!-- postgres -->
+  <rect x="660" y="86" width="180" height="84" rx="10" fill="#fff" stroke="#6D5B8A" stroke-width="1.5"/>
+  <text x="750" y="108" text-anchor="middle" class="lbl">shared Postgres</text>
+  <text x="750" y="124" text-anchor="middle" class="sm">db: translator_everywhere</text>
+  <text x="750" y="140" text-anchor="middle" class="sm">role: te_app (own creds)</text>
+  <text x="750" y="156" text-anchor="middle" class="sm">isolated from other DBs</text>
+  <!-- env file -->
+  <rect x="430" y="200" width="410" height="42" rx="10" fill="#fff8ef" stroke="#B8841F"/>
+  <text x="635" y="219" text-anchor="middle" class="sm" fill="#B8841F">~/.translator-everywhere/deploy.env  (chmod 600, on VPS, NEVER in repo)</text>
+  <text x="635" y="233" text-anchor="middle" class="sm">DB creds · JWT signing secret · Apple/Google client ids</text>
+  <!-- coexist note -->
+  <rect x="190" y="258" width="650" height="56" rx="10" fill="#fff" stroke="#e4ded2"/>
+  <text x="206" y="278" class="sm">Coexists with 9relay · BillMind · scenario-english — own DB+role, own port, own snippet.</text>
+  <text x="206" y="296" class="sm">Add via: write translator.caddy + one `import` line → `docker restart 9relay-caddy` → smoke-test ALL domains.</text>
+  <!-- arrows -->
+  <g stroke="#2D6CA8" stroke-width="1.5" fill="none" marker-end="url(#dp-a)">
+    <line x1="140" y1="178" x2="188" y2="120"/>
+    <line x1="370" y1="120" x2="428" y2="124"/>
+    <line x1="620" y1="128" x2="658" y2="128"/>
+  </g>
+</svg>
+<div class="cap">Fig 6 — Infra. Caddy on :443 is the single shared edge; it imports our own <code>translator.caddy</code> snippet, which reverse-proxies <code>api.translator.daichenlab.com</code> to our container on a free localhost port. The container talks to its <strong>own DB + role</strong> on the shared Postgres. Secrets live only in an env file on the VPS.</div>
+</div>
+
+<h3>Own DB+role vs own Postgres — recommendation</h3>
+<div class="reco">
+  <h3>Recommend: own DATABASE + ROLE on the shared Postgres</h3>
+  <p style="margin-bottom:0">Create <code>translator_everywhere</code> as a dedicated database with a dedicated role (<code>te_app</code>) on the existing shared Postgres — the same pattern BillMind and scenario-english already use successfully. Two tiny tables and a personal-scale workload don't justify a second Postgres process competing for RAM on a crowded box. A separate role gives clean credential isolation and per-DB backups; logical separation is sufficient here. <strong>Only</strong> stand up a dedicated Postgres if a future requirement (heavy load, separate backup/retention policy, or stricter isolation) demands it — Diecast Vault does this, but this service does not need it.</p>
+</div>
+
+<div class="tablewrap"><table>
+  <tr><th>Concern</th><th>Approach</th></tr>
+  <tr><td><strong>Build / ship</strong></td><td>GitHub Actions builds the Go container, pushes to <strong>GHCR</strong> (matches existing BWH apps). The VPS pulls the tagged image and runs it via a small compose file — no on-box compilation.</td></tr>
+  <tr><td><strong>Edge / TLS</strong></td><td>Own <code>translator.caddy</code> snippet under <code>caddy-snippets/</code>; one <code>import</code> line added to the shared Caddyfile. <code>docker restart 9relay-caddy</code> (restart, not reload — stale-inode trap), then smoke-test every domain. Caddy auto-provisions the Let's Encrypt cert for the subdomain.</td></tr>
+  <tr><td><strong>Port</strong></td><td>Bind <code>127.0.0.1:81xx</code> (a verified-free localhost port); only Caddy reaches it. Nothing else exposed publicly.</td></tr>
+  <tr><td><strong>Secrets</strong></td><td><code>~/.translator-everywhere/deploy.env</code> (chmod 600) on the VPS: DB DSN, JWT signing secret/keys, Apple/Google client ids &amp; key ids. <strong>Never in the repo</strong> (matches §10).</td></tr>
+  <tr><td><strong>Migrations</strong></td><td><code>goose</code> runs ordered SQL on deploy (or a one-shot migrate job) against <code>translator_everywhere</code>.</td></tr>
+  <tr><td><strong>Backups</strong></td><td>Nightly <code>pg_dump</code> of <em>this DB only</em> into the existing BWH backup routine; text-only data so dumps are tiny. Retain ~14–30 days.</td></tr>
+  <tr><td><strong>Observability</strong></td><td><code>GET /healthz</code> wired into the existing Daichen Lab status page (Gatus) so the API shows up alongside the other apps.</td></tr>
+  <tr><td><strong>DNS</strong></td><td><code>api.translator.daichenlab.com</code> → the BWH IP (Cloudflare). Same zone as the other <code>daichenlab.com</code> apps.</td></tr>
+</table></div>
+
+<div class="danger">
+  <strong>Coexistence checklist (do not skip):</strong> own DB + role ✓ · own free localhost port ✓ · own Caddy snippet + single <code>import</code> line ✓ · <code>docker restart 9relay-caddy</code> (not reload) ✓ · smoke-test <em>all</em> domains after restart ✓ · resource caps on the container (mem limit) ✓ · never edit another app's snippet or DB ✓. This is the standing rule for any new BWH app.
+</div>
+
+<!-- ============================ 6 SECURITY ============================ -->
+<h2 id="security"><span class="n">6</span>Security &amp; privacy</h2>
+<div class="twocol">
+  <div class="col"><h4>Token storage</h4><p>Session JWT + refresh token live <strong>only in the macOS Keychain</strong> (alongside the OpenAI key) — never on disk in cleartext, never logged. Server holds only a hashed/opaque refresh-token record.</p></div>
+  <div class="col"><h4>Transport</h4><p>TLS everywhere (Caddy auto-cert). HSTS on the subdomain. <code>Authorization: Bearer</code> only over HTTPS. No tokens in URLs or query strings.</p></div>
+  <div class="col"><h4>Token verification</h4><p>Apple/Google identity tokens verified against the provider <strong>JWKS</strong> (cached, auto-rotated): signature, <code>iss</code>, <code>aud</code> (our client/bundle id), <code>exp</code>. Our own JWT verified on every sync request.</p></div>
+  <div class="col"><h4>Rate limiting</h4><p>Per-IP and per-user limits (chi middleware) on <code>/auth/*</code> and <code>/vocab</code> — blunts credential stuffing and abusive batch pushes. Sensible batch-size cap on <code>POST /vocab</code>.</p></div>
+  <div class="col"><h4>Account &amp; data deletion</h4><p><code>DELETE /account</code> cascades to wipe all rows + the user; backs the DESIGN "Delete account &amp; cloud data" control. Tombstone GC keeps the table from growing unbounded.</p></div>
+  <div class="col"><h4>Text-only guarantee</h4><p>The schema has <strong>no image column and no binary blob</strong> — it is structurally impossible to store a capture image. The server has no OCR, no translation, no AI. Enforced by design, not policy.</p></div>
+</div>
+<div class="callout">
+  <strong>Input validation.</strong> Every request body is validated at the boundary: required fields, length caps on <code>source_text</code>/<code>translation</code>, allowed <code>engine</code>/<code>lang</code> values, batch-size limit. Reject malformed payloads with a clear 4xx; never trust client-supplied <code>user_id</code> (always derive it from the verified JWT <code>sub</code>).
+</div>
+<div class="note">
+  <h3>The Google free-translate endpoint is NOT a server concern</h3>
+  <p style="margin-bottom:0">Translation runs <strong>client-side, direct to Google's free endpoint</strong> — our backend never proxies or sees it. Any abuse/rate-limit risk of that free endpoint is a <em>client</em> matter (the app should back off / surface the "engine-down" error from DESIGN §4), not a server-side liability. Our server can't be blamed for it because our server isn't in that path. This keeps the backend's attack surface to just auth + a two-table sync store.</p>
+</div>
+
+<!-- ============================ 7 CONTRACT ============================ -->
+<h2 id="contract"><span class="n">7</span>App ↔ backend contract (for the Frontend Worker)</h2>
+<p>This is the stable surface the macOS app builds against. The Frontend Worker's sync &amp; auth client targets exactly this.</p>
+<div class="tablewrap"><table>
+  <tr><th>Item</th><th>Value</th></tr>
+  <tr><td><strong>Base URL</strong></td><td><code>https://api.translator.daichenlab.com</code></td></tr>
+  <tr><td><strong>Auth header</strong></td><td><code>Authorization: Bearer &lt;session_jwt&gt;</code> on every <code>/vocab</code> and <code>/account</code> call.</td></tr>
+  <tr><td>Sign in (Apple)</td><td><code>POST /auth/apple { identity_token }</code> → <code>{ session_jwt, refresh_token, user }</code></td></tr>
+  <tr><td>Sign in (Google)</td><td><code>POST /auth/google { id_token }</code> → <code>{ session_jwt, refresh_token, user }</code></td></tr>
+  <tr><td>Refresh</td><td><code>POST /auth/refresh { refresh_token }</code> → <code>{ session_jwt }</code></td></tr>
+  <tr><td>Sign out</td><td><code>POST /auth/signout</code> (Bearer) — best-effort revoke; local copy kept.</td></tr>
+  <tr><td>Pull</td><td><code>GET /vocab?since=&lt;iso8601&gt;</code> (Bearer) → <code>{ items[], server_time }</code></td></tr>
+  <tr><td>Push</td><td><code>POST /vocab { items[] }</code> (Bearer) → <code>{ applied, conflicts[], server_time }</code></td></tr>
+  <tr><td>Delete account</td><td><code>DELETE /account</code> (Bearer) → <code>204</code></td></tr>
+  <tr><td>Health</td><td><code>GET /healthz</code> → <code>200 { "ok": true }</code></td></tr>
+  <tr><td>Row fields</td><td><code>client_uuid, source_text, translation, src_lang, tgt_lang, engine, tag, deleted, updated_at</code></td></tr>
+  <tr><td>Merge rule</td><td>Last-write-wins per row on <code>updated_at</code>; tombstones via <code>deleted=true</code>; idempotent on <code>(user, client_uuid)</code>.</td></tr>
+</table></div>
+<div class="callout">
+  <strong>Frontend handshake notes.</strong> Generate <code>client_uuid</code> on-device at row creation and persist it locally — it is the join key for sync, so it must survive restarts. Store the session/refresh tokens in the Keychain. Drive Apple sign-in with <code>ASAuthorizationController</code> and Google with <code>ASWebAuthenticationSession</code> + PKCE (no client secret on device). Treat sync as background &amp; best-effort: never block the capture popup on a network call (DESIGN §1). Map server errors to the DESIGN §4 error copy.
+</div>
+
+<!-- ============================ 8 FRONTEND / macOS APP ============================ -->
+<h2 id="fe"><span class="n">8</span>Frontend / macOS app architecture</h2>
+<p>The on-device half. The app is a <strong>menu-bar agent</strong> (<code>LSUIElement: YES</code> — no Dock icon, no main window) built as a SwiftUI <code>App</code> with an <code>NSApplicationDelegateAdaptor</code>; the result UI is AppKit (<code>NSStatusItem</code> + popover/panel) because an agent app must explicitly grab focus. Every box below is a Swift type or small module; arrows are compile-time dependencies. The whole capture path — <strong>capture, OCR, translate, network</strong> — runs off the main actor; only UI mutation touches main. Local-first is the law: the app is fully usable with no account and no network, and <strong>sync is a strictly additive background layer</strong> targeting the §7 contract.</p>
+
+<!-- ---- 8.1 MODULE MAP ---- -->
+<h3>8.1 · Module map</h3>
+<div class="fig">
+<svg viewBox="0 0 880 540" role="img" aria-label="Module map of the macOS app showing types and their dependencies">
+  <style>
+    .lbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;fill:#1B201D}
+    .sm{font-family:'IBM Plex Mono',monospace;font-size:8.5px;fill:#5f655f}
+    .hd{font-family:Fraunces,serif;font-size:12.5px;fill:#1B201D;font-weight:600}
+  </style>
+  <defs>
+    <marker id="mm-ink" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5f655f"/></marker>
+    <marker id="mm-acc" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#C8643C"/></marker>
+    <marker id="mm-blu" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2D6CA8"/></marker>
+    <marker id="mm-pur" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#6D5B8A"/></marker>
+  </defs>
+
+  <!-- SHELL band -->
+  <rect x="12" y="30" width="856" height="78" rx="12" fill="#f5f1fb" stroke="#6D5B8A" stroke-width="1.4"/>
+  <text x="26" y="50" class="hd" fill="#6D5B8A">UI shell — AppKit + SwiftUI (main actor)</text>
+  <rect x="26" y="58" width="150" height="40" rx="8" fill="#fff" stroke="#e4ded2"/><text x="101" y="76" text-anchor="middle" class="lbl">AppDelegate</text><text x="101" y="90" text-anchor="middle" class="sm">NSStatusItem · LSUIElement</text>
+  <rect x="186" y="58" width="150" height="40" rx="8" fill="#fff" stroke="#e4ded2"/><text x="261" y="76" text-anchor="middle" class="lbl">ResultPanel</text><text x="261" y="90" text-anchor="middle" class="sm">NSPanel · becomes key</text>
+  <rect x="346" y="58" width="150" height="40" rx="8" fill="#fff" stroke="#e4ded2"/><text x="421" y="76" text-anchor="middle" class="lbl">NotebookWindow</text><text x="421" y="90" text-anchor="middle" class="sm">SwiftUI Table</text>
+  <rect x="506" y="58" width="150" height="40" rx="8" fill="#fff" stroke="#e4ded2"/><text x="581" y="76" text-anchor="middle" class="lbl">PreferencesWindow</text><text x="581" y="90" text-anchor="middle" class="sm">Gen·Engine·Account·About</text>
+  <rect x="666" y="58" width="186" height="40" rx="8" fill="#fff" stroke="#e4ded2"/><text x="759" y="76" text-anchor="middle" class="lbl">OnboardingWindow</text><text x="759" y="90" text-anchor="middle" class="sm">3 steps · permission gate</text>
+
+  <!-- INPUT -->
+  <rect x="12" y="128" width="180" height="46" rx="9" fill="#fff" stroke="#C8643C" stroke-width="1.4"/><text x="102" y="147" text-anchor="middle" class="lbl">HotkeyManager</text><text x="102" y="161" text-anchor="middle" class="sm">KeyboardShortcuts · ⌃⌥Y</text>
+
+  <!-- CAPTURE PIPELINE band -->
+  <rect x="12" y="194" width="520" height="120" rx="12" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.4"/>
+  <text x="26" y="214" class="hd" fill="#1F6F5C">CaptureCoordinator (actor) — off main</text>
+  <rect x="26" y="224" width="150" height="46" rx="8" fill="#fff" stroke="#e4ded2"/><text x="101" y="243" text-anchor="middle" class="lbl">RegionCapturer</text><text x="101" y="257" text-anchor="middle" class="sm">screencapture -i -x</text>
+  <rect x="190" y="224" width="150" height="46" rx="8" fill="#fff" stroke="#e4ded2"/><text x="265" y="243" text-anchor="middle" class="lbl">OCRService</text><text x="265" y="257" text-anchor="middle" class="sm">Vision · VNRecognizeText</text>
+  <rect x="354" y="224" width="164" height="46" rx="8" fill="#fff" stroke="#e4ded2"/><text x="436" y="243" text-anchor="middle" class="lbl">Translator (protocol)</text><text x="436" y="257" text-anchor="middle" class="sm">GoogleEngine · OpenAIEngine</text>
+  <text x="26" y="294" class="sm">image PNG → text → translation · then handed to NotebookStore. Image discarded.</text>
+
+  <!-- ENGINES (external) -->
+  <rect x="556" y="200" width="160" height="44" rx="9" fill="#fdf3ee" stroke="#C8643C"/><text x="636" y="219" text-anchor="middle" class="lbl">Google free endpoint</text><text x="636" y="233" text-anchor="middle" class="sm">direct · no key</text>
+  <rect x="556" y="252" width="160" height="44" rx="9" fill="#fdf3ee" stroke="#C8643C"/><text x="636" y="271" text-anchor="middle" class="lbl">OpenAI API</text><text x="636" y="285" text-anchor="middle" class="sm">user key (te prompts)</text>
+
+  <!-- DATA band -->
+  <rect x="12" y="334" width="520" height="120" rx="12" fill="#fff" stroke="#2D6CA8" stroke-width="1.4"/>
+  <text x="26" y="354" class="hd" fill="#2D6CA8">Data &amp; identity</text>
+  <rect x="26" y="364" width="150" height="46" rx="8" fill="#fff" stroke="#e4ded2"/><text x="101" y="383" text-anchor="middle" class="lbl">NotebookStore</text><text x="101" y="397" text-anchor="middle" class="sm">SwiftData ModelContainer</text>
+  <rect x="190" y="364" width="150" height="46" rx="8" fill="#fff" stroke="#e4ded2"/><text x="265" y="383" text-anchor="middle" class="lbl">SyncClient (actor)</text><text x="265" y="397" text-anchor="middle" class="sm">§7 contract · best-effort</text>
+  <rect x="354" y="364" width="164" height="46" rx="8" fill="#fff" stroke="#e4ded2"/><text x="436" y="383" text-anchor="middle" class="lbl">AuthClient</text><text x="436" y="397" text-anchor="middle" class="sm">ASAuth · ASWebAuth+PKCE</text>
+  <rect x="26" y="418" width="240" height="28" rx="7" fill="#efe9dc"/><text x="146" y="436" text-anchor="middle" class="sm">Keychain — OpenAI key · session + refresh JWT</text>
+  <rect x="278" y="418" width="240" height="28" rx="7" fill="#efe9dc"/><text x="398" y="436" text-anchor="middle" class="sm">PermissionService — CGPreflight/Request</text>
+
+  <!-- BACKEND ref -->
+  <rect x="556" y="364" width="160" height="64" rx="10" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.4"/>
+  <text x="636" y="386" text-anchor="middle" class="lbl">§7 backend</text><text x="636" y="402" text-anchor="middle" class="sm">api.translator</text><text x="636" y="416" text-anchor="middle" class="sm">.daichenlab.com</text>
+
+  <!-- SettingsStore -->
+  <rect x="732" y="364" width="120" height="64" rx="10" fill="#fff" stroke="#e4ded2"/><text x="792" y="390" text-anchor="middle" class="lbl">SettingsStore</text><text x="792" y="406" text-anchor="middle" class="sm">UserDefaults</text>
+
+  <!-- arrows: hotkey -> coordinator -->
+  <g stroke="#C8643C" stroke-width="1.5" fill="none" marker-end="url(#mm-acc)">
+    <path d="M102 174 L102 192"/>
+    <path d="M101 108 L101 126"/>
+  </g>
+  <!-- pipeline internal -->
+  <g stroke="#5f655f" stroke-width="1.4" fill="none" marker-end="url(#mm-ink)">
+    <path d="M176 247 L188 247"/>
+    <path d="M340 247 L352 247"/>
+  </g>
+  <!-- translator -> engines -->
+  <g stroke="#C8643C" stroke-width="1.5" fill="none" marker-end="url(#mm-acc)">
+    <path d="M518 240 C536 230 540 224 554 222"/>
+    <path d="M518 252 C536 262 540 270 554 272"/>
+  </g>
+  <!-- coordinator -> store -->
+  <g stroke="#1F6F5C" stroke-width="1.5" fill="none" marker-end="url(#mm-ink)">
+    <path d="M101 270 L101 362"/>
+  </g>
+  <!-- store -> sync -> backend -->
+  <g stroke="#2D6CA8" stroke-width="1.5" fill="none" marker-end="url(#mm-blu)">
+    <path d="M176 387 L188 387"/>
+    <path d="M340 387 C420 387 480 392 554 396"/>
+    <path d="M518 380 C530 376 544 374 554 374"/>
+  </g>
+  <!-- auth -> keychain & backend -->
+  <g stroke="#6D5B8A" stroke-width="1.4" fill="none" marker-end="url(#mm-pur)" stroke-dasharray="3 3">
+    <path d="M436 410 C420 414 360 420 270 418"/>
+  </g>
+  <!-- shell consumes store/coordinator (dashed up) -->
+  <g stroke="#6D5B8A" stroke-width="1.2" fill="none" marker-end="url(#mm-pur)" stroke-dasharray="4 3">
+    <path d="M261 224 C261 160 261 130 261 100"/>
+    <path d="M421 364 C421 200 421 130 421 100"/>
+  </g>
+  <text x="540" y="470" class="sm">→ solid = owns/calls · dashed = observes (UI binds to stores; AuthClient writes Keychain)</text>
+</svg>
+<div class="cap">Fig 7 — App module map. The <strong>UI shell</strong> (main actor) observes the stores but never blocks; the <strong>CaptureCoordinator</strong> actor drives capture→OCR→translate off-main; <strong>Translator</strong> is a protocol with two interchangeable engines (§8.4). <strong>NotebookStore</strong> is the single source of truth; <strong>SyncClient</strong> and <strong>AuthClient</strong> are the only types that talk to the §7 backend, and they are entirely optional — remove them and the app is a complete local-only product.</div>
+</div>
+
+<div class="tablewrap"><table>
+  <tr><th>Module</th><th>Type / framework</th><th>Responsibility</th></tr>
+  <tr><td><strong>AppDelegate</strong></td><td><code>NSApplicationDelegateAdaptor</code></td><td>Installs <code>NSStatusItem</code> + menu; wires the hotkey; routes menu actions. <code>LSUIElement</code> so there is no Dock/main window.</td></tr>
+  <tr><td>HotkeyManager</td><td>KeyboardShortcuts (SPM)</td><td>Owns the global <code>.captureTranslate</code> shortcut (default ⌃⌥Y). In-app Recorder in Prefs — <strong>no Accessibility permission</strong>. Menu label data-binds to the live combo.</td></tr>
+  <tr><td>CaptureCoordinator</td><td><code>actor</code></td><td>The capture state machine (§8.2). Sequences RegionCapturer → OCRService → Translator, then auto-saves to NotebookStore. Off the main actor.</td></tr>
+  <tr><td>RegionCapturer</td><td><code>Process</code></td><td>Runs <code>/usr/sbin/screencapture -i -x &lt;tmp.png&gt;</code>. <strong>Cancel = no file written</strong> (detected by file absence, not exit code).</td></tr>
+  <tr><td>OCRService</td><td>Vision</td><td><code>VNRecognizeTextRequest</code>, <code>.accurate</code>, <code>recognitionLanguages = ["zh-Hans","en-US"]</code>; observations sorted by <code>boundingBox</code> for reading order; PNG discarded after.</td></tr>
+  <tr><td><strong>Translator</strong></td><td><code>protocol</code></td><td>Engine abstraction (§8.4). <code>GoogleEngine</code> (free, default) + <code>OpenAIEngine</code> (user key, reuses the <code>te</code> script prompts). Also powers Summarize.</td></tr>
+  <tr><td>NotebookStore</td><td>SwiftData</td><td>The local notebook + offline change queue (§8.3). Single source of truth the UI binds to; emits dirty rows to SyncClient.</td></tr>
+  <tr><td>SyncClient</td><td><code>actor</code> + URLSession</td><td>Speaks the §7 contract (§8.5). Background, best-effort, debounced; never blocks the popup.</td></tr>
+  <tr><td>AuthClient</td><td>AuthenticationServices</td><td>Apple via <code>ASAuthorizationController</code>; Google via <code>ASWebAuthenticationSession</code> + PKCE (§8.6). Exchanges provider token for our session JWT.</td></tr>
+  <tr><td>KeychainStore</td><td>Security</td><td>Thin wrapper over the Keychain for the OpenAI key + session/refresh JWTs. Nothing secret on disk or in logs.</td></tr>
+  <tr><td>PermissionService</td><td>CoreGraphics</td><td><code>CGPreflightScreenCaptureAccess()</code> / <code>CGRequestScreenCaptureAccess()</code>; deep-links to Settings; drives the relaunch flow (§8.6b).</td></tr>
+  <tr><td>SettingsStore</td><td>UserDefaults</td><td>Non-secret prefs: engine choice, default target language, launch-at-login, last-sync cursor.</td></tr>
+</table></div>
+
+<!-- ---- 8.2 CAPTURE PIPELINE ---- -->
+<h3>8.2 · Capture → result → save pipeline</h3>
+<p>One hotkey press runs the flow below on the CaptureCoordinator actor. The result panel appears the instant a translation exists; <strong>auto-save and sync happen after the panel is up</strong>, so the user is never made to wait on disk or network (DESIGN §1). Three branches leave the happy path: <strong>cancel</strong> (Esc / no file — silent return to idle), <strong>no-text</strong> (empty OCR — recoverable panel), and <strong>error</strong> (capture/engine failure — panel with the DESIGN §4 copy). Save only ever runs on a successful translation.</p>
+<div class="fig">
+<svg viewBox="0 0 880 470" role="img" aria-label="Flow diagram of the capture to result to save pipeline with cancel, no-text and error branches">
+  <style>
+    .st{font-family:Fraunces,serif;font-size:12px;fill:#1B201D;font-weight:600}
+    .sd{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+    .ed{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#6D5B8A}
+  </style>
+  <defs>
+    <marker id="cp-ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1F6F5C"/></marker>
+    <marker id="cp-er" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#B23A3A"/></marker>
+    <marker id="cp-gy" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5f655f"/></marker>
+    <marker id="cp-bl" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2D6CA8"/></marker>
+  </defs>
+
+  <!-- happy path row -->
+  <rect x="14" y="40" width="118" height="50" rx="10" fill="#efe9dc" stroke="#1B201D" stroke-width="1.6"/><text x="73" y="62" text-anchor="middle" class="st">hotkey</text><text x="73" y="78" text-anchor="middle" class="sd">⌃⌥Y / menu</text>
+  <rect x="160" y="40" width="130" height="50" rx="10" fill="#fff" stroke="#e4ded2"/><text x="225" y="60" text-anchor="middle" class="st">activate + capture</text><text x="225" y="76" text-anchor="middle" class="sd">NSApp.activate · -i -x</text>
+  <rect x="318" y="40" width="118" height="50" rx="10" fill="#eef4fb" stroke="#2D6CA8"/><text x="377" y="60" text-anchor="middle" class="st">OCR</text><text x="377" y="76" text-anchor="middle" class="sd">Vision · sort bbox</text>
+  <rect x="464" y="40" width="118" height="50" rx="10" fill="#eef4fb" stroke="#2D6CA8"/><text x="523" y="60" text-anchor="middle" class="st">translate</text><text x="523" y="76" text-anchor="middle" class="sd">active engine</text>
+  <rect x="610" y="40" width="130" height="50" rx="10" fill="#fdf3ee" stroke="#C8643C" stroke-width="1.8"/><text x="675" y="60" text-anchor="middle" class="st" fill="#C8643C">result panel</text><text x="675" y="76" text-anchor="middle" class="sd">show + ⌘C clipboard</text>
+
+  <g stroke="#1F6F5C" stroke-width="1.6" fill="none" marker-end="url(#cp-ar)">
+    <line x1="132" y1="65" x2="158" y2="65"/>
+    <line x1="290" y1="65" x2="316" y2="65"/>
+    <line x1="436" y1="65" x2="462" y2="65"/>
+    <line x1="582" y1="65" x2="608" y2="65"/>
+  </g>
+
+  <!-- post-result: save then sync (after panel up) -->
+  <rect x="610" y="150" width="130" height="50" rx="10" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.6"/><text x="675" y="170" text-anchor="middle" class="st" fill="#1F6F5C">★ auto-save</text><text x="675" y="186" text-anchor="middle" class="sd">NotebookStore.insert</text>
+  <rect x="610" y="248" width="130" height="56" rx="10" fill="#eef4fb" stroke="#2D6CA8"/><text x="675" y="268" text-anchor="middle" class="st" fill="#2D6CA8">background sync</text><text x="675" y="283" text-anchor="middle" class="sd">if signed in →</text><text x="675" y="296" text-anchor="middle" class="sd">SyncClient.enqueue</text>
+  <g stroke="#1F6F5C" stroke-width="1.6" fill="none" marker-end="url(#cp-ar)"><line x1="675" y1="90" x2="675" y2="148"/></g>
+  <text x="690" y="120" class="ed">panel is up first</text>
+  <g stroke="#2D6CA8" stroke-width="1.5" fill="none" marker-end="url(#cp-bl)" stroke-dasharray="4 3"><line x1="675" y1="200" x2="675" y2="246"/></g>
+  <text x="690" y="226" class="sd">debounced · best-effort</text>
+
+  <!-- cancel branch -->
+  <rect x="160" y="150" width="130" height="46" rx="10" fill="#fff" stroke="#5f655f" stroke-dasharray="4 3"/><text x="225" y="170" text-anchor="middle" class="st">cancel → idle</text><text x="225" y="185" text-anchor="middle" class="sd">no file written · silent</text>
+  <g stroke="#5f655f" stroke-width="1.4" fill="none" marker-end="url(#cp-gy)" stroke-dasharray="4 3"><path d="M225 90 L225 148"/></g>
+  <text x="234" y="120" class="sd">Esc / no PNG</text>
+
+  <!-- no-text branch -->
+  <rect x="318" y="150" width="130" height="46" rx="10" fill="#fff" stroke="#5f655f" stroke-width="1.4"/><text x="383" y="170" text-anchor="middle" class="st">no-text panel</text><text x="383" y="185" text-anchor="middle" class="sd">"Try Again" · no save</text>
+  <g stroke="#5f655f" stroke-width="1.4" fill="none" marker-end="url(#cp-gy)"><path d="M377 90 L383 148"/></g>
+  <text x="392" y="120" class="sd">empty OCR</text>
+
+  <!-- error branch -->
+  <rect x="464" y="150" width="130" height="46" rx="10" fill="#fbeeee" stroke="#B23A3A" stroke-width="1.4"/><text x="529" y="170" text-anchor="middle" class="st" fill="#B23A3A">error panel</text><text x="529" y="185" text-anchor="middle" class="sd">Retry / Prefs · no save</text>
+  <g stroke="#B23A3A" stroke-width="1.4" fill="none" marker-end="url(#cp-er)"><path d="M523 90 L529 148"/></g>
+  <text x="500" y="120" class="ed" fill="#B23A3A">capture/engine throws</text>
+
+  <!-- footer note -->
+  <rect x="14" y="350" width="566" height="96" rx="12" fill="#fbfaf7" stroke="#e4ded2"/>
+  <text x="30" y="372" class="st" fill="#6D5B8A">Threading &amp; ordering</text>
+  <text x="30" y="392" class="sd">• Coordinator is an actor: capture · OCR · translate · network all run OFF the main actor.</text>
+  <text x="30" y="408" class="sd">• Only panel presentation + clipboard + store-observed UI hop to @MainActor.</text>
+  <text x="30" y="424" class="sd">• Save is synchronous-fast (local); sync is fire-and-forget — neither gates the panel.</text>
+  <text x="30" y="440" class="sd">• Cancel is detected by ABSENCE of the temp PNG, never by screencapture's exit code.</text>
+</svg>
+<div class="cap">Fig 8 — Capture pipeline. Happy path: hotkey → <code>NSApp.activate(ignoringOtherApps:)</code> → <code>screencapture -i -x</code> → Vision OCR (sorted) → translate → <strong>panel up + clipboard</strong>. Only then ★ auto-save to NotebookStore and, if signed in, a debounced background sync. <strong>Cancel</strong> (Esc / no PNG) returns to idle with no UI and no save; <strong>no-text</strong> and <strong>error</strong> show recoverable panels and save nothing.</div>
+</div>
+
+<!-- ---- 8.3 LOCAL PERSISTENCE ---- -->
+<h3>8.3 · Local persistence — SwiftData schema &amp; offline-first</h3>
+<p>The local store is <strong>SwiftData</strong> (Core Data is the fallback; the schema is identical either way). It mirrors the server <code>vocab_items</code> row so a synced row maps 1:1, and adds the small bookkeeping a client needs: a <strong>stable <code>clientUUID</code></strong> generated on-device at row creation (the join key for sync — it must survive restarts), a <strong>local <code>dirty</code> flag</strong> for the offline change queue, and a <strong><code>deleted</code> tombstone</strong> so deletes propagate instead of resurrecting. The notebook is fully functional with this store alone — no account, no network.</p>
+<div class="fig">
+<svg viewBox="0 0 880 360" role="img" aria-label="Local SwiftData VocabItem model mapped to the server vocab_items row">
+  <style>
+    .et{font-family:Fraunces,serif;font-size:14px;fill:#fff;font-weight:600}
+    .fl{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:#1B201D}
+    .ty{font-family:'IBM Plex Mono',monospace;font-size:9.5px;fill:#5f655f}
+    .pk{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#C8643C}
+    .nt{font-family:'IBM Plex Mono',monospace;font-size:9.5px;fill:#5f655f}
+  </style>
+  <!-- local model -->
+  <rect x="24" y="30" width="330" height="300" rx="10" fill="#fff" stroke="#1F6F5C" stroke-width="1.6"/>
+  <rect x="24" y="30" width="330" height="30" rx="10" fill="#1F6F5C"/><rect x="24" y="46" width="330" height="14" fill="#1F6F5C"/>
+  <text x="40" y="51" class="et">@Model VocabItem  (local)</text>
+  <text x="40" y="82"  class="fl">clientUUID</text>   <text x="220" y="82"  class="ty">UUID</text>        <text x="344" y="82"  text-anchor="end" class="pk">UQ · sync key</text>
+  <text x="40" y="104" class="fl">sourceText</text>   <text x="220" y="104" class="ty">String</text>
+  <text x="40" y="126" class="fl">translation</text>  <text x="220" y="126" class="ty">String</text>
+  <text x="40" y="148" class="fl">srcLang · tgtLang</text> <text x="250" y="148" class="ty">String</text>
+  <text x="40" y="170" class="fl">engine</text>       <text x="220" y="170" class="ty">String free|openai</text>
+  <text x="40" y="192" class="fl">tag</text>          <text x="220" y="192" class="ty">String?</text>
+  <text x="40" y="214" class="fl">deleted</text>      <text x="220" y="214" class="ty">Bool  tombstone</text>
+  <text x="40" y="236" class="fl">createdAt</text>    <text x="220" y="236" class="ty">Date</text>
+  <text x="40" y="258" class="fl">updatedAt</text>    <text x="220" y="258" class="ty">Date  LWW clock</text>
+  <line x1="24" y1="272" x2="354" y2="272" stroke="#ece9e2"/>
+  <text x="40" y="290" class="nt" fill="#C8643C">— local-only bookkeeping —</text>
+  <text x="40" y="310" class="fl" fill="#6D5B8A">dirty</text>        <text x="220" y="310" class="ty">Bool  needs push</text>
+  <text x="40" y="326" class="nt">@Attribute(.unique) clientUUID</text>
+
+  <!-- mapping arrow -->
+  <path d="M356 180 C420 180 440 180 506 180" fill="none" stroke="#2D6CA8" stroke-width="1.6" marker-end="url(#er-rel)"/>
+  <text x="392" y="166" class="nt" fill="#2D6CA8">maps 1:1</text>
+  <text x="372" y="200" class="nt">(minus dirty)</text>
+
+  <!-- server row (ref) -->
+  <rect x="510" y="44" width="346" height="250" rx="10" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.4"/>
+  <rect x="510" y="44" width="346" height="28" rx="10" fill="#2D6CA8"/><rect x="510" y="58" width="346" height="14" fill="#2D6CA8"/>
+  <text x="526" y="64" class="et">vocab_items  (§2 server)</text>
+  <text x="526" y="96"  class="fl">client_uuid</text>  <text x="700" y="96"  class="ty">uuid  UQ</text>
+  <text x="526" y="118" class="fl">source_text · translation</text>
+  <text x="526" y="140" class="fl">src_lang · tgt_lang</text>
+  <text x="526" y="162" class="fl">engine · tag</text>
+  <text x="526" y="184" class="fl">deleted</text>      <text x="700" y="184" class="ty">bool</text>
+  <text x="526" y="206" class="fl">created_at · updated_at</text>
+  <line x1="510" y1="222" x2="856" y2="222" stroke="#cfe0f2"/>
+  <text x="526" y="242" class="nt" fill="#2D6CA8">server adds: id (PK) · user_id (FK, from JWT)</text>
+  <text x="526" y="262" class="nt" fill="#2D6CA8">UNIQUE (user_id, client_uuid)</text>
+  <text x="526" y="282" class="nt">client never sends user_id — server derives it</text>
+</svg>
+<div class="cap">Fig 9 — Local <code>VocabItem</code> ↔ server <code>vocab_items</code>. Every field maps 1:1 except the client-only <code>dirty</code> flag (the push queue) and the server-only <code>id</code>/<code>user_id</code> (the server derives <code>user_id</code> from the JWT — the client never sends it). <code>clientUUID</code> is <code>@Attribute(.unique)</code>, generated once at creation and persisted, so it is the stable join key across restarts and Macs.</div>
+</div>
+<ul>
+  <li><strong>Offline-first:</strong> create/edit/delete write to SwiftData immediately and set <code>dirty = true</code>; the UI updates from the store at once. A delete sets <code>deleted = true</code> + bumps <code>updatedAt</code> (tombstone) rather than hard-deleting, so the delete can sync.</li>
+  <li><strong>The change queue is the store:</strong> there is no separate queue table — "the queue" is simply <code>predicate: dirty == true</code>. On the next sync the SyncClient pushes those rows and clears <code>dirty</code> on success.</li>
+  <li><strong>Reconcile = last-write-wins per row</strong> (matches §2/§4): on pull, for each incoming row, if its <code>updatedAt</code> is newer than the local copy, overwrite (and apply tombstones); otherwise keep local. Deterministic, no field-level merge — correct for a personal notebook.</li>
+  <li><strong>Local-only users never set up sync:</strong> <code>dirty</code> just stays set harmlessly and is never read. Signing in later pushes the whole backlog in one batch.</li>
+</ul>
+
+<!-- ---- 8.4 ENGINE PROTOCOL ---- -->
+<h3>8.4 · Translation engine protocol</h3>
+<p>Translation never goes through our server — the engine talks <strong>directly</strong> to Google or OpenAI (§6 / PRD §5). A single protocol makes the two interchangeable; the active engine is chosen in Preferences ▸ Engine and resolved at call time, so switching is a one-line swap and Summarize reuses the same path.</p>
+<pre><span class="k">protocol</span> TranslationEngine {
+  <span class="k">var</span> badge: EngineBadge { <span class="k">get</span> }            <span class="c">// .free | .ai → drives the popup/notebook badge</span>
+  <span class="k">func</span> translate(_ text: String, to: Lang, from: Lang?) <span class="k">async throws</span> -&gt; Translation
+  <span class="k">func</span> summarize(_ rows: [VocabItem]) <span class="k">async throws</span> -&gt; StudyList
+}
+<span class="k">struct</span> GoogleEngine: TranslationEngine   <span class="c">// free public endpoint · no key · default · badge=.free</span>
+<span class="k">struct</span> OpenAIEngine: TranslationEngine   <span class="c">// user key from Keychain · reuses the `te` script prompts · badge=.ai</span>
+
+<span class="c">// resolved from SettingsStore at call time — caller never branches on engine type</span>
+<span class="k">func</span> activeEngine() -&gt; TranslationEngine {
+  settings.engine == .openai && keychain.openAIKey != <span class="k">nil</span> ? OpenAIEngine(...) : GoogleEngine()
+}</pre>
+<ul>
+  <li><strong>Default is free &amp; keyless</strong> — <code>GoogleEngine</code>. <code>OpenAIEngine</code> is selected only when the user both chooses OpenAI and has a valid Keychain key; otherwise we fall back to free (DESIGN §2d "always free" override).</li>
+  <li><strong>Prompt reuse:</strong> <code>OpenAIEngine</code> ports the existing <code>te</code> CLI prompts verbatim, so AI translation quality matches the tool the PRD is built on.</li>
+  <li><strong>Error mapping:</strong> each engine throws a typed <code>TranslateError</code> (<code>offline</code>, <code>engineDown</code>, <code>badKey</code>, <code>quota</code>, <code>unknown</code>) that maps directly onto the DESIGN §4 error copy.</li>
+  <li><strong>Summarize</strong> is just <code>summarize(rows:)</code> on the same active engine — client-side, no server AI (PRD §5); free yields a grouped list, OpenAI yields richer example sentences (DESIGN §2c).</li>
+</ul>
+
+<!-- ---- 8.5 SYNC CLIENT ---- -->
+<h3>8.5 · Sync client — speaking the §7 contract</h3>
+<p>The SyncClient is an actor wrapping <code>URLSession</code>. It attaches <code>Authorization: Bearer &lt;session_jwt&gt;</code> to every <code>/vocab</code> call, runs a <strong>push-then-pull</strong> cycle, and persists a <code>last_sync</code> cursor (server clock) in SettingsStore. It is <strong>background and best-effort</strong> — failures are retried later and never surface as blocking errors; the notebook keeps working offline.</p>
+<div class="tablewrap"><table>
+  <tr><th>Trigger</th><th>What runs</th></tr>
+  <tr><td><strong>On sign-in</strong></td><td>Full push of the entire local notebook (all rows as a batch <code>POST /vocab</code>), then <code>GET /vocab?since=0</code> to merge anything already in the cloud.</td></tr>
+  <tr><td><strong>On change (debounced)</strong></td><td>After a row is saved/edited/deleted and the store goes dirty, a ~2&nbsp;s debounce coalesces edits, then pushes the dirty batch + pulls the delta.</td></tr>
+  <tr><td><strong>On app foreground</strong></td><td>A pull (<code>GET /vocab?since=last_sync</code>) to pick up changes made on another Mac, followed by a push if anything is dirty.</td></tr>
+  <tr><td><strong>On token expiry (401)</strong></td><td><code>POST /auth/refresh</code> for a new access JWT, then retry once. If refresh fails → drop to signed-out, chip shows the local-only state; nothing is lost.</td></tr>
+</table></div>
+<ul>
+  <li><strong>Push:</strong> <code>POST /vocab { items: [rows where dirty] }</code> — idempotent on <code>(user, client_uuid)</code>; on 2xx, clear <code>dirty</code> for the applied rows. Honor any <code>conflicts[]</code> the server returns (server row was newer → adopt it locally).</li>
+  <li><strong>Pull:</strong> <code>GET /vocab?since=last_sync</code> → apply each row by last-write-wins (incl. tombstones), then set <code>last_sync = server_time</code> so the next cycle is incremental.</li>
+  <li><strong>Conflict handling = LWW per row</strong>, identical on both sides (§4): the greater <code>updatedAt</code> wins; no merge UI ever shown. Tombstones win the same way.</li>
+  <li><strong>Chip state</strong> is derived from SyncClient: <em>Local only</em> (signed out) · <em>Syncing…</em> (in-flight) · <em>Synced ✓ · email</em> (idle &amp; clean) · <em>Offline</em> (signed in, last attempt failed) — exactly DESIGN §2c.</li>
+  <li><strong>Batch cap:</strong> respects the server's batch-size limit (§6) by chunking large initial pushes.</li>
+</ul>
+
+<!-- ---- 8.6 AUTH UI ---- -->
+<h3>8.6 · Auth UI flow</h3>
+<p>Both providers end the same way: get a provider identity token on-device, POST it to the §7 auth endpoint, receive our <code>session_jwt</code> + <code>refresh_token</code>, store both in the Keychain, and flip the Account tab to signed-in.</p>
+<div class="fig">
+<svg viewBox="0 0 880 320" role="img" aria-label="Sequence diagram: Apple and Google sign-in from the app to our backend">
+  <style>
+    .actor{font-family:Fraunces,serif;font-size:12px;fill:#1B201D;font-weight:600}
+    .msg{font-family:'IBM Plex Mono',monospace;font-size:9.5px;fill:#1B201D}
+    .msl{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+  </style>
+  <defs><marker id="au-a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#6D5B8A"/></marker></defs>
+  <text x="95"  y="30" text-anchor="middle" class="actor">AuthClient (app)</text>
+  <text x="370" y="30" text-anchor="middle" class="actor">Apple / Google</text>
+  <text x="630" y="30" text-anchor="middle" class="actor">§7 backend</text>
+  <text x="820" y="30" text-anchor="middle" class="actor">Keychain</text>
+  <g stroke="#cfccc4" stroke-width="1.2" stroke-dasharray="3 4">
+    <line x1="95" y1="40" x2="95" y2="300"/><line x1="370" y1="40" x2="370" y2="300"/><line x1="630" y1="40" x2="630" y2="300"/><line x1="820" y1="40" x2="820" y2="300"/>
+  </g>
+  <g stroke="#6D5B8A" stroke-width="1.4" fill="none" marker-end="url(#au-a)">
+    <line x1="95" y1="66" x2="368" y2="66"/>
+    <line x1="370" y1="104" x2="97" y2="104"/>
+    <line x1="95" y1="150" x2="628" y2="150"/>
+    <line x1="630" y1="206" x2="97" y2="206"/>
+    <line x1="95" y1="244" x2="818" y2="244"/>
+    <line x1="95" y1="282" x2="368" y2="282" stroke="#5f655f" stroke-dasharray="3 3"/>
+  </g>
+  <text x="105" y="60"  class="msg">Apple: ASAuthorizationController  ·  Google: ASWebAuthenticationSession + PKCE</text>
+  <text x="105" y="98"  class="msg">identity_token / id_token (provider-signed JWT)</text>
+  <text x="105" y="144" class="msg">POST /auth/apple|google { identity_token | id_token }</text>
+  <text x="640" y="172" class="msl">verify vs JWKS · upsert user · issue our JWT</text>
+  <text x="105" y="200" class="msg">200 { session_jwt, refresh_token, user }</text>
+  <text x="105" y="238" class="msg">store session_jwt + refresh_token  →</text>
+  <text x="105" y="276" class="msl">Google PKCE: token-exchange POST /token { code, code_verifier } (no client secret on device)</text>
+</svg>
+<div class="cap">Fig 10 — Sign-in. Apple uses native <code>ASAuthorizationController</code>; Google uses <code>ASWebAuthenticationSession</code> with <strong>PKCE</strong> (no client secret on device — dashed note). Either way the app POSTs the provider token to <code>/auth/apple|google</code>, gets our session + refresh JWT back, and writes both to the Keychain. From then on every sync call carries our Bearer token; the provider is out of the loop. Sign-out clears the Keychain + best-effort <code>POST /auth/signout</code>; the local notebook is untouched.</div>
+</div>
+
+<!-- ---- 8.6b PERMISSIONS ---- -->
+<h3>8.6b · Permissions &amp; onboarding — the relaunch gate</h3>
+<p>Screen Recording is the one OS permission the app needs, and it only takes effect <strong>after a relaunch</strong>. The PermissionService preflights on every launch and routes onboarding accordingly; the hotkey is live even before the grant, but pressing it ungranted reopens the guide rather than failing (DESIGN §2f).</p>
+<div class="fig">
+<svg viewBox="0 0 880 280" role="img" aria-label="State diagram of the screen-recording permission and relaunch flow">
+  <style>
+    .st{font-family:Fraunces,serif;font-size:12px;fill:#1B201D;font-weight:600}
+    .sd{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+    .ed{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#6D5B8A}
+  </style>
+  <defs>
+    <marker id="pm-a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#6D5B8A"/></marker>
+    <marker id="pm-g" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1F6F5C"/></marker>
+    <marker id="pm-y" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#B8841F"/></marker>
+  </defs>
+
+  <rect x="20" y="116" width="150" height="56" rx="12" fill="#efe9dc" stroke="#1B201D" stroke-width="1.6"/><text x="95" y="140" text-anchor="middle" class="st">launch</text><text x="95" y="156" text-anchor="middle" class="sd">CGPreflight…Access()</text>
+
+  <rect x="220" y="40" width="170" height="56" rx="12" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.6"/><text x="305" y="64" text-anchor="middle" class="st" fill="#1F6F5C">granted → step 3</text><text x="305" y="80" text-anchor="middle" class="sd">"You're all set" · ready</text>
+
+  <rect x="220" y="150" width="170" height="56" rx="12" fill="#fff8ef" stroke="#B8841F" stroke-width="1.6"/><text x="305" y="174" text-anchor="middle" class="st" fill="#B8841F">step 2 (sticky)</text><text x="305" y="190" text-anchor="middle" class="sd">why · Open Settings</text>
+
+  <rect x="450" y="150" width="170" height="56" rx="12" fill="#fff" stroke="#B8841F" stroke-dasharray="4 3"/><text x="535" y="174" text-anchor="middle" class="st">System Settings</text><text x="535" y="190" text-anchor="middle" class="sd">user flips switch</text>
+
+  <rect x="680" y="150" width="170" height="56" rx="12" fill="#fff" stroke="#1F6F5C" stroke-width="1.6"/><text x="765" y="174" text-anchor="middle" class="st">Quit &amp; Reopen</text><text x="765" y="190" text-anchor="middle" class="sd">app relaunches itself</text>
+
+  <!-- arrows -->
+  <g stroke="#1F6F5C" stroke-width="1.5" fill="none" marker-end="url(#pm-g)"><path d="M150 120 C180 100 195 85 218 72"/></g>
+  <text x="150" y="96" class="ed" fill="#1F6F5C">granted</text>
+  <g stroke="#B8841F" stroke-width="1.5" fill="none" marker-end="url(#pm-y)"><path d="M150 168 C175 172 195 176 218 178"/></g>
+  <text x="150" y="200" class="ed" fill="#B8841F">not granted</text>
+  <g stroke="#6D5B8A" stroke-width="1.5" fill="none" marker-end="url(#pm-a)">
+    <path d="M390 178 L448 178"/>
+    <path d="M620 178 L678 178"/>
+  </g>
+  <!-- relaunch loops back to preflight -->
+  <g stroke="#6D5B8A" stroke-width="1.5" fill="none" marker-end="url(#pm-a)" stroke-dasharray="4 3"><path d="M765 206 C765 250 300 250 95 250 L95 174"/></g>
+  <text x="430" y="244" class="ed">relaunch → re-preflight (granted → step 3 · still off → step 2 "Still off…")</text>
+</svg>
+<div class="cap">Fig 11 — Permission/relaunch state machine. Preflight on launch: granted jumps to onboarding step 3; not granted holds on the sticky step 2, which deep-links to <em>Privacy &amp; Security ▸ Screen Recording</em> and offers <strong>Quit &amp; Reopen</strong>. The relaunch loops back through preflight — granted now ends onboarding, still-off re-shows step 2 with the softened "Still off…" copy. The hotkey pressed while ungranted routes here, never fails silently.</div>
+</div>
+
+<!-- ---- 8.7 CONCURRENCY ---- -->
+<h3>8.7 · Concurrency model</h3>
+<div class="twocol">
+  <div class="col"><h4>Off the main actor</h4><p><code>CaptureCoordinator</code>, <code>SyncClient</code>, and engine calls are <code>actor</code>s / <code>async</code>; the <code>screencapture</code> <code>Process</code>, Vision request, and all <code>URLSession</code> work run off main. Capturing/OCR/network never block the UI run-loop.</p></div>
+  <div class="col"><h4>On the main actor</h4><p>Panel presentation (<code>NSApp.activate</code>, become-key), clipboard write, and any view that observes <code>NotebookStore</code> are <code>@MainActor</code>. SwiftData writes happen on the store's context, then UI updates land on main via the model container.</p></div>
+  <div class="col"><h4>Hand-offs</h4><p>The actor produces a value-type <code>Translation</code>; the UI hop is a single <code>await MainActor.run { present(...) }</code>. No shared mutable state crosses actors — only <code>Sendable</code> value types.</p></div>
+  <div class="col"><h4>Best-effort sync</h4><p>Sync is detached from the capture task: a save returns immediately and a separate <code>Task</code> on the SyncClient does the network. A sync failure can never fail a capture or a save.</p></div>
+</div>
+
+<!-- ---- 8.8 BUILD & RELEASE ---- -->
+<h3>8.8 · Build &amp; release pipeline</h3>
+<p>The app lives under <code>/macos</code> in <code>cdcupt/translator-everywhere</code> (the backend is <code>/server</code>; the <code>te</code> CLI is untouched). The project is generated by <strong>xcodegen</strong> from a <code>project.yml</code>, built headless with a <code>DEVELOPER_DIR</code> override (Xcode 26.5), then <strong>signed + notarized</strong> (mandatory — Sign in with Apple requires it) and shipped as a stapled <code>.dmg</code> on a GitHub Release.</p>
+<div class="fig">
+<svg viewBox="0 0 880 200" role="img" aria-label="Left-to-right build and release pipeline for the macOS app">
+  <style>.l{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#1B201D}.s{font-family:'IBM Plex Mono',monospace;font-size:8.5px;fill:#5f655f}</style>
+  <defs><marker id="br-a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1F6F5C"/></marker></defs>
+  <g>
+    <rect x="8"   y="56" width="104" height="48" rx="9" fill="#fff" stroke="#e4ded2"/><text x="60"  y="76" text-anchor="middle" class="l">xcodegen</text><text x="60" y="92" text-anchor="middle" class="s">project.yml</text>
+    <rect x="132" y="56" width="116" height="48" rx="9" fill="#fff" stroke="#e4ded2"/><text x="190" y="76" text-anchor="middle" class="l">xcodebuild</text><text x="190" y="92" text-anchor="middle" class="s">DEVELOPER_DIR · -derivedDataPath</text>
+    <rect x="268" y="56" width="104" height="48" rx="9" fill="#fff" stroke="#e4ded2"/><text x="320" y="76" text-anchor="middle" class="l">codesign</text><text x="320" y="92" text-anchor="middle" class="s">Developer ID</text>
+    <rect x="392" y="56" width="104" height="48" rx="9" fill="#fff" stroke="#e4ded2"/><text x="444" y="76" text-anchor="middle" class="l">notarytool</text><text x="444" y="92" text-anchor="middle" class="s">notarize · wait</text>
+    <rect x="516" y="56" width="104" height="48" rx="9" fill="#fff" stroke="#e4ded2"/><text x="568" y="76" text-anchor="middle" class="l">stapler</text><text x="568" y="92" text-anchor="middle" class="s">staple ticket</text>
+    <rect x="640" y="56" width="104" height="48" rx="9" fill="#fff" stroke="#e4ded2"/><text x="692" y="76" text-anchor="middle" class="l">hdiutil .dmg</text><text x="692" y="92" text-anchor="middle" class="s">/Applications symlink</text>
+    <rect x="764" y="56" width="108" height="48" rx="9" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5"/><text x="818" y="76" text-anchor="middle" class="l">gh release</text><text x="818" y="92" text-anchor="middle" class="s">tagged asset</text>
+  </g>
+  <g stroke="#1F6F5C" stroke-width="1.5" fill="none" marker-end="url(#br-a)">
+    <line x1="112" y1="80" x2="130" y2="80"/><line x1="248" y1="80" x2="266" y2="80"/><line x1="372" y1="80" x2="390" y2="80"/><line x1="496" y1="80" x2="514" y2="80"/><line x1="620" y1="80" x2="638" y2="80"/><line x1="744" y1="80" x2="762" y2="80"/>
+  </g>
+  <rect x="8" y="128" width="864" height="56" rx="10" fill="#fbfaf7" stroke="#e4ded2"/>
+  <text x="22" y="148" class="s" fill="#6D5B8A">project.yml key fields:  LSUIElement: YES · bundleId com.cdcupt.translator-everywhere · deploymentTarget macOS 14 ·</text>
+  <text x="22" y="164" class="s" fill="#6D5B8A">SPM dep sindresorhus/KeyboardShortcuts · entitlement com.apple.developer.applesignin · NSScreenCaptureUsage / hardened runtime.</text>
+  <text x="22" y="180" class="s">repo layout:  /macos (app) · /server (backend) · te CLI untouched.</text>
+</svg>
+<div class="cap">Fig 12 — Build &amp; release, left to right: <code>xcodegen</code> → headless <code>xcodebuild</code> (<code>DEVELOPER_DIR</code> + <code>-derivedDataPath</code>) → <code>codesign</code> (Developer ID) → <code>notarytool</code> → <code>stapler</code> → <code>hdiutil</code> <code>.dmg</code> (with an <code>/Applications</code> symlink for drag-install) → <code>gh release</code>. Signing + notarization are non-optional because the Apple Sign-In entitlement requires them. The dark strip lists the load-bearing <code>project.yml</code> keys and the <code>/macos</code> repo layout.</div>
+</div>
+
+<!-- ============================ 9 QA TEST PLAN ============================ -->
+<h2 id="qa"><span class="n">9</span>QA test plan</h2>
+<p>How we prove the build matches the PRD before Gate-3 and the two beta-testers. The plan splits cleanly along the privacy boundary: the <strong>macOS app</strong> (Swift — capture, OCR, translate, notebook, sync client, auth, permissions) and the <strong>backend</strong> (Go — auth verify, the two-table sync store). Most logic is covered by fast unit/integration tests that run in CI; a small ring of E2E/manual scenarios covers what only a real Mac, a real provider account, and a second machine can verify. Every test traces back to a PRD goal — the <a href="#qa-matrix">G1–G8 acceptance matrix</a> is the contract.</p>
+
+<!-- ---- 9.1 STRATEGY / PYRAMID ---- -->
+<h3>9.1 · Test strategy — the pyramid, both halves</h3>
+<p>A wide base of cheap unit tests, a thinner band of integration tests (backend against a real ephemeral Postgres; app stores against an in-memory model container), and a deliberately small cap of E2E/manual scenarios. The two columns are tested independently and meet only at the §7 contract, which is pinned by a shared fixture so app and server can't drift.</p>
+<div class="fig">
+<svg viewBox="0 0 880 430" role="img" aria-label="Test pyramid: unit base, integration middle, E2E and manual cap, split across the macOS app and the Go backend">
+  <style>
+    .ph{font-family:Fraunces,serif;font-size:13px;fill:#1B201D;font-weight:600}
+    .pl{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#1B201D}
+    .ps{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+    .pc{font-family:'IBM Plex Mono',monospace;font-size:9.5px;fill:#fff}
+  </style>
+  <!-- column headers -->
+  <text x="250" y="28" text-anchor="middle" class="ph" fill="#1F6F5C">macOS app · Swift (XCTest)</text>
+  <text x="650" y="28" text-anchor="middle" class="ph" fill="#2D6CA8">backend · Go (go test)</text>
+  <line x1="450" y1="40" x2="450" y2="408" stroke="#e4ded2" stroke-width="1.2" stroke-dasharray="4 3"/>
+
+  <!-- E2E / manual cap -->
+  <rect x="40" y="48" width="820" height="62" rx="10" fill="#fdf3ee" stroke="#C8643C" stroke-width="1.5"/>
+  <text x="60" y="70" class="pl" fill="#C8643C">E2E / MANUAL · ~12 scenarios · slowest · highest confidence</text>
+  <text x="60" y="88" class="ps">app: capture→translate→save · permission+relaunch · sign-in · two-Mac sync · offline reconcile (real Mac)</text>
+  <text x="60" y="102" class="ps">backend: full auth→push→pull round-trip against a live ephemeral instance (smoke); /healthz on deploy</text>
+
+  <!-- integration band -->
+  <rect x="40" y="122" width="820" height="96" rx="10" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.4"/>
+  <text x="60" y="144" class="pl" fill="#2D6CA8">INTEGRATION · ~28 cases · real Postgres / in-memory store · CI</text>
+  <text x="60" y="164" class="ps" fill="#1F6F5C">APP →  NotebookStore on in-memory ModelContainer · SyncClient vs a stub server · Keychain round-trip</text>
+  <text x="60" y="180" class="ps" fill="#1F6F5C">         (sandboxed keychain) · SettingsStore</text>
+  <text x="60" y="200" class="ps" fill="#2D6CA8">BACKEND →  handlers vs ephemeral Postgres (testcontainers/dockertest) · /vocab upsert+since · /account cascade</text>
+
+  <!-- unit base -->
+  <rect x="40" y="230" width="820" height="160" rx="10" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5"/>
+  <text x="60" y="252" class="pl" fill="#1F6F5C">UNIT · ~70 cases · milliseconds · the bulk of coverage</text>
+  <text x="60" y="274" class="ps">APP →  OCR reading-order sort · Translator protocol (Google/OpenAI swap, mocked URLProtocol) · direction</text>
+  <text x="60" y="290" class="ps">        auto-detect (zh↔en) · NotebookStore CRUD + tombstones · merge / last-write-wins · cancel detection</text>
+  <text x="60" y="306" class="ps">        (no PNG → no save) · Keychain wrapper · token handling (store/refresh/clear) · CSV/MD export · summarize</text>
+  <text x="60" y="330" class="ps" fill="#2D6CA8">BACKEND →  JWKS verify (mocked Apple/Google, key rotation, email-withheld) · JWT issue/verify/refresh</text>
+  <text x="60" y="346" class="ps" fill="#2D6CA8">           input validation &amp; length caps · last-write-wins resolver · tombstone filter · since-cursor SQL</text>
+  <text x="60" y="362" class="ps" fill="#2D6CA8">           user_id derived from sub (never trusted from body) · rate-limit middleware</text>
+  <text x="60" y="382" class="ps">shared §7 contract fixture pins request/response shapes so app ↔ server cannot drift</text>
+</svg>
+<div class="cap">Fig 13 — The pyramid, split per surface. Wide unit base (~70), a real-Postgres / in-memory integration band (~28), and a thin E2E/manual cap (~12) for what needs a Mac, a provider account, or a second machine. The dashed centre line is the §7 contract — pinned by a shared fixture used by both columns.</div>
+</div>
+<div class="callout">
+  <strong>Tooling.</strong> App: <code>XCTest</code> via <code>swift test</code> / <code>xcodebuild test</code> on a <strong>macOS</strong> destination + an in-memory SwiftData <code>ModelContainer</code>; network mocked with a custom <code>URLProtocol</code>; the Keychain exercised in a test keychain so CI never touches the login keychain. Backend: <code>go test ./...</code> with <code>-race</code> and <code>-cover</code>; integration tests spin an ephemeral Postgres (dockertest/testcontainers) and run <code>goose up</code> first, so migrations are tested on every run.
+</div>
+
+<!-- ---- 9.2 APP UNIT TESTS ---- -->
+<h3>9.2 · Unit tests — the macOS app</h3>
+<p>Pure-logic units, no UI, no real network, no real Keychain login item. Each row names the type under test (from §8) and the behaviour asserted.</p>
+<div class="tablewrap"><table>
+  <tr><th>Unit</th><th>What it proves</th><th>Key cases</th></tr>
+  <tr><td><strong>OCR reading-order sort</strong></td><td>Vision observations are reordered top→bottom, left→right into natural reading order before joining.</td><td>multi-line block sorts correctly; two columns interleave by <code>boundingBox</code>; single line is a no-op; RTL/vertical falls back gracefully.</td></tr>
+  <tr><td><strong>Translator protocol</strong></td><td><code>GoogleEngine</code> and <code>OpenAIEngine</code> are interchangeable behind the protocol; the coordinator depends only on the protocol.</td><td>same input → both engines return a result type; swapping the active engine changes only which mock is hit; OpenAI path reads the key from the (test) Keychain; a mock engine injects success/throw.</td></tr>
+  <tr><td><strong>Direction auto-detect</strong></td><td>zh↔en direction is inferred from the recognized text + the default-target pref.</td><td>Han script → target EN; Latin → target ZH; mixed picks the dominant script; honours an explicit target override.</td></tr>
+  <tr><td><strong>NotebookStore CRUD + tombstones</strong></td><td>Insert/list/search/delete on an in-memory container; delete writes a tombstone, not a hard remove.</td><td>insert then fetch (reverse-chron); search filters source+translation; delete sets <code>deleted=true</code> + bumps <code>updatedAt</code> + <code>dirty</code>; tombstoned rows excluded from the list but present for sync.</td></tr>
+  <tr><td><strong>Sync merge / last-write-wins</strong></td><td>The client-side merge keeps the newer <code>updatedAt</code> per <code>clientUUID</code> and applies remote tombstones.</td><td>remote newer → local overwritten; local newer → kept (and stays dirty to re-push); remote tombstone → local row removed; unknown <code>clientUUID</code> → inserted.</td></tr>
+  <tr><td><strong>Cancel detection</strong></td><td>An Esc-cancelled capture writes <strong>no file</strong>, so no row is ever saved.</td><td>absent temp PNG → coordinator returns to idle, NotebookStore unchanged; presence of a PNG (even of empty content) proceeds to OCR. (Detected by file absence, not <code>screencapture</code> exit code — §8.2.)</td></tr>
+  <tr><td><strong>Keychain read/write</strong></td><td>The wrapper stores/reads/deletes items in a test keychain; nothing lands on disk in cleartext.</td><td>write→read round-trips the OpenAI key; overwrite updates; delete removes; missing item returns nil (not a crash).</td></tr>
+  <tr><td><strong>Token handling</strong></td><td>Session + refresh JWTs are stored, surfaced for the <code>Bearer</code> header, refreshed, and cleared on sign-out.</td><td>store pair → SyncClient reads access token; expired access → refresh swaps it; sign-out clears both but leaves the notebook; no token → SyncClient stays idle (local-only).</td></tr>
+  <tr><td>Export (CSV / MD)</td><td>The notebook serialises to valid CSV and Markdown.</td><td>fields escaped (commas/quotes/newlines in source); empty notebook → header-only; UTF-8 preserved for CJK.</td></tr>
+</table></div>
+
+<!-- ---- 9.3 BACKEND TESTS ---- -->
+<h3>9.3 · Unit &amp; integration — the backend</h3>
+<p>Unit tests cover the pure resolvers and token logic with mocked providers; integration tests run handlers against an ephemeral Postgres with migrations applied, so the SQL and constraints are exercised for real.</p>
+<div class="tablewrap"><table>
+  <tr><th>Test</th><th>Layer</th><th>What it proves</th></tr>
+  <tr><td><strong>Auth verify — Apple/Google</strong></td><td>unit (mocked JWKS)</td><td>A valid provider identity token verifies (sig · <code>iss</code> · <code>aud</code>=our bundle/client id · <code>exp</code>) and upserts the user by <code>(provider, subject)</code>; a tampered/expired/wrong-<code>aud</code> token is rejected with 401.</td></tr>
+  <tr><td><strong>JWKS key rotation</strong></td><td>unit</td><td>A token signed with a freshly-rotated provider key still verifies after the cached JWKS refreshes; a token with an unknown <code>kid</code> triggers a re-fetch then accept/reject correctly.</td></tr>
+  <tr><td><strong>Email-withheld (Apple)</strong></td><td>unit</td><td>An Apple token with no email (or a private-relay address) still creates/links the user; <code>email</code> is stored as-is for display and is never used as a lookup key.</td></tr>
+  <tr><td><strong>JWT issue / verify / refresh</strong></td><td>unit</td><td>Issued session JWT carries our internal <code>users.id</code> as <code>sub</code>; <code>/auth/refresh</code> swaps a valid refresh token for a new access JWT; a revoked/expired refresh token is refused.</td></tr>
+  <tr><td><strong><code>POST /vocab</code> idempotency</strong></td><td>integration</td><td>Re-pushing the same <code>(user_id, client_uuid)</code> updates in place — never duplicates (UNIQUE upsert); a batch with a repeated <code>client_uuid</code> collapses to one row; per-row last-write-wins keeps <code>MAX(updated_at)</code> and reports older rows as conflicts.</td></tr>
+  <tr><td><strong><code>GET /vocab?since=</code> cursor</strong></td><td>integration</td><td>Returns only rows with <code>updated_at &gt; since</code>, <strong>including tombstones</strong>; ordering + <code>server_time</code> let the client advance the cursor; <code>since</code> at/after the newest row returns an empty set.</td></tr>
+  <tr><td><strong><code>DELETE /account</code> cascade</strong></td><td>integration</td><td>Removes the user and <em>all</em> their <code>vocab_items</code> via <code>ON DELETE CASCADE</code> in one statement; a second user's rows are untouched; returns 204.</td></tr>
+  <tr><td><strong>user_id from <code>sub</code></strong></td><td>integration</td><td>A request body carrying a foreign <code>user_id</code> is ignored — rows are always scoped to the JWT subject; user A can never read or write user B's rows.</td></tr>
+  <tr><td><strong>Input validation / rate limit</strong></td><td>integration</td><td>Over-long <code>source_text</code>, bad <code>engine</code>/<code>lang</code>, oversized batch → 4xx; <code>/auth/*</code> and <code>/vocab</code> throttle per-IP/per-user beyond the limit.</td></tr>
+  <tr><td><strong>Migrations apply clean</strong></td><td>integration</td><td><code>goose up</code> from empty creates both tables + all constraints/indexes; <code>goose down</code> then <code>up</code> is idempotent; CI fails if a migration is missing or out of order.</td></tr>
+</table></div>
+
+<!-- ---- 9.4 E2E / MANUAL ---- -->
+<h3>9.4 · E2E &amp; manual scenarios</h3>
+<p>What only a real Mac, real provider accounts, and a second machine can verify. These are the beta-tester scripts and the Gate-3 walkthrough. Each is a full user journey, not an isolated assertion.</p>
+<div class="fig">
+<svg viewBox="0 0 880 360" role="img" aria-label="End-to-end scenarios across one Mac, two Macs, and the offline/online boundary">
+  <style>
+    .eh{font-family:Fraunces,serif;font-size:12.5px;fill:#1B201D;font-weight:600}
+    .el{font-family:'IBM Plex Mono',monospace;font-size:9.5px;fill:#1B201D}
+    .es{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+  </style>
+  <defs>
+    <marker id="e2-g" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1F6F5C"/></marker>
+    <marker id="e2-b" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2D6CA8"/></marker>
+  </defs>
+  <!-- mac A -->
+  <rect x="16" y="40" width="270" height="150" rx="12" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5"/>
+  <text x="32" y="62" class="eh" fill="#1F6F5C">Mac A · local-only first</text>
+  <text x="32" y="84" class="es">① capture → translate → ★ saved (free path)</text>
+  <text x="32" y="100" class="es">② works fully offline, no account</text>
+  <text x="32" y="116" class="es">③ notebook: search · delete · export · summarize</text>
+  <text x="32" y="132" class="es">④ permission onboarding incl. RELAUNCH</text>
+  <text x="32" y="148" class="es">⑤ sign in (Apple, then Google) — upgrade</text>
+  <text x="32" y="170" class="es" fill="#1F6F5C">local notebook is a complete product (G5)</text>
+  <!-- mac B -->
+  <rect x="594" y="40" width="270" height="150" rx="12" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.5"/>
+  <text x="610" y="62" class="eh" fill="#2D6CA8">Mac B · second machine</text>
+  <text x="610" y="84" class="es">⑥ sign in same account → notebook appears</text>
+  <text x="610" y="100" class="es">⑦ edit a row on B</text>
+  <text x="610" y="116" class="es">⑧ delete a row on B</text>
+  <text x="610" y="132" class="es">⑨ both changes land back on A (tombstone)</text>
+  <text x="610" y="148" class="es">⑩ sign out on A → local kept · sign in → resumes</text>
+  <text x="610" y="170" class="es" fill="#2D6CA8">sync across Macs round-trips (G6)</text>
+  <!-- backend -->
+  <rect x="330" y="70" width="220" height="86" rx="12" fill="#fff" stroke="#6D5B8A" stroke-width="1.5"/>
+  <text x="440" y="92" text-anchor="middle" class="el" fill="#6D5B8A">backend (live ephemeral)</text>
+  <text x="440" y="110" text-anchor="middle" class="es">auth → JWT → /vocab push/pull</text>
+  <text x="440" y="126" text-anchor="middle" class="es">last-write-wins · tombstones</text>
+  <text x="440" y="144" text-anchor="middle" class="es">DELETE /account wipes cloud copy</text>
+  <g stroke="#2D6CA8" stroke-width="1.5" fill="none" marker-end="url(#e2-b)">
+    <path d="M286 120 C300 118 314 114 328 112"/>
+    <path d="M594 120 C580 118 566 114 552 112"/>
+  </g>
+  <!-- offline band -->
+  <rect x="16" y="214" width="848" height="120" rx="12" fill="#fff8ef" stroke="#B8841F" stroke-width="1.4"/>
+  <text x="32" y="236" class="eh" fill="#B8841F">Offline → online reconcile &amp; every result state</text>
+  <text x="32" y="258" class="es">⑪ go offline · capture 3 items (saved locally, queued dirty) · go online → all 3 push, cursor advances, no dupes</text>
+  <text x="32" y="276" class="es">⑫ network drops MID-translate → error panel (text still on clipboard) · Retry succeeds when back</text>
+  <text x="32" y="294" class="es">⑬ expired session token mid-sync → silent refresh → sync continues (no user-visible failure)</text>
+  <text x="32" y="312" class="es">⑭ walk every Result state: success FREE · success AI · no-text · engine-down · permission-not-granted (G3·G4·G8)</text>
+</svg>
+<div class="cap">Fig 14 — E2E map. Mac A proves the local-only product and onboarding-with-relaunch; Mac B proves multi-device sync (edit + delete round-trip via tombstones); the amber band proves offline reconcile, mid-flight failures, token refresh, and a sweep of every result state. These are the beta-tester scripts.</div>
+</div>
+
+<!-- ---- 9.5 EDGE CASES ---- -->
+<h3>9.5 · Edge cases</h3>
+<div class="twocol">
+  <div class="col"><h4>Capture region</h4><p><strong>Empty</strong> (zero-area drag) → treated like cancel, no save. <strong>Huge</strong> region (full screen, dense text) → OCR still completes, panel readable, no truncation crash. <strong>Non-text image</strong> (photo/logo, no glyphs) → clean <em>no-text-found</em>, nothing saved.</p></div>
+  <div class="col"><h4>Network</h4><p><strong>Drop mid-translate</strong> → error panel + clipboard fallback, Retry works. <strong>Google rate-limit / back-off</strong> → "engine-down" copy, suggest OpenAI; client backs off (server is never in this path — §6).</p></div>
+  <div class="col"><h4>Auth / token</h4><p><strong>Expired access token</strong> → transparent refresh, sync resumes. <strong>Expired/revoked refresh</strong> → quietly drop to local-only, surface a gentle "sign in again". <strong>Apple email-withheld</strong> → account still works.</p></div>
+  <div class="col"><h4>Sync conflicts</h4><p><strong>Duplicate <code>client_uuid</code></strong> (retry/two devices) → one row, idempotent. <strong>Conflicting edits to the same row</strong> on A and B → newer <code>updated_at</code> wins deterministically; the loser is reported in <code>conflicts[]</code> and reconciled, never lost silently into a dupe.</p></div>
+</div>
+
+<!-- ---- 9.6 ACCEPTANCE MATRIX ---- -->
+<h3 id="qa-matrix">9.6 · Acceptance-criteria matrix — G1–G8</h3>
+<p>The Gate-3 + beta-tester contract: each PRD goal mapped to a concrete pass/fail check and the test layer that owns it. A goal passes only when its check is green.</p>
+<div class="tablewrap"><table>
+  <tr><th>Goal</th><th>Concrete pass/fail check</th><th>Layer</th></tr>
+  <tr><td><strong>G1</strong> · download→working &lt; 2 min</td><td>Fresh Mac: open notarized .dmg, drag to /Applications, launch, complete onboarding, first successful translation — stopwatch under 2 min, no terminal, no key, no account.</td><td>manual</td></tr>
+  <tr><td><strong>G2</strong> · hotkey set in-app</td><td>Recorder in Prefs ▸ General binds a new combo; the new hotkey fires capture; menu label updates live; <strong>System Settings never opened</strong> for the hotkey.</td><td>manual + unit (SettingsStore)</td></tr>
+  <tr><td><strong>G3</strong> · free engine, zero config/cost</td><td>With no key and no account, capture→translate succeeds via Vision+Google; engine badge reads FREE.</td><td>E2E + unit (Translator)</td></tr>
+  <tr><td><strong>G4</strong> · auto-save + review/search/export/summarize</td><td>Every successful capture appears in the notebook unprompted; search filters it; export produces valid CSV/MD; summarize runs client-side. (Perf check: capture→result &lt; ~3 s on free path.)</td><td>E2E + unit + integration</td></tr>
+  <tr><td><strong>G5</strong> · local-only is complete</td><td>With no account: full capture loop + notebook + export + summarize work; a network sniffer shows <strong>zero packets to our backend</strong>.</td><td>manual (packet capture) + unit</td></tr>
+  <tr><td><strong>G6</strong> · sign-in syncs across Macs; sign-out/in restores</td><td>Two Macs, same account: a capture on A appears on B; an edit + a delete on B round-trip back to A; sign-out keeps local, sign-in restores sync.</td><td>E2E (two-Mac) + integration</td></tr>
+  <tr><td><strong>G7</strong> · signed + notarized, no Gatekeeper warning</td><td><code>spctl -a -vv</code> and a real GitHub download both open with no warning; <code>codesign --verify</code> + stapled ticket pass.</td><td>manual + CI (signing check)</td></tr>
+  <tr><td><strong>G8</strong> · permission onboarding incl. relaunch</td><td>Onboarding detects ungranted, deep-links Settings, "Quit &amp; Reopen" relaunches; on fresh launch a granted permission jumps to "Done"; hotkey-while-ungranted reopens step 2.</td><td>manual</td></tr>
+</table></div>
+
+<!-- ---- 9.7 SECURITY / PRIVACY ---- -->
+<h3>9.7 · Security &amp; privacy tests</h3>
+<p>These are non-negotiables from PRD §10 and §6 — failures are CRITICAL and block merge.</p>
+<div class="tablewrap"><table>
+  <tr><th>Check</th><th>How it's verified</th></tr>
+  <tr><td><strong>No image ever leaves the device</strong></td><td>Schema review: backend has no image/blob column (structural — §6). Packet capture during capture→translate→sync shows only text payloads. Confirm the temp capture PNG is deleted after OCR (file-absence assertion).</td></tr>
+  <tr><td><strong>Tokens only in Keychain</strong></td><td>After sign-in, grep the app container/UserDefaults/logs for the JWT — must be absent; the value exists only in the test/real Keychain. Logs are scrubbed of secrets.</td></tr>
+  <tr><td><strong>TLS everywhere</strong></td><td>All backend calls are HTTPS; no token in any URL/query; HSTS present on the subdomain (<code>/healthz</code> header check).</td></tr>
+  <tr><td><strong>Account deletion removes all rows</strong></td><td><code>DELETE /account</code> integration test asserts zero remaining <code>users</code> + <code>vocab_items</code> for that id; another user's data intact.</td></tr>
+  <tr><td><strong>No cross-user access</strong></td><td>User A's JWT cannot read or write user B's rows; body-supplied <code>user_id</code> is ignored (derived from <code>sub</code>).</td></tr>
+  <tr><td><strong>Secrets never in repo</strong></td><td>CI secret-scan (gitleaks-class) over the tree; assert no DB DSN, JWT signing secret, or provider client secret is committed — they live only in the VPS env file.</td></tr>
+</table></div>
+
+<!-- ---- 9.8 PERFORMANCE ---- -->
+<h3>9.8 · Performance</h3>
+<div class="reco">
+  <h3>Free-path latency budget (G4)</h3>
+  <p style="margin-bottom:0"><strong>capture → result &lt; ~3 s</strong> on the free path (Vision OCR on-device + Google translate), measured on a representative paragraph. Instrumented by timestamping coordinator stages (capture done · OCR done · translate done · panel up) and asserting the wall-clock budget in a manual perf pass on real hardware. The panel must appear the instant a translation exists; <strong>auto-save and background sync run after the panel is up</strong> and never count against this budget (§8.2). Backend: <code>/vocab</code> push/pull stays comfortably sub-second for a personal-scale notebook (single-index <code>since</code> scan).</p>
+</div>
+
+<!-- ---- 9.9 CI / AUTOMATION ---- -->
+<h3>9.9 · CI / automation &amp; the green-before-merge rule</h3>
+<div class="fig">
+<svg viewBox="0 0 880 250" role="img" aria-label="What runs automatically in CI versus what is manual, gated by green-before-merge">
+  <style>
+    .ch{font-family:Fraunces,serif;font-size:12.5px;fill:#1B201D;font-weight:600}
+    .cl{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#1B201D}
+    .cs{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5f655f}
+  </style>
+  <defs><marker id="ci-a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1F6F5C"/></marker></defs>
+  <!-- automatic -->
+  <rect x="16" y="30" width="500" height="190" rx="12" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5"/>
+  <text x="32" y="52" class="ch" fill="#1F6F5C">Automatic · every push / PR (GitHub Actions)</text>
+  <text x="32" y="76" class="cl">• swift test  — app unit + in-memory-store integration</text>
+  <text x="32" y="94" class="cs">  XCTest, macOS destination, mocked URLProtocol + test keychain</text>
+  <text x="32" y="116" class="cl">• go test ./... -race -cover  — backend unit + integration</text>
+  <text x="32" y="134" class="cs">  ephemeral Postgres, goose up first → migrations tested too</text>
+  <text x="32" y="156" class="cl">• migration check  — goose up/down idempotent</text>
+  <text x="32" y="174" class="cl">• secret-scan + codesign/notarize verify (release job)</text>
+  <text x="32" y="196" class="cs">  coverage target 80% (testing rules); fails the job below it</text>
+  <!-- manual -->
+  <rect x="540" y="30" width="324" height="190" rx="12" fill="#fff8ef" stroke="#B8841F" stroke-width="1.4"/>
+  <text x="556" y="52" class="ch" fill="#B8841F">Manual · before release / Gate-3</text>
+  <text x="556" y="76" class="cl">• capture + OCR on a real screen</text>
+  <text x="556" y="94" class="cl">• Screen-Recording permission + relaunch</text>
+  <text x="556" y="112" class="cl">• Apple &amp; Google sign-in (real accounts)</text>
+  <text x="556" y="130" class="cl">• two-Mac sync round-trip</text>
+  <text x="556" y="148" class="cl">• Gatekeeper-clean download &amp; open</text>
+  <text x="556" y="166" class="cl">• free-path &lt; 3 s perf pass</text>
+  <text x="556" y="190" class="cs">driven by the two beta-testers + Gate-3</text>
+  <!-- gate -->
+  <rect x="16" y="226" width="848" height="0" />
+  <line x1="266" y1="220" x2="266" y2="240" stroke="#1F6F5C" stroke-width="1.6" marker-end="url(#ci-a)"/>
+</svg>
+<div class="cap">Fig 15 — CI vs manual. Automated: <code>swift test</code>, <code>go test -race -cover</code>, the migration check, secret-scan, and signing verification — all on every push, with an 80% coverage floor. Manual (real Mac / real accounts / second machine): capture, permission+relaunch, sign-in, two-Mac sync, Gatekeeper, and the perf pass. <strong>Green-before-merge:</strong> no PR merges while any automated job is red; the manual pass + the two beta-testers gate the release itself.</div>
+</div>
+<div class="note">
+  <h3>Open items needing a decision (QA flags for the Coordinator)</h3>
+  <ul style="margin-bottom:0">
+    <li><strong>Test provider accounts.</strong> The Apple + Google sign-in E2E and the two-Mac sync scenarios need a real <strong>test Apple ID</strong> and <strong>test Google account</strong> (and the app registered in both consoles with the right bundle/client id + redirect). Until those exist, G6 and the auth happy-path are <em>unit/integration-only</em> (mocked JWKS) — fully covered logically but not end-to-end.</li>
+    <li><strong>Second Mac for sync.</strong> G6's round-trip needs two machines (or a second user session). A single CI box can't prove cross-device sync — this stays a beta-tester task.</li>
+    <li><strong>Google free-endpoint variability.</strong> The free Google endpoint can rate-limit unpredictably; its E2E is best-effort and the back-off behaviour is what we actually assert, not a fixed latency.</li>
+  </ul>
+</div>
+
+<footer>Tech Document · Translator Everywhere · sdd_pipeline artifact 3/4 · <strong>part A — infrastructure + backend</strong> (this pass). Backend = own Go service on BWH at <code>api.translator.daichenlab.com</code>, own DB+role on shared Postgres, own Caddy snippet, text-only sync store, Apple+Google auth → own JWT. Frontend (§8) and QA (§9) workers extend this same file. Sources of truth: PRD (Gate-1 approved) + Design (rev 2).</footer>
+
+</div>
+</body>
+</html>
