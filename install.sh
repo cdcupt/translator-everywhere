@@ -5,7 +5,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="${TE_BIN_DIR:-$HOME/.local/bin}"
 SERVICES_DIR="$HOME/Library/Services"
-WORKFLOWS=("Translate with te (AI).workflow" "Translate with te (Google).workflow")
+WORKFLOWS=("Translate with te (AI).workflow" "Translate with te (Google).workflow" "Translate screen region (te).workflow")
 
 echo "te: installing from $REPO_DIR"
 
@@ -45,14 +45,18 @@ Done. Try it:
   te -e ubiquitous                                    # AI + pinyin / usage note
   te                                                  # translate the clipboard
   te -i                                               # interactive REPL
+  te -c                                               # drag a screen region -> OCR + translate (AI)
 
 System-wide (your "two-finger tap"):
   Select text, two-finger-tap (right-click) → Services → choose one:
     "翻译 (AI)"      — high-quality OpenAI translation
     "翻译 (Google)"  — free Google Translate
+  Or, to translate anything on screen (a video frame, an image, a PDF):
+    "翻译 (截图)"    — drag a screen region; it OCRs + translates it
   The result shows in a dialog and is copied to your clipboard.
 
-Optional — give either one a keyboard shortcut:
-  System Settings → Keyboard → Keyboard Shortcuts… → Services → Text →
-  "翻译 (AI)" / "翻译 (Google)", then assign a hotkey (e.g. ⌃⌥T).
+Recommended — give the screen-region action a keyboard shortcut:
+  System Settings → Keyboard → Keyboard Shortcuts… → Services → General →
+  "翻译 (截图)", then assign a hotkey (e.g. ⌃⌥Y). The text actions live under
+  Services → Text and can take a hotkey there too (e.g. ⌃⌥T).
 EOF
