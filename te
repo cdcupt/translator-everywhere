@@ -37,7 +37,6 @@ usage() {
 
 # --- load API key (AI engine only) ------------------------------------------
 load_key() {
-  [[ "$TE_ENGINE" == "openai" ]] || return 0
   if [[ -z "${OPENAI_API_KEY:-}" && -f "$TE_KEY_FILE" ]]; then
     set -a; . "$TE_KEY_FILE"; set +a
   fi
@@ -240,7 +239,9 @@ esac
 # Explanation notes are an AI-only capability.
 [[ "$TE_ENGINE" == "google" ]] && EXPLAIN=0
 
-load_key
+# The OpenAI key is only needed for the AI engine (Google and its key-free path
+# never touch it). Load it lazily, and only then.
+if [[ "$TE_ENGINE" == "openai" ]]; then load_key; fi
 
 # --- capture mode (macOS): screen region or image file -> OCR + translate ---
 if [[ "$CAPTURE" == 1 ]]; then
