@@ -1,0 +1,33 @@
+name: Translator Everywhere
+
+options:
+  bundleIdPrefix: com.cdcupt
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    # Signing comes in a later slice; off for headless scaffold builds.
+    CODE_SIGNING_ALLOWED: NO
+    CODE_SIGN_IDENTITY: ""
+    SWIFT_VERSION: "5.0"
+
+targets:
+  Translator Everywhere:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_NAME: Translator Everywhere
+        PRODUCT_BUNDLE_IDENTIFIER: com.cdcupt.translator-everywhere
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        # Menu-bar agent: no Dock icon, no main window on launch.
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        CODE_SIGNING_ALLOWED: NO

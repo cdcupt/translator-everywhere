@@ -1,1 +1,8 @@
 # nothing secret lives here; key stays in ~/.openai/keys.env
+
+# macOS app (/macos): the .xcodeproj is generated from project.yml by xcodegen.
+# Commit project.yml + Sources only; never the generated project or build output.
+/macos/*.xcodeproj/
+/macos/.build/
+/macos/DerivedData/
+.DS_Store
