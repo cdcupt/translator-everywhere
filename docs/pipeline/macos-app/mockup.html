@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Translator Everywhere</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  :root{
+    --paper:#F7F4EE; --ink:#1B201D; --soft:#5f655f; --rule:#e4ded2;
+    --accent:#C8643C; --pine:#1F6F5C; --blue:#3b6cf0; --gold:#B8841F; --gate:#B23A3A;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --sys:-apple-system,'Inter',system-ui,sans-serif;
+    --serif:'Fraunces',Georgia,serif;
+    --win:#fbfbfd; --winline:#d9d6cf;
+  }
+  body{background:var(--paper);color:var(--ink);font-family:var(--sys);line-height:1.5;
+    -webkit-font-smoothing:antialiased;padding:0 16px 60px;}
+  .page{max-width:980px;margin:0 auto;}
+  header{padding:34px 0 14px;border-bottom:2.5px solid var(--ink);margin-bottom:18px;}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);}
+  h1{font-family:var(--serif);font-size:clamp(1.9rem,5vw,2.7rem);font-weight:600;line-height:1.05;margin:6px 0;}
+  h1 em{font-style:italic;color:#6D5B8A;}
+  .lede{color:var(--soft);max-width:640px;font-size:15px;}
+
+  /* screen switcher */
+  .switch{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 8px;}
+  .switch button{font-family:var(--mono);font-size:12px;letter-spacing:.02em;
+    background:var(--win);border:1.5px solid var(--rule);border-radius:999px;
+    padding:8px 16px;color:var(--soft);cursor:pointer;transition:all .15s ease;}
+  .switch button:hover{border-color:var(--accent);color:var(--ink);transform:translateY(-1px);}
+  .switch button.on{background:var(--ink);border-color:var(--ink);color:#fff;}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--soft);margin:4px 0 14px;}
+
+  /* macOS desktop stage */
+  .stage{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--winline);
+    background:linear-gradient(150deg,#c5b9a3 0%,#9fb0a6 50%,#8a9bb4 100%);
+    min-height:540px;padding:0;box-shadow:0 24px 60px -28px rgba(0,0,0,.4);}
+  .menubar{height:30px;background:rgba(28,28,30,.72);backdrop-filter:blur(18px);
+    display:flex;align-items:center;padding:0 14px;gap:18px;color:#f3f1ec;font-size:13px;position:relative;z-index:5;}
+  .menubar .mb-app{font-weight:600;}
+  .menubar .mb-sp{flex:1;}
+  .mb-icon{width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;}
+  .mb-icon:hover{background:rgba(255,255,255,.18);}
+  .mb-icon.active{background:rgba(255,255,255,.28);}
+  .mb-icon svg{width:16px;height:16px;}
+  .mb-clock{font-variant-numeric:tabular-nums;}
+
+  .screenwrap{position:relative;min-height:510px;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .screen{display:none;animation:fade .25s ease;}
+  .screen.show{display:block;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px) scale(.99);}to{opacity:1;transform:none;}}
+
+  /* generic mac window */
+  .macwin{background:var(--win);border:1px solid var(--winline);border-radius:13px;
+    box-shadow:0 20px 50px -20px rgba(0,0,0,.45);overflow:hidden;}
+  .titlebar{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid #ece9e2;background:#f4f2ec;}
+  .lights{display:flex;gap:8px;}
+  .lights i{width:12px;height:12px;border-radius:50%;display:block;}
+  .lights .r{background:#ff5f57;} .lights .y{background:#febc2e;} .lights .g{background:#28c840;}
+  .titlebar .tt{font-size:13px;color:var(--soft);font-weight:500;margin-left:4px;}
+
+  /* dropdown menu */
+  .menu-dd{position:absolute;top:34px;right:18px;width:262px;background:rgba(251,251,253,.86);
+    backdrop-filter:blur(28px) saturate(1.4);border:.5px solid rgba(0,0,0,.12);border-radius:11px;
+    box-shadow:0 18px 44px -14px rgba(0,0,0,.5);padding:6px;z-index:6;}
+  .menu-dd .mrow{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;border-radius:7px;
+    font-size:14px;cursor:default;}
+  .menu-dd .mrow .sc{font-size:12.5px;color:#9a978f;font-family:var(--mono);}
+  .menu-dd .mrow:hover{background:var(--blue);color:#fff;}
+  .menu-dd .mrow:hover .sc{color:#dbe4ff;}
+  .menu-dd .sep{height:1px;background:#e0ddd5;margin:6px 8px;}
+
+  /* result popup */
+  .result{width:380px;max-width:100%;}
+  .result .body{padding:20px 22px 18px;}
+  .res-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .res-top .lab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:#9a978f;}
+  .badge{font-family:var(--mono);font-size:10.5px;padding:3px 10px;border-radius:999px;}
+  .badge.free{background:#e7f4ee;color:var(--pine);border:1px solid var(--pine);}
+  .badge.ai{background:#fdf0e9;color:var(--accent);border:1px solid var(--accent);}
+  .res-main{font-family:var(--serif);font-size:21px;font-weight:600;line-height:1.28;}
+  .res-div{height:1px;background:#ece9e2;margin:15px 0 12px;}
+  .res-srclab{font-family:var(--mono);font-size:10.5px;color:#9a978f;letter-spacing:.05em;margin-bottom:5px;}
+  .res-src{font-size:13.5px;color:#8d8a83;line-height:1.5;}
+  .res-foot{display:flex;align-items:center;justify-content:space-between;margin-top:16px;}
+  .copied{font-family:var(--mono);font-size:11.5px;color:var(--pine);}
+  .acts{display:flex;gap:8px;}
+  .btn{font-family:var(--sys);font-size:13px;padding:6px 14px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:.12s;}
+  .btn-pri{background:var(--blue);color:#fff;}
+  .btn-pri:hover{background:#2f5ad6;}
+  .btn-sec{background:#fff;color:var(--ink);border-color:#cfccc4;}
+  .btn-sec:hover{background:#f2f0ea;}
+  .btn-warn{background:var(--gold);color:#fff;}
+  .res-variants{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
+  .res-variants button{font-family:var(--mono);font-size:11px;background:transparent;border:1px solid var(--winline);
+    border-radius:999px;padding:5px 13px;cursor:pointer;color:var(--soft);}
+  .res-variants button.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .res-state{display:none;} .res-state.show{display:block;}
+  .state-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:12px;}
+  .si-q{background:#f1eee7;color:#8d8a83;border:1px solid #bcb9b2;}
+  .si-err{background:#fbeeee;color:var(--gate);border:1px solid var(--gate);}
+  .res-title{font-family:var(--serif);font-size:18px;font-weight:600;margin-bottom:6px;}
+  .res-title.err{color:var(--gate);}
+  .res-msg{font-size:13.5px;color:var(--soft);line-height:1.5;margin-bottom:16px;}
+
+  /* preferences */
+  .prefs{width:520px;max-width:100%;}
+  .pref-tabs{display:flex;gap:4px;padding:8px 14px 0;background:#f4f2ec;justify-content:center;}
+  .pref-tabs button{display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;
+    padding:6px 16px 8px;border-radius:8px;cursor:pointer;color:var(--soft);font-size:11.5px;font-family:var(--sys);transition:.12s;}
+  .pref-tabs button .ic{font-size:17px;line-height:1;}
+  .pref-tabs button:hover{background:#eae7e0;}
+  .pref-tabs button.on{background:#e3e0d9;color:var(--ink);}
+  .pref-body{padding:24px 28px 26px;border-top:1px solid #ece9e2;}
+  .pane{display:none;} .pane.show{display:block;}
+  .frow{display:grid;grid-template-columns:140px 1fr;gap:14px;align-items:center;margin-bottom:18px;}
+  .frow > label{text-align:right;font-size:13px;color:var(--ink);}
+  .field{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .recorder{font-family:var(--mono);font-size:13px;background:#fff;border:1.5px solid var(--winline);
+    border-radius:7px;padding:6px 14px;min-width:140px;cursor:pointer;transition:.12s;}
+  .recorder.recording{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,108,240,.18);color:var(--blue);}
+  .recorder:hover{border-color:var(--blue);}
+  .fhint{font-size:11.5px;color:#9a978f;}
+  select.sel{font-family:var(--sys);font-size:13px;padding:6px 10px;border:1px solid var(--winline);border-radius:7px;background:#fff;cursor:pointer;}
+  .toggle{width:42px;height:24px;border-radius:999px;background:#28c840;position:relative;cursor:pointer;border:none;transition:.18s;}
+  .toggle .kb{position:absolute;top:2px;left:20px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
+  .toggle.off{background:#cfccc4;} .toggle.off .kb{left:2px;}
+  /* segmented */
+  .seg{display:inline-flex;background:#e8e6e0;border-radius:9px;padding:3px;gap:3px;}
+  .seg button{font-family:var(--sys);font-size:13px;padding:6px 16px;border:none;border-radius:7px;background:transparent;color:var(--soft);cursor:pointer;transition:.12s;}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.12);font-weight:500;}
+  .engine-note{font-size:12px;color:#9a978f;margin:12px 0 0;}
+  .keybox{margin-top:18px;background:#faf7f1;border:1px dashed #e1d8c8;border-radius:10px;padding:16px 18px;}
+  .keybox.hide{display:none;}
+  .keybox label{font-size:13px;display:block;margin-bottom:7px;}
+  .keyrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .keyin{flex:1;min-width:150px;font-family:var(--mono);font-size:12.5px;padding:7px 11px;border:1px solid var(--winline);border-radius:7px;background:#fff;}
+  .keynote{font-size:11.5px;color:#9a978f;margin-top:11px;}
+  .keyok{font-family:var(--mono);font-size:11.5px;color:var(--pine);margin-top:7px;display:none;}
+  .keyok.show{display:block;}
+  .about{text-align:left;}
+  .about-head{display:flex;gap:16px;align-items:center;margin-bottom:16px;}
+  .appicon{width:60px;height:60px;border-radius:15px;background:var(--ink);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .about h3{font-family:var(--serif);font-size:18px;font-weight:600;}
+  .about .ver{font-size:12px;color:#9a978f;margin:2px 0;}
+  .about a{font-family:var(--mono);font-size:12.5px;color:var(--blue);text-decoration:none;}
+  .about a:hover{text-decoration:underline;}
+  .about p{font-size:12.5px;color:var(--soft);margin:6px 0;}
+  .about hr{border:none;border-top:1px solid #ece9e2;margin:14px 0;}
+
+  /* onboarding */
+  .onb{width:420px;max-width:100%;text-align:center;}
+  .onb .body{padding:30px 30px 22px;}
+  .onb-icon{width:64px;height:64px;border-radius:17px;margin:0 auto 18px;display:flex;align-items:center;justify-content:center;font-size:30px;}
+  .onb-icon.dark{background:var(--ink);} .onb-icon.warn{background:#fff8ef;border:1.5px solid var(--gold);color:var(--gold);}
+  .onb-icon.ok{background:#f3fbf7;border:1.5px solid var(--pine);color:var(--pine);}
+  .onb h3{font-family:var(--serif);font-size:21px;font-weight:600;line-height:1.15;margin-bottom:12px;}
+  .onb p{font-size:13.5px;color:var(--soft);line-height:1.55;margin:0 auto 10px;max-width:330px;}
+  .onb .kbd{font-family:var(--mono);color:var(--accent);background:#fdf0e9;padding:1px 6px;border-radius:5px;}
+  .onb-foot{display:flex;align-items:center;justify-content:space-between;padding:14px 30px;border-top:1px solid #ece9e2;background:#faf8f3;}
+  .dots{display:flex;gap:7px;}
+  .dots i{width:7px;height:7px;border-radius:50%;background:#cfccc4;display:block;}
+  .dots i.on{background:var(--blue);}
+  .onb-stepbtns{display:flex;flex-direction:column;gap:8px;max-width:280px;margin:18px auto 0;}
+  .onb-stepbtns .btn{width:100%;}
+  .onb-step{display:none;} .onb-step.show{display:block;}
+
+  .legend{font-family:var(--mono);font-size:11px;color:var(--soft);text-align:center;margin-top:14px;}
+  footer{margin-top:30px;padding-top:14px;border-top:2.5px solid var(--ink);font-size:12.5px;color:var(--soft);}
+
+  @media(max-width:560px){
+    .frow{grid-template-columns:1fr;gap:6px;}
+    .frow > label{text-align:left;}
+    .stage{min-height:auto;}
+    .screenwrap{padding:14px;}
+    .prefs,.result,.onb{width:100%;}
+    .menu-dd{right:8px;width:230px;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+  <div class="kicker">Clickable Mockup · Gate 1 review surface</div>
+  <h1>Translator Everywhere — <em>click-through</em></h1>
+  <p class="lede">A faux-macOS simulation of the four surfaces. Click the menu-bar icon, switch Preferences tabs, step through onboarding, and flip the result-popup states. Not production code — a feel-check for the PM.</p>
+</header>
+
+<div class="switch" role="tablist" aria-label="Screen switcher">
+  <button class="on" data-screen="menu">◔ Menu-bar menu</button>
+  <button data-screen="result">▣ Result popup</button>
+  <button data-screen="prefs">⚙ Preferences</button>
+  <button data-screen="onboard">✦ Onboarding</button>
+</div>
+<div class="hint" id="screenHint">Tip: click the globe icon in the menu bar to open the menu.</div>
+
+<div class="stage">
+  <!-- MENU BAR (persistent) -->
+  <div class="menubar">
+    <span class="mb-app">Finder</span>
+    <span style="opacity:.8">File</span><span style="opacity:.8">Edit</span><span style="opacity:.8">View</span>
+    <span class="mb-sp"></span>
+    <span class="mb-icon" id="mbGlobe" title="Translator Everywhere" onclick="toggleMenu()">
+      <svg viewBox="0 0 70 56" fill="none" stroke="#f3f1ec" stroke-width="3">
+        <path d="M2 12 a10 10 0 0 1 10 -10 h46 a10 10 0 0 1 10 10 v22 a10 10 0 0 1 -10 10 h-30 l-14 12 v-12 h-2 a10 10 0 0 1 -10 -10 z"/>
+        <circle cx="35" cy="23" r="13"/>
+        <path d="M22 23 h26 M35 10 v26 M25 15 q10 8 20 0 M25 31 q10 -8 20 0" stroke-width="2"/>
+      </svg>
+    </span>
+    <span class="mb-icon" style="cursor:default">🔋</span>
+    <span class="mb-icon" style="cursor:default">🔍</span>
+    <span class="mb-clock">Sat 9:41 AM</span>
+  </div>
+
+  <!-- dropdown -->
+  <div class="menu-dd" id="menuDD" style="display:none">
+    <div class="mrow" onclick="show('result');closeMenu()"><span>Capture &amp; Translate</span><span class="sc">⌃⌥Y</span></div>
+    <div class="mrow" onclick="show('result');closeMenu()"><span>Translate Clipboard</span><span class="sc">⌃⌥V</span></div>
+    <div class="sep"></div>
+    <div class="mrow" onclick="show('prefs');closeMenu()"><span>Preferences…</span><span class="sc">⌘,</span></div>
+    <div class="mrow" onclick="show('prefs');prefTab('about');closeMenu()"><span>About Translator Everywhere</span><span class="sc"></span></div>
+    <div class="sep"></div>
+    <div class="mrow" onclick="closeMenu()"><span>Quit</span><span class="sc">⌘Q</span></div>
+  </div>
+
+  <div class="screenwrap">
+
+    <!-- ===== MENU SCREEN ===== -->
+    <div class="screen show" id="s-menu">
+      <div style="text-align:center;color:#fff;max-width:360px;">
+        <div style="font-family:var(--serif);font-size:22px;font-weight:600;text-shadow:0 1px 8px rgba(0,0,0,.3);">The whole app lives up here ↗</div>
+        <p style="font-size:13.5px;margin-top:10px;color:#f3f1ec;text-shadow:0 1px 6px rgba(0,0,0,.3);">No Dock icon, no window. Click the globe glyph in the menu bar to open the menu, or just press the hotkey anywhere.</p>
+      </div>
+    </div>
+
+    <!-- ===== RESULT SCREEN ===== -->
+    <div class="screen" id="s-result">
+      <div class="macwin result">
+        <div class="titlebar"><span class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></span><span class="tt">Translation</span></div>
+        <div class="body">
+          <!-- success -->
+          <div class="res-state show" id="rs-ok">
+            <div class="res-top"><span class="lab">TRANSLATION</span><span class="badge free" id="resBadge">FREE</span></div>
+            <div class="res-main">Please mind the gap between the train and the platform.</div>
+            <div class="res-div"></div>
+            <div class="res-srclab">SOURCE · JA</div>
+            <div class="res-src">電車とホームの間が広く空いているところがあります。ご注意ください。</div>
+            <div class="res-foot">
+              <span class="copied">✓ Copied to clipboard</span>
+              <span class="acts"><button class="btn btn-sec">Copy</button><button class="btn btn-pri">Done</button></span>
+            </div>
+          </div>
+          <!-- no text -->
+          <div class="res-state" id="rs-empty">
+            <div class="state-icon si-q">?</div>
+            <div class="res-title">No text found</div>
+            <div class="res-msg">We couldn't read any text in that region. Try selecting a tighter box around the words.</div>
+            <div class="acts"><button class="btn btn-pri">Try Again</button><button class="btn btn-sec">Close</button></div>
+          </div>
+          <!-- error -->
+          <div class="res-state" id="rs-err">
+            <div class="state-icon si-err">!</div>
+            <div class="res-title err">Can't reach the translator</div>
+            <div class="res-msg">You appear to be offline. The text is on your clipboard — try again when you're back online.</div>
+            <div class="acts"><button class="btn btn-pri">Retry</button><button class="btn btn-sec">Preferences…</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="res-variants">
+        <button class="on" data-rs="ok" onclick="resState('ok',this)">success (Free)</button>
+        <button data-rs="ai" onclick="resState('ai',this)">success (AI)</button>
+        <button data-rs="empty" onclick="resState('empty',this)">no text</button>
+        <button data-rs="err" onclick="resState('err',this)">error</button>
+      </div>
+    </div>
+
+    <!-- ===== PREFERENCES SCREEN ===== -->
+    <div class="screen" id="s-prefs">
+      <div class="macwin prefs">
+        <div class="titlebar"><span class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></span><span class="tt">Translator Everywhere — Preferences</span></div>
+        <div class="pref-tabs">
+          <button class="on" data-tab="general" onclick="prefTab('general',this)"><span class="ic">⚙</span>General</button>
+          <button data-tab="engine" onclick="prefTab('engine',this)"><span class="ic">⇄</span>Engine</button>
+          <button data-tab="about" onclick="prefTab('about',this)"><span class="ic">ⓘ</span>About</button>
+        </div>
+        <div class="pref-body">
+          <!-- GENERAL -->
+          <div class="pane show" id="p-general">
+            <div class="frow">
+              <label>Capture hotkey</label>
+              <div class="field">
+                <span class="recorder" id="recorder" onclick="record()">⌃ ⌥ Y</span>
+                <span class="fhint" id="recHint">click, then press keys</span>
+              </div>
+            </div>
+            <div class="frow">
+              <label>Translate to</label>
+              <div class="field"><select class="sel"><option>English</option><option>简体中文</option><option>日本語</option><option>Español</option><option>Français</option></select><span class="fhint">default target language</span></div>
+            </div>
+            <div class="frow">
+              <label>Detect source</label>
+              <div class="field"><select class="sel"><option>Automatic</option><option>Japanese</option><option>Chinese</option><option>Korean</option></select></div>
+            </div>
+            <div class="frow">
+              <label>Launch at login</label>
+              <div class="field"><button class="toggle" id="loginToggle" onclick="this.classList.toggle('off')"><span class="kb"></span></button><span class="fhint">start automatically when you log in</span></div>
+            </div>
+          </div>
+          <!-- ENGINE -->
+          <div class="pane" id="p-engine">
+            <div class="frow" style="grid-template-columns:140px 1fr;">
+              <label>Engine</label>
+              <div class="field">
+                <div class="seg">
+                  <button class="on" id="segFree" onclick="engine('free')">Free · Vision + Google</button>
+                  <button id="segAI" onclick="engine('ai')">OpenAI</button>
+                </div>
+              </div>
+            </div>
+            <p class="engine-note" id="engNote">Free runs OCR on-device and translates via Google. No key, no cost — it works the moment you open the app.</p>
+            <div class="keybox hide" id="keyBox">
+              <label>OpenAI API key</label>
+              <div class="keyrow">
+                <input class="keyin" type="password" value="sk-proj-xxxxxxxxxxxxxxxxxxxx" />
+                <button class="btn btn-sec" onclick="testKey()">Test</button>
+              </div>
+              <div class="keyok" id="keyOk">✓ Key valid — AI translation enabled</div>
+              <div class="keynote">🔒 Stored only in your macOS Keychain — never written to disk or sent anywhere but OpenAI.</div>
+            </div>
+          </div>
+          <!-- ABOUT -->
+          <div class="pane" id="p-about">
+            <div class="about">
+              <div class="about-head">
+                <div class="appicon">
+                  <svg width="34" height="28" viewBox="0 0 70 56" fill="none" stroke="#F7F4EE" stroke-width="3">
+                    <path d="M2 12 a10 10 0 0 1 10 -10 h46 a10 10 0 0 1 10 10 v22 a10 10 0 0 1 -10 10 h-30 l-14 12 v-12 h-2 a10 10 0 0 1 -10 -10 z"/>
+                    <circle cx="35" cy="23" r="13"/>
+                    <path d="M22 23 h26 M35 10 v26 M25 15 q10 8 20 0 M25 31 q10 -8 20 0" stroke-width="2"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3>Translator Everywhere</h3>
+                  <div class="ver">Version 1.0 (1) · unsigned build</div>
+                  <a href="#" onclick="return false">github.com/cdcupt/translator-everywhere ↗</a>
+                </div>
+              </div>
+              <hr>
+              <p>Built on the <code style="font-family:var(--mono)">te</code> command-line translator. The CLI still works alongside this app — same capture pipeline.</p>
+              <p>OCR runs entirely on-device via Apple Vision. Only recognized text is sent to the translation engine.</p>
+              <p style="color:#9a978f;">MIT License · © 2026</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ONBOARDING SCREEN ===== -->
+    <div class="screen" id="s-onboard">
+      <div class="macwin onb">
+        <div class="body">
+          <!-- step 1 -->
+          <div class="onb-step show" id="ob-1">
+            <div class="onb-icon dark">
+              <svg width="36" height="29" viewBox="0 0 70 56" fill="none" stroke="#F7F4EE" stroke-width="3">
+                <path d="M2 12 a10 10 0 0 1 10 -10 h46 a10 10 0 0 1 10 10 v22 a10 10 0 0 1 -10 10 h-30 l-14 12 v-12 h-2 a10 10 0 0 1 -10 -10 z"/>
+                <circle cx="35" cy="23" r="13"/><path d="M22 23 h26 M35 10 v26 M25 15 q10 8 20 0 M25 31 q10 -8 20 0" stroke-width="2"/>
+              </svg>
+            </div>
+            <h3>Translate anything on your screen</h3>
+            <p>Press <span class="kbd">⌃⌥Y</span>, drag a box around any text, and read the translation instantly. It's copied for you too.</p>
+            <p>Free by default — no account, no API key, runs on-device.</p>
+          </div>
+          <!-- step 2 -->
+          <div class="onb-step" id="ob-2">
+            <div class="onb-icon warn">⛶</div>
+            <h3>Allow Screen Recording</h3>
+            <p>To capture a region of your screen, macOS needs Screen Recording permission. We only read the box you draw — nothing else leaves your Mac.</p>
+            <div class="onb-stepbtns">
+              <button class="btn btn-pri" onclick="grantSim()">Open System Settings</button>
+              <button class="btn btn-warn" onclick="obStep(3)">Quit &amp; Reopen</button>
+            </div>
+            <p style="margin-top:14px;font-family:var(--mono);font-size:11px;color:#9a978f;">macOS requires a relaunch after granting — we do it for you.</p>
+          </div>
+          <!-- step 3 -->
+          <div class="onb-step" id="ob-3">
+            <div class="onb-icon ok">✓</div>
+            <h3>You're all set</h3>
+            <p>Press <span class="kbd">⌃⌥Y</span> now and drag a box around some text to try it.</p>
+            <p>Everything lives in the menu-bar icon — change the hotkey or engine anytime in Preferences.</p>
+          </div>
+        </div>
+        <div class="onb-foot">
+          <div class="dots"><i class="on" id="dot1"></i><i id="dot2"></i><i id="dot3"></i></div>
+          <div id="obBtns">
+            <button class="btn btn-pri" id="obNext" onclick="obNext()">Continue</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /screenwrap -->
+</div><!-- /stage -->
+<div class="legend">Faux-macOS simulation · all interactions are local to this page · no real capture or network happens</div>
+
+<footer>Mockup · Translator Everywhere · sdd_pipeline artifact 2/4 (companion to DESIGN.html) · for PM Gate 1 click-through.</footer>
+</div>
+
+<script>
+  const hints = {
+    menu:"Tip: click the globe icon in the menu bar to open the menu.",
+    result:"Result popup near the captured region. Flip the state chips below.",
+    prefs:"Preferences window — switch the General / Engine / About tabs.",
+    onboard:"First-run flow. Step 2 handles the Screen-Recording relaunch."
+  };
+  function show(name){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('show'));
+    document.getElementById('s-'+name).classList.add('show');
+    document.querySelectorAll('.switch button').forEach(b=>b.classList.toggle('on',b.dataset.screen===name));
+    document.getElementById('screenHint').textContent=hints[name];
+    closeMenu();
+    if(name==='onboard') obReset();
+  }
+  document.querySelectorAll('.switch button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.screen)));
+
+  // menu dropdown
+  let menuOpen=false;
+  function toggleMenu(){menuOpen?closeMenu():openMenu();}
+  function openMenu(){menuOpen=true;document.getElementById('menuDD').style.display='block';document.getElementById('mbGlobe').classList.add('active');}
+  function closeMenu(){menuOpen=false;document.getElementById('menuDD').style.display='none';document.getElementById('mbGlobe').classList.remove('active');}
+  document.addEventListener('click',e=>{
+    if(menuOpen && !e.target.closest('#menuDD') && !e.target.closest('#mbGlobe')) closeMenu();
+  });
+
+  // result states
+  function resState(s,btn){
+    document.querySelectorAll('.res-variants button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    document.querySelectorAll('.res-state').forEach(x=>x.classList.remove('show'));
+    if(s==='ok'||s==='ai'){
+      document.getElementById('rs-ok').classList.add('show');
+      const bg=document.getElementById('resBadge');
+      if(s==='ai'){bg.textContent='AI';bg.className='badge ai';}
+      else{bg.textContent='FREE';bg.className='badge free';}
+    } else if(s==='empty'){document.getElementById('rs-empty').classList.add('show');}
+    else {document.getElementById('rs-err').classList.add('show');}
+  }
+
+  // preferences
+  function prefTab(tab,btn){
+    document.querySelectorAll('.pref-tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+    document.querySelectorAll('.pane').forEach(p=>p.classList.remove('show'));
+    document.getElementById('p-'+tab).classList.add('show');
+  }
+  // hotkey recorder sim
+  let recording=false;
+  function record(){
+    const r=document.getElementById('recorder'), h=document.getElementById('recHint');
+    if(recording) return;
+    recording=true; r.classList.add('recording'); r.textContent='Type shortcut…'; h.textContent='listening — press a combo';
+    const handler=(e)=>{
+      e.preventDefault();
+      let parts=[];
+      if(e.ctrlKey)parts.push('⌃'); if(e.altKey)parts.push('⌥'); if(e.shiftKey)parts.push('⇧'); if(e.metaKey)parts.push('⌘');
+      const k=e.key.length===1?e.key.toUpperCase():e.key;
+      if(!['Control','Alt','Shift','Meta'].includes(e.key)){
+        parts.push(k);
+        r.textContent=parts.join(' '); r.classList.remove('recording');
+        h.textContent='saved — menu updates to match'; recording=false;
+        window.removeEventListener('keydown',handler,true);
+      }
+    };
+    window.addEventListener('keydown',handler,true);
+  }
+  // engine segmented
+  function engine(which){
+    document.getElementById('segFree').classList.toggle('on',which==='free');
+    document.getElementById('segAI').classList.toggle('on',which==='ai');
+    document.getElementById('keyBox').classList.toggle('hide',which!=='ai');
+    document.getElementById('engNote').textContent = which==='ai'
+      ? 'OpenAI gives higher-quality translation. Your own key is required and stays in the Keychain.'
+      : 'Free runs OCR on-device and translates via Google. No key, no cost — it works the moment you open the app.';
+  }
+  function testKey(){document.getElementById('keyOk').classList.add('show');}
+
+  // onboarding
+  let obStepN=1;
+  function paintDots(){[1,2,3].forEach(n=>document.getElementById('dot'+n).classList.toggle('on',n===obStepN));}
+  function showStep(n){
+    obStepN=n;
+    document.querySelectorAll('.onb-step').forEach(s=>s.classList.remove('show'));
+    document.getElementById('ob-'+n).classList.add('show');
+    paintDots();
+    const btns=document.getElementById('obBtns');
+    if(n===1) btns.innerHTML='<button class="btn btn-pri" onclick="obNext()">Continue</button>';
+    else if(n===2) btns.innerHTML='<button class="btn btn-sec" onclick="showStep(1)">Back</button>';
+    else btns.innerHTML='<button class="btn btn-pri" onclick="show(\'result\')">Try it now</button>';
+  }
+  function obNext(){ if(obStepN===1) showStep(2); }
+  function obStep(n){ showStep(n); }
+  function grantSim(){
+    const b=document.getElementById('obBtns');
+    // simulate: settings opened, user toggles, then must relaunch
+    document.querySelector('#ob-2 .onb-stepbtns').innerHTML =
+      '<button class="btn btn-pri" onclick="obStep(3)">Quit &amp; Reopen</button>';
+    document.querySelector('#ob-2 p:last-of-type').textContent='✓ Toggled on in System Settings. Relaunch to finish.';
+  }
+  function obReset(){showStep(1);
+    document.querySelector('#ob-2 .onb-stepbtns').innerHTML =
+      '<button class="btn btn-pri" onclick="grantSim()">Open System Settings</button>'+
+      '<button class="btn btn-warn" onclick="obStep(3)">Quit &amp; Reopen</button>';
+  }
+</script>
+</body>
+</html>

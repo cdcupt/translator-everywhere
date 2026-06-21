@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design Document — Translator Everywhere (macOS app)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --paper:#F7F4EE; --ink:#1B201D; --ink-soft:#5f655f; --rule:#e4ded2; --card:#FFFFFF;
+    --accent:#C8643C; --coord:#6D5B8A; --pine:#1F6F5C; --blue:#2D6CA8; --gate:#B23A3A; --gold:#B8841F;
+    --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'Inter',system-ui,sans-serif; --serif:'Fraunces',Georgia,serif; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--sans); line-height:1.6; font-size:16px; }
+  .wrap { max-width:920px; margin:0 auto; padding:0 22px 80px; overflow-x:clip; }
+  header { padding:44px 0 22px; border-bottom:2.5px solid var(--ink); }
+  .kicker { font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
+  h1 { font-family:var(--serif); font-size:clamp(2.2rem,6vw,3.4rem); line-height:1.04; font-weight:600; margin:8px 0 8px; }
+  h1 em { font-style:italic; color:var(--coord); }
+  .lede { color:var(--ink-soft); font-size:16px; max-width:680px; }
+  .meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .pill { font-family:var(--mono); font-size:11.5px; background:var(--card); border:1.5px solid var(--rule); border-radius:999px; padding:5px 13px; }
+  .pill b { color:var(--coord); }
+  h2 { font-family:var(--serif); font-size:clamp(1.45rem,3.4vw,2rem); font-weight:600; margin:42px 0 8px; scroll-margin-top:20px; }
+  h2 .n { color:var(--accent); font-style:italic; margin-right:10px; }
+  h3 { font-size:1.05rem; margin:22px 0 6px; }
+  h4 { font-family:var(--serif); font-size:1.02rem; margin:0 0 4px; }
+  p { margin:9px 0; } ul { margin:8px 0 8px 20px; } li { margin:5px 0; }
+  strong { color:var(--ink); }
+  code { font-family:var(--mono); font-size:.84em; background:#efe9dc; padding:1px 5px; border-radius:4px; overflow-wrap:anywhere; }
+  .fig { background:var(--card); border:1.5px solid var(--rule); border-radius:14px; padding:16px; margin:14px 0; overflow-x:auto; }
+  .fig svg { display:block; max-width:100%; height:auto; }
+  .cap { font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); margin-top:8px; text-align:center; }
+  .glance { border:2px solid var(--ink); }
+  .tablewrap { overflow-x:auto; border:1.5px solid var(--rule); border-radius:12px; margin:12px 0; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; min-width:480px; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  th { background:#efe9dc; font-family:var(--mono); font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); }
+  tr:last-child td { border-bottom:none; }
+  .twocol { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+  .col { background:var(--card); border:1.5px solid var(--rule); border-radius:12px; padding:13px 15px; }
+  .col h4 { font-family:var(--serif); font-size:1.02rem; margin-bottom:4px; }
+  .note { background:#fff8ef; border:2px solid var(--gold); border-radius:14px; padding:14px 16px; margin:16px 0; }
+  .note h3 { color:var(--gold); margin-top:0; }
+  .reco { background:#f3fbf7; border:2px solid var(--pine); border-radius:14px; padding:14px 16px; margin:16px 0; }
+  .reco h3 { color:var(--pine); margin-top:0; }
+  .tag { font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; padding:2px 7px; border-radius:5px; color:#fff; display:inline-block; }
+  .t-free{background:var(--pine)} .t-ai{background:var(--accent)} .t-err{background:var(--gate)} .t-info{background:var(--blue)}
+  .toc { background:var(--card); border:1.5px solid var(--rule); border-radius:12px; padding:14px 18px; margin:18px 0; columns:2; column-gap:24px; font-size:13.5px; }
+  .toc a { color:var(--coord); text-decoration:none; } .toc a:hover { text-decoration:underline; }
+  .toc div { break-inside:avoid; margin:3px 0; }
+  .copy { background:#efe9dc; border-radius:10px; padding:12px 14px; margin:10px 0; font-size:13.5px; }
+  .copy .k { font-family:var(--mono); font-size:11px; color:var(--accent); text-transform:uppercase; letter-spacing:.05em; }
+  .copy .s { font-family:var(--mono); display:block; margin-top:3px; color:var(--ink); }
+  footer { margin-top:44px; padding-top:16px; border-top:2.5px solid var(--ink); font-size:13px; color:var(--ink-soft); }
+  @media (max-width:520px){ .toc{columns:1;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Design Document · sdd_pipeline · artifact 2 of 4</div>
+  <h1>Translator Everywhere — <em>Design</em></h1>
+  <p class="lede">The interaction model, screen specs, and brand direction for the menu-bar app. Diagram-first: every surface is drawn as a real-feeling macOS wireframe before it is described. The companion <code>mockup.html</code> is the clickable version of these screens.</p>
+  <div class="meta">
+    <span class="pill"><b>app</b> Translator Everywhere</span>
+    <span class="pill"><b>kind</b> menu-bar agent · <code>LSUIElement</code></span>
+    <span class="pill"><b>surfaces</b> 4 · Menu · Result · Preferences · Onboarding</span>
+    <span class="pill"><b>status</b> Gate 1 review surface</span>
+  </div>
+</header>
+
+<div class="toc" aria-label="Contents">
+  <div><a href="#glance">★ At a glance — screen map</a></div>
+  <div><a href="#interaction">1 · Interaction model (states)</a></div>
+  <div><a href="#menu">2a · Menu-bar menu</a></div>
+  <div><a href="#result">2b · Result popup (+ variants)</a></div>
+  <div><a href="#prefs">2c · Preferences window</a></div>
+  <div><a href="#onboard">2d · First-run onboarding</a></div>
+  <div><a href="#brand">3 · Brand &amp; status-icon concepts</a></div>
+  <div><a href="#copy">4 · Empty / error / permission copy</a></div>
+</div>
+
+<!-- ============================ AT A GLANCE ============================ -->
+<h2 id="glance"><span class="n">★</span>At a glance — screen map</h2>
+<div class="fig glance">
+<svg viewBox="0 0 880 430" role="img" aria-label="Information architecture: the menu-bar item, its menu, and the four surfaces">
+  <style>
+    .lbl{font-family:'IBM Plex Mono',monospace;font-size:12px;fill:#1B201D}
+    .sm{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#5f655f}
+    .hd{font-family:Fraunces,serif;font-size:15px;fill:#1B201D;font-weight:600}
+  </style>
+  <defs><marker id="g-ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#6D5B8A"/></marker></defs>
+
+  <!-- menu bar strip -->
+  <rect x="0" y="0" width="880" height="40" fill="#1B201D" rx="8"/>
+  <text x="20" y="25" class="sm" fill="#bcb9b2">macOS menu bar</text>
+  <circle cx="744" cy="20" r="11" fill="none" stroke="#fff" stroke-width="1.6"/>
+  <path d="M735 20 H753 M744 11 V29 M737.5 14.5 Q744 20 750.5 14.5 M737.5 25.5 Q744 20 750.5 25.5" stroke="#fff" stroke-width="1.2" fill="none"/>
+  <text x="770" y="24" class="sm" fill="#fff">NSStatusItem</text>
+
+  <!-- dropdown menu -->
+  <rect x="640" y="54" width="220" height="148" rx="12" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/>
+  <text x="656" y="76" class="lbl">Capture &amp; Translate  ⌃⌥Y</text>
+  <text x="656" y="98" class="lbl">Translate Clipboard</text>
+  <line x1="652" y1="110" x2="848" y2="110" stroke="#e4ded2"/>
+  <text x="656" y="130" class="lbl">Preferences…  ⌘,</text>
+  <text x="656" y="152" class="lbl">About</text>
+  <text x="656" y="174" class="lbl">Quit  ⌘Q</text>
+  <text x="656" y="194" class="sm">the only entry point — no Dock, no window</text>
+  <line x1="744" y1="31" x2="744" y2="52" stroke="#6D5B8A" stroke-width="1.6" marker-end="url(#g-ar)"/>
+
+  <!-- four surfaces -->
+  <g>
+    <rect x="20" y="250" width="195" height="150" rx="12" fill="#fdf3ee" stroke="#C8643C" stroke-width="1.5"/>
+    <text x="36" y="276" class="hd" fill="#C8643C">Result popup</text>
+    <text x="36" y="300" class="sm">NSPanel, grabs focus</text>
+    <text x="36" y="318" class="sm">translation (large)</text>
+    <text x="36" y="336" class="sm">source text (dim)</text>
+    <text x="36" y="354" class="sm">copied ✓ · engine badge</text>
+    <text x="36" y="380" class="sm">+ no-text / error states</text>
+
+    <rect x="235" y="250" width="195" height="150" rx="12" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.5"/>
+    <text x="251" y="276" class="hd" fill="#2D6CA8">Preferences</text>
+    <text x="251" y="300" class="sm">toolbar-tab window</text>
+    <text x="251" y="318" class="sm">General · hotkey</text>
+    <text x="251" y="336" class="sm">Engine · free / OpenAI</text>
+    <text x="251" y="354" class="sm">About · version, links</text>
+    <text x="251" y="380" class="sm">opened from menu ⌘,</text>
+
+    <rect x="450" y="250" width="195" height="150" rx="12" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5"/>
+    <text x="466" y="276" class="hd" fill="#1F6F5C">Onboarding</text>
+    <text x="466" y="300" class="sm">first launch only</text>
+    <text x="466" y="318" class="sm">1 · Welcome</text>
+    <text x="466" y="336" class="sm">2 · Screen Recording</text>
+    <text x="466" y="354" class="sm">3 · Done · try it</text>
+    <text x="466" y="380" class="sm">handles relaunch</text>
+
+    <rect x="665" y="250" width="195" height="150" rx="12" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/>
+    <text x="681" y="276" class="hd">About</text>
+    <text x="681" y="300" class="sm">version + build</text>
+    <text x="681" y="318" class="sm">GitHub repo link</text>
+    <text x="681" y="336" class="sm">te CLI mention</text>
+    <text x="681" y="354" class="sm">license</text>
+    <text x="681" y="380" class="sm">(also a Prefs tab)</text>
+  </g>
+  <g stroke="#6D5B8A" stroke-width="1.4" fill="none" marker-end="url(#g-ar)">
+    <path d="M700 202 C600 230 300 220 117 248"/>
+    <path d="M720 202 C600 230 420 224 332 248"/>
+    <path d="M748 202 Q700 226 560 248"/>
+    <path d="M770 202 C800 226 780 232 762 248"/>
+  </g>
+</svg>
+<div class="cap">Fig 1 — One menu-bar item is the whole app. Its menu opens four surfaces. The Result popup is what users see most; Onboarding runs once.</div>
+</div>
+
+<!-- ============================ INTERACTION MODEL ============================ -->
+<h2 id="interaction"><span class="n">1</span>Interaction model — the capture flow as states</h2>
+<p>One hotkey press drives a short-lived state machine. The user only ever sees three things: the native crosshair, then (briefly) nothing while we work, then the result panel. Every non-happy path resolves into a clear, dismissible panel — never a silent dead end, except a deliberate <strong>Esc-cancel</strong>, which returns to idle with no UI at all.</p>
+<div class="fig">
+<svg viewBox="0 0 880 470" role="img" aria-label="State diagram of the capture-to-result flow">
+  <style>
+    .st{font-family:Fraunces,serif;font-size:13.5px;fill:#1B201D;font-weight:600}
+    .sd{font-family:'IBM Plex Mono',monospace;font-size:9.5px;fill:#5f655f}
+    .ed{font-family:'IBM Plex Mono',monospace;font-size:9.5px;fill:#6D5B8A}
+  </style>
+  <defs><marker id="s-ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#6D5B8A"/></marker>
+        <marker id="s-er" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#B23A3A"/></marker></defs>
+
+  <!-- idle -->
+  <rect x="20" y="200" width="120" height="56" rx="28" fill="#efe9dc" stroke="#1B201D" stroke-width="2"/>
+  <text x="80" y="225" text-anchor="middle" class="st">idle</text>
+  <text x="80" y="242" text-anchor="middle" class="sd">menu-bar only</text>
+
+  <!-- permission gate -->
+  <rect x="20" y="40" width="150" height="60" rx="12" fill="#fff8ef" stroke="#B8841F" stroke-width="1.6"/>
+  <text x="95" y="64" text-anchor="middle" class="st" fill="#B8841F">permission-</text>
+  <text x="95" y="80" text-anchor="middle" class="st" fill="#B8841F">not-granted</text>
+  <text x="95" y="94" text-anchor="middle" class="sd">→ onboarding step 2</text>
+
+  <!-- region-selecting -->
+  <rect x="200" y="195" width="140" height="66" rx="12" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/>
+  <text x="270" y="218" text-anchor="middle" class="st">region-selecting</text>
+  <text x="270" y="234" text-anchor="middle" class="sd">native crosshair</text>
+  <text x="270" y="249" text-anchor="middle" class="sd">user drags a box</text>
+
+  <!-- capturing -->
+  <rect x="370" y="195" width="120" height="66" rx="12" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/>
+  <text x="430" y="221" text-anchor="middle" class="st">capturing</text>
+  <text x="430" y="238" text-anchor="middle" class="sd">PNG of region</text>
+
+  <!-- ocr -->
+  <rect x="520" y="195" width="120" height="66" rx="12" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.5"/>
+  <text x="580" y="221" text-anchor="middle" class="st">OCR-running</text>
+  <text x="580" y="238" text-anchor="middle" class="sd">Vision · on-device</text>
+
+  <!-- translating -->
+  <rect x="670" y="195" width="120" height="66" rx="12" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.5"/>
+  <text x="730" y="221" text-anchor="middle" class="st">translating</text>
+  <text x="730" y="238" text-anchor="middle" class="sd">Google / OpenAI</text>
+
+  <!-- result -->
+  <rect x="690" y="320" width="150" height="64" rx="12" fill="#fdf3ee" stroke="#C8643C" stroke-width="2"/>
+  <text x="765" y="345" text-anchor="middle" class="st" fill="#C8643C">result</text>
+  <text x="765" y="362" text-anchor="middle" class="sd">panel + clipboard</text>
+  <text x="765" y="376" text-anchor="middle" class="sd">focus grabbed</text>
+
+  <!-- no-text -->
+  <rect x="500" y="320" width="150" height="64" rx="12" fill="#fff" stroke="#5f655f" stroke-width="1.6"/>
+  <text x="575" y="345" text-anchor="middle" class="st">no-text-found</text>
+  <text x="575" y="362" text-anchor="middle" class="sd">panel · "Try again"</text>
+  <text x="575" y="376" text-anchor="middle" class="sd">recoverable</text>
+
+  <!-- error -->
+  <rect x="300" y="320" width="160" height="64" rx="12" fill="#fbeeee" stroke="#B23A3A" stroke-width="1.6"/>
+  <text x="380" y="342" text-anchor="middle" class="st" fill="#B23A3A">error</text>
+  <text x="380" y="358" text-anchor="middle" class="sd">network / API / key</text>
+  <text x="380" y="374" text-anchor="middle" class="sd">panel · Retry / Prefs</text>
+
+  <!-- transitions -->
+  <g stroke="#6D5B8A" stroke-width="1.6" fill="none" marker-end="url(#s-ar)">
+    <line x1="140" y1="223" x2="198" y2="225"/>
+    <line x1="340" y1="228" x2="368" y2="228"/>
+    <line x1="490" y1="228" x2="518" y2="228"/>
+    <line x1="640" y1="228" x2="668" y2="228"/>
+    <path d="M760 261 Q762 290 764 318"/>
+    <!-- result back to idle -->
+    <path d="M690 360 C500 420 200 360 95 258" />
+  </g>
+  <!-- permission branch -->
+  <g stroke="#B8841F" stroke-width="1.6" fill="none" marker-end="url(#s-er)">
+    <path d="M80 200 C70 160 80 130 90 102"/>
+  </g>
+  <!-- error/no-text branches -->
+  <g stroke="#B23A3A" stroke-width="1.5" fill="none" marker-end="url(#s-er)">
+    <path d="M560 261 Q575 290 575 318"/>
+    <path d="M520 240 C450 280 410 295 388 318"/>
+  </g>
+  <!-- esc cancel -->
+  <path d="M250 261 C200 300 140 290 110 258" stroke="#5f655f" stroke-width="1.4" fill="none" stroke-dasharray="4 3" marker-end="url(#s-ar)"/>
+
+  <!-- edge labels -->
+  <text x="150" y="216" class="ed">hotkey ⌃⌥Y</text>
+  <text x="345" y="220" class="sd">drag ✓</text>
+  <text x="495" y="220" class="sd">PNG</text>
+  <text x="645" y="220" class="sd">text</text>
+  <text x="770" y="295" class="sd">200 OK</text>
+  <text x="585" y="295" class="sd">empty text</text>
+  <text x="408" y="298" class="ed" fill="#B23A3A">throws</text>
+  <text x="118" y="150" class="ed" fill="#B8841F">if not granted</text>
+  <text x="160" y="292" class="sd">Esc → silent</text>
+  <text x="300" y="430" class="sd">any panel → dismiss (Esc / click-away / ✕) → idle</text>
+</svg>
+<div class="cap">Fig 2 — The capture state machine. Happy path runs left→right then drops to <span class="tag t-ai">result</span>. Esc during selection returns to idle silently (dashed). No-text and error are recoverable panels. The permission gate diverts to onboarding step 2 before any capture starts.</div>
+</div>
+
+<div class="tablewrap"><table>
+  <tr><th>State</th><th>What the user sees</th><th>Exit</th></tr>
+  <tr><td><strong>idle</strong></td><td>Just the menu-bar glyph. App is asleep.</td><td>Hotkey or menu → region-selecting (or permission gate).</td></tr>
+  <tr><td><strong>permission-not-granted</strong></td><td>Onboarding step 2 panel: why we need Screen Recording + buttons.</td><td>Grant → relaunch; or Quit.</td></tr>
+  <tr><td><strong>region-selecting</strong></td><td>Native macOS crosshair; screen dims under cursor.</td><td>Drag a box → capturing. <strong>Esc → idle, no UI.</strong></td></tr>
+  <tr><td><strong>capturing</strong></td><td>Crosshair vanishes; a brief flash. No app chrome (&lt;100&nbsp;ms).</td><td>PNG ready → OCR-running.</td></tr>
+  <tr><td><strong>OCR-running</strong></td><td>Nothing yet, or a tiny menu-bar spinner if it runs long.</td><td>Text found → translating; empty → no-text-found.</td></tr>
+  <tr><td><strong>translating</strong></td><td>Menu-bar glyph animates (subtle). Target &lt;3&nbsp;s total.</td><td>Success → result; failure → error.</td></tr>
+  <tr><td><span class="tag t-ai">result</span></td><td>Focused panel: translation large, source dim, "copied ✓", engine badge.</td><td>Esc / click-away / ✕ → idle. Already on clipboard.</td></tr>
+  <tr><td><strong>no-text-found</strong></td><td>Panel: "No text found in that region." + Try Again.</td><td>Try Again → region-selecting; dismiss → idle.</td></tr>
+  <tr><td><span class="tag t-err">error</span></td><td>Panel: human cause (offline / engine down / bad key) + Retry / Open Preferences.</td><td>Retry → translating; dismiss → idle.</td></tr>
+</table></div>
+
+<div class="note">
+  <h3>⚑ The relaunch problem — handled in onboarding</h3>
+  <p>Screen Recording permission only takes effect <strong>after the app restarts</strong>. So onboarding never tries to capture while ungranted. Step 2 detects the permission, opens System Settings to the right pane, and offers a <strong>"Quit &amp; Reopen"</strong> button that relaunches the app for the user. On the fresh launch we re-check: granted → jump straight to step 3 ("Done — try it"); still not granted → stay on step 2 with a gentle "Still not enabled" hint. The hotkey is also live <em>before</em> permission is granted: pressing it while ungranted reopens onboarding step 2 rather than failing silently.</p>
+</div>
+
+<!-- ============================ 2a MENU ============================ -->
+<h2 id="menu"><span class="n">2a</span>Menu-bar menu</h2>
+<p>The status item is a monochrome template glyph that adapts to light/dark menu bars automatically. Click it → this menu. It is the only always-available entry point.</p>
+<div class="fig">
+<svg viewBox="0 0 560 320" role="img" aria-label="Wireframe of the menu-bar dropdown menu">
+  <style>.mi{font-family:-apple-system,'Inter',sans-serif;font-size:14px;fill:#1B201D}.sh{font-family:-apple-system,'Inter',sans-serif;font-size:13px;fill:#9a978f}</style>
+  <!-- desktop strip -->
+  <rect x="0" y="0" width="560" height="34" fill="#2c2c2e"/>
+  <text x="16" y="22" font-family="-apple-system,Inter" font-size="13" fill="#cfcdc8"> Finder</text>
+  <circle cx="452" cy="17" r="10" fill="none" stroke="#fff" stroke-width="1.5"/>
+  <path d="M444 17 H460 M452 9 V25 M446 12 Q452 17 458 12 M446 22 Q452 17 458 22" stroke="#fff" stroke-width="1" fill="none"/>
+  <text x="486" y="22" font-family="-apple-system,Inter" font-size="12" fill="#cfcdc8">100%</text>
+  <text x="524" y="22" font-family="-apple-system,Inter" font-size="12" fill="#cfcdc8">9:41</text>
+  <!-- highlight active item -->
+  <polygon points="448,34 456,44 440,44" fill="#fff"/>
+  <!-- menu panel -->
+  <rect x="300" y="44" width="248" height="244" rx="13" fill="#fbfbfd" stroke="#d9d6cf" stroke-width="1"/>
+  <rect x="300" y="44" width="248" height="244" rx="13" fill="none" stroke="#00000010" stroke-width="1"/>
+  <!-- highlighted first row -->
+  <rect x="306" y="52" width="236" height="30" rx="7" fill="#3b6cf0"/>
+  <text x="320" y="72" class="mi" fill="#fff">Capture &amp; Translate</text>
+  <text x="500" y="72" font-family="-apple-system,Inter" font-size="12.5" fill="#dbe4ff" text-anchor="end">⌃⌥Y</text>
+  <text x="320" y="104" class="mi">Translate Clipboard</text>
+  <text x="500" y="104" class="sh" text-anchor="end">⌃⌥V</text>
+  <line x1="314" y1="120" x2="534" y2="120" stroke="#e4e2db"/>
+  <text x="320" y="148" class="mi">Preferences…</text>
+  <text x="500" y="148" class="sh" text-anchor="end">⌘,</text>
+  <text x="320" y="180" class="mi">About Translator Everywhere</text>
+  <line x1="314" y1="196" x2="534" y2="196" stroke="#e4e2db"/>
+  <text x="320" y="224" class="mi">Quit</text>
+  <text x="500" y="224" class="sh" text-anchor="end">⌘Q</text>
+  <!-- callouts -->
+  <text x="20" y="120" class="sh" font-family="IBM Plex Mono" font-size="11" fill="#5f655f">primary action,</text>
+  <text x="20" y="136" class="sh" font-family="IBM Plex Mono" font-size="11" fill="#5f655f">shows the live hotkey →</text>
+  <line x1="160" y1="120" x2="304" y2="67" stroke="#C8643C" stroke-width="1.2" stroke-dasharray="3 3"/>
+  <text x="20" y="232" class="sh" font-family="IBM Plex Mono" font-size="11" fill="#5f655f">⌃⌥V reuses te clipboard logic</text>
+  <line x1="170" y1="228" x2="304" y2="98" stroke="#2D6CA8" stroke-width="1.1" stroke-dasharray="3 3"/>
+</svg>
+<div class="cap">Fig 3 — Menu-bar menu. The "Capture &amp; Translate" row echoes the user's current hotkey so the binding is always discoverable. "Translate Clipboard" is the cheap <span class="tag t-info">should</span> from PRD §7.</div>
+</div>
+<p><strong>Behaviour notes.</strong> The hotkey label is data-bound to the recorded shortcut — change it in Preferences and the menu updates. If Screen Recording isn't granted yet, "Capture &amp; Translate" still works but routes to onboarding step 2. "About" opens the same content as the Preferences About tab in a compact standalone panel.</p>
+
+<!-- ============================ 2b RESULT ============================ -->
+<h2 id="result"><span class="n">2b</span>Result popup</h2>
+<p>A small, focused <code>NSPanel</code> that appears near the captured region (or screen-centred as a fallback). Because agent apps launch unfocused, the panel <strong>explicitly becomes key and orders front</strong> so Esc and ⌘C work immediately. The translation is the hero; the source text is present but quiet.</p>
+<div class="fig">
+<svg viewBox="0 0 880 280" role="img" aria-label="Wireframe of the result popup, success state">
+  <style>.big{font-family:Fraunces,serif;font-size:21px;fill:#1B201D;font-weight:600}.src{font-family:-apple-system,Inter,sans-serif;font-size:13px;fill:#8d8a83}.cap2{font-family:IBM Plex Mono,monospace;font-size:10px;fill:#5f655f}</style>
+  <!-- panel -->
+  <rect x="250" y="20" width="380" height="240" rx="16" fill="#fbfbfd" stroke="#d9d6cf" stroke-width="1"/>
+  <rect x="250" y="20" width="380" height="240" rx="16" fill="none" stroke="#0000000d"/>
+  <!-- titlebar -->
+  <text x="274" y="48" font-family="IBM Plex Mono" font-size="11" fill="#9a978f">TRANSLATION</text>
+  <!-- engine badge -->
+  <rect x="540" y="36" width="66" height="20" rx="10" fill="#e7f4ee" stroke="#1F6F5C"/>
+  <text x="573" y="50" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#1F6F5C">FREE</text>
+  <!-- close -->
+  <circle cx="610" cy="46" r="0" />
+  <!-- translation (hero) -->
+  <text x="274" y="92" class="big">Please mind the gap</text>
+  <text x="274" y="118" class="big">between the train and</text>
+  <text x="274" y="144" class="big">the platform.</text>
+  <!-- divider -->
+  <line x1="274" y1="166" x2="606" y2="166" stroke="#ece9e2"/>
+  <!-- source dim -->
+  <text x="274" y="188" class="cap2">SOURCE · JA</text>
+  <text x="274" y="208" class="src">電車とホームの間が広く空いて</text>
+  <text x="274" y="226" class="src">いるところがあります。ご注意ください。</text>
+  <!-- copied + actions -->
+  <rect x="274" y="244" width="92" height="0"/>
+  <text x="274" y="250" font-family="IBM Plex Mono" font-size="11" fill="#1F6F5C">✓ Copied to clipboard</text>
+  <!-- buttons -->
+  <rect x="470" y="236" width="62" height="24" rx="7" fill="#fff" stroke="#cfccc4"/>
+  <text x="501" y="252" text-anchor="middle" font-family="-apple-system,Inter" font-size="12" fill="#1B201D">Copy</text>
+  <rect x="540" y="236" width="66" height="24" rx="7" fill="#3b6cf0"/>
+  <text x="573" y="252" text-anchor="middle" font-family="-apple-system,Inter" font-size="12" fill="#fff">Done</text>
+  <!-- callouts -->
+  <text x="40" y="90" class="cap2">translation =</text>
+  <text x="40" y="104" class="cap2">the hero (Fraunces)</text>
+  <line x1="150" y1="96" x2="272" y2="100" stroke="#C8643C" stroke-width="1.1" stroke-dasharray="3 3"/>
+  <text x="40" y="196" class="cap2">recognized source,</text>
+  <text x="40" y="210" class="cap2">dim + smaller</text>
+  <line x1="150" y1="202" x2="272" y2="200" stroke="#5f655f" stroke-width="1.1" stroke-dasharray="3 3"/>
+  <text x="648" y="46" class="cap2">engine badge:</text>
+  <text x="648" y="60" class="cap2">FREE (green) /</text>
+  <text x="648" y="74" class="cap2">AI (orange)</text>
+  <line x1="608" y1="46" x2="644" y2="48" stroke="#1F6F5C" stroke-width="1.1" stroke-dasharray="3 3"/>
+</svg>
+<div class="cap">Fig 4 — Result popup, success. Translation in the serif display face; recognized source dim below; "Copied ✓" confirms the silent clipboard write; the engine badge reads <span class="tag t-free">FREE</span> or <span class="tag t-ai">AI</span>.</div>
+</div>
+
+<h3>Variants — no-text and error</h3>
+<div class="fig">
+<svg viewBox="0 0 880 230" role="img" aria-label="Result popup variants: no text found and error">
+  <style>.h2x{font-family:Fraunces,serif;font-size:17px;fill:#1B201D;font-weight:600}.bd{font-family:-apple-system,Inter,sans-serif;font-size:13px;fill:#5f655f}.cap2{font-family:IBM Plex Mono,monospace;font-size:10px;fill:#5f655f}</style>
+  <!-- no text -->
+  <rect x="40" y="20" width="360" height="190" rx="16" fill="#fbfbfd" stroke="#d9d6cf"/>
+  <circle cx="80" cy="64" r="16" fill="#f1eee7" stroke="#bcb9b2"/>
+  <text x="80" y="70" text-anchor="middle" font-family="Inter" font-size="17" fill="#8d8a83">?</text>
+  <text x="112" y="60" class="h2x">No text found</text>
+  <text x="112" y="84" class="bd">We couldn't read any text in that</text>
+  <text x="112" y="102" class="bd">region. Try selecting a tighter box</text>
+  <text x="112" y="120" class="bd">around the words.</text>
+  <rect x="112" y="146" width="92" height="30" rx="8" fill="#3b6cf0"/>
+  <text x="158" y="166" text-anchor="middle" font-family="Inter" font-size="13" fill="#fff">Try Again</text>
+  <rect x="214" y="146" width="78" height="30" rx="8" fill="#fff" stroke="#cfccc4"/>
+  <text x="253" y="166" text-anchor="middle" font-family="Inter" font-size="13" fill="#1B201D">Close</text>
+
+  <!-- error -->
+  <rect x="480" y="20" width="360" height="190" rx="16" fill="#fbfbfd" stroke="#e2b8b8"/>
+  <circle cx="520" cy="64" r="16" fill="#fbeeee" stroke="#B23A3A"/>
+  <text x="520" y="70" text-anchor="middle" font-family="Inter" font-size="18" fill="#B23A3A">!</text>
+  <text x="552" y="60" class="h2x" fill="#B23A3A">Can't reach the translator</text>
+  <text x="552" y="84" class="bd">You appear to be offline. The text</text>
+  <text x="552" y="102" class="bd">is on your clipboard — try again</text>
+  <text x="552" y="120" class="bd">when you're back online.</text>
+  <rect x="552" y="146" width="78" height="30" rx="8" fill="#3b6cf0"/>
+  <text x="591" y="166" text-anchor="middle" font-family="Inter" font-size="13" fill="#fff">Retry</text>
+  <rect x="640" y="146" width="120" height="30" rx="8" fill="#fff" stroke="#cfccc4"/>
+  <text x="700" y="166" text-anchor="middle" font-family="Inter" font-size="13" fill="#1B201D">Preferences…</text>
+</svg>
+<div class="cap">Fig 5 — Left: <strong>no-text-found</strong> (recoverable, Try Again re-arms the crosshair). Right: <strong>error</strong> — message names the real cause (offline / engine down / bad key) and offers Retry plus, for key/engine problems, Preferences. The recognized text is still copied where possible.</div>
+</div>
+
+<!-- ============================ 2c PREFERENCES ============================ -->
+<h2 id="prefs"><span class="n">2c</span>Preferences window</h2>
+<p>A standard macOS toolbar-tab preferences window (three tabs: <strong>General</strong>, <strong>Engine</strong>, <strong>About</strong>), the only "real" window the app shows. Fixed width, height adapts per tab.</p>
+
+<h3>General</h3>
+<div class="fig">
+<svg viewBox="0 0 880 300" role="img" aria-label="Preferences General tab wireframe">
+  <style>.tt{font-family:-apple-system,Inter,sans-serif;font-size:12px;fill:#5f655f}.lab{font-family:-apple-system,Inter,sans-serif;font-size:13px;fill:#1B201D}.hint{font-family:-apple-system,Inter,sans-serif;font-size:11.5px;fill:#9a978f}</style>
+  <rect x="190" y="14" width="500" height="270" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
+  <!-- traffic lights -->
+  <circle cx="210" cy="34" r="6" fill="#ff5f57"/><circle cx="228" cy="34" r="6" fill="#febc2e"/><circle cx="246" cy="34" r="6" fill="#28c840"/>
+  <!-- toolbar tabs -->
+  <rect x="318" y="22" width="58" height="40" rx="9" fill="#ecebe6"/>
+  <text x="347" y="40" text-anchor="middle" font-size="15">⚙</text><text x="347" y="56" text-anchor="middle" class="tt">General</text>
+  <text x="406" y="40" text-anchor="middle" font-size="15" opacity="0.6">⇄</text><text x="406" y="56" text-anchor="middle" class="tt">Engine</text>
+  <text x="462" y="40" text-anchor="middle" font-size="15" opacity="0.6">ⓘ</text><text x="462" y="56" text-anchor="middle" class="tt">About</text>
+  <line x1="190" y1="70" x2="690" y2="70" stroke="#e4e2db"/>
+  <!-- hotkey row -->
+  <text x="340" y="106" text-anchor="end" class="lab">Capture hotkey</text>
+  <rect x="356" y="92" width="150" height="26" rx="6" fill="#fff" stroke="#3b6cf0" stroke-width="1.4"/>
+  <text x="372" y="110" font-family="IBM Plex Mono" font-size="13" fill="#1B201D">⌃ ⌥ Y</text>
+  <text x="514" y="110" class="hint">click, then press keys</text>
+  <!-- direction -->
+  <text x="340" y="150" text-anchor="end" class="lab">Translate to</text>
+  <rect x="356" y="136" width="150" height="26" rx="6" fill="#fff" stroke="#cfccc4"/>
+  <text x="372" y="154" class="lab">English ▾</text>
+  <text x="514" y="154" class="hint">default target language</text>
+  <!-- source -->
+  <text x="340" y="190" text-anchor="end" class="lab">Detect source</text>
+  <rect x="356" y="176" width="150" height="26" rx="6" fill="#fff" stroke="#cfccc4"/>
+  <text x="372" y="194" class="lab">Automatic ▾</text>
+  <!-- launch at login -->
+  <text x="340" y="232" text-anchor="end" class="lab">Launch at login</text>
+  <rect x="356" y="220" width="38" height="22" rx="11" fill="#28c840"/><circle cx="383" cy="231" r="8" fill="#fff"/>
+  <text x="404" y="236" class="hint">start automatically when you log in</text>
+  <!-- callout -->
+  <text x="30" y="106" font-family="IBM Plex Mono" font-size="11" fill="#C8643C">KeyboardShortcuts</text>
+  <text x="30" y="120" font-family="IBM Plex Mono" font-size="11" fill="#C8643C">Recorder — no Sys</text>
+  <text x="30" y="134" font-family="IBM Plex Mono" font-size="11" fill="#C8643C">Settings needed</text>
+  <line x1="150" y1="108" x2="354" y2="105" stroke="#C8643C" stroke-width="1.1" stroke-dasharray="3 3"/>
+</svg>
+<div class="cap">Fig 6 — Preferences ▸ General. The hotkey field is the <strong>KeyboardShortcuts Recorder</strong>: click it, press a combo, done — never System Settings (PRD G2). Plus default direction and the <span class="tag t-info">should</span> "Launch at login" toggle.</div>
+</div>
+
+<h3>Engine</h3>
+<div class="fig">
+<svg viewBox="0 0 880 320" role="img" aria-label="Preferences Engine tab wireframe">
+  <style>.lab{font-family:-apple-system,Inter,sans-serif;font-size:13px;fill:#1B201D}.hint{font-family:-apple-system,Inter,sans-serif;font-size:11.5px;fill:#9a978f}.tt{font-family:-apple-system,Inter,sans-serif;font-size:12px;fill:#5f655f}</style>
+  <rect x="190" y="14" width="500" height="292" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
+  <circle cx="210" cy="34" r="6" fill="#ff5f57"/><circle cx="228" cy="34" r="6" fill="#febc2e"/><circle cx="246" cy="34" r="6" fill="#28c840"/>
+  <text x="347" y="40" text-anchor="middle" font-size="15" opacity="0.6">⚙</text><text x="347" y="56" text-anchor="middle" class="tt">General</text>
+  <rect x="378" y="22" width="56" height="40" rx="9" fill="#ecebe6"/>
+  <text x="406" y="40" text-anchor="middle" font-size="15">⇄</text><text x="406" y="56" text-anchor="middle" class="tt">Engine</text>
+  <text x="462" y="40" text-anchor="middle" font-size="15" opacity="0.6">ⓘ</text><text x="462" y="56" text-anchor="middle" class="tt">About</text>
+  <line x1="190" y1="70" x2="690" y2="70" stroke="#e4e2db"/>
+  <!-- segmented control -->
+  <text x="240" y="100" class="lab">Translation engine</text>
+  <rect x="240" y="110" width="410" height="34" rx="9" fill="#ecebe6"/>
+  <rect x="243" y="113" width="232" height="28" rx="7" fill="#fff" stroke="#3b6cf0" stroke-width="1.3"/>
+  <text x="359" y="131" text-anchor="middle" class="lab">Free · Vision + Google</text>
+  <text x="562" y="131" text-anchor="middle" class="lab" fill="#8d8a83">OpenAI</text>
+  <text x="240" y="162" class="hint">Free runs OCR on-device and translates via Google. No key, no cost.</text>
+  <!-- openAI key area (shown when OpenAI selected) -->
+  <rect x="240" y="180" width="410" height="108" rx="10" fill="#faf7f1" stroke="#e6dfd2" stroke-dasharray="4 3"/>
+  <text x="256" y="204" class="lab">OpenAI API key</text>
+  <rect x="256" y="212" width="288" height="26" rx="6" fill="#fff" stroke="#cfccc4"/>
+  <text x="270" y="230" font-family="IBM Plex Mono" font-size="12" fill="#9a978f">sk-•••••••••••••••••••••</text>
+  <rect x="552" y="212" width="80" height="26" rx="6" fill="#fff" stroke="#3b6cf0"/>
+  <text x="592" y="230" text-anchor="middle" class="lab" fill="#3b6cf0">Test</text>
+  <text x="256" y="258" class="hint">🔒 Stored only in your macOS Keychain — never written to disk or sent anywhere but OpenAI.</text>
+  <text x="256" y="278" font-family="IBM Plex Mono" font-size="11" fill="#1F6F5C">✓ Key valid — AI translation enabled</text>
+  <!-- callout -->
+  <text x="30" y="128" font-family="IBM Plex Mono" font-size="11" fill="#1F6F5C">default = FREE</text>
+  <line x1="120" y1="126" x2="238" y2="127" stroke="#1F6F5C" stroke-width="1.1" stroke-dasharray="3 3"/>
+</svg>
+<div class="cap">Fig 7 — Preferences ▸ Engine. A segmented control defaults to <span class="tag t-free">Free (Vision + Google)</span>. Selecting OpenAI reveals the key field + Keychain note + Test button; Test shows a live "valid / invalid" result. Free stays selectable even with a key present (PRD §5 "always free" override).</div>
+</div>
+
+<h3>About</h3>
+<div class="fig">
+<svg viewBox="0 0 880 250" role="img" aria-label="Preferences About tab wireframe">
+  <style>.lab{font-family:-apple-system,Inter,sans-serif;font-size:13px;fill:#1B201D}.hint{font-family:-apple-system,Inter,sans-serif;font-size:11.5px;fill:#9a978f}.tt{font-family:-apple-system,Inter,sans-serif;font-size:12px;fill:#5f655f}</style>
+  <rect x="190" y="14" width="500" height="222" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
+  <circle cx="210" cy="34" r="6" fill="#ff5f57"/><circle cx="228" cy="34" r="6" fill="#febc2e"/><circle cx="246" cy="34" r="6" fill="#28c840"/>
+  <text x="347" y="40" text-anchor="middle" font-size="15" opacity="0.6">⚙</text><text x="347" y="56" text-anchor="middle" class="tt">General</text>
+  <text x="406" y="40" text-anchor="middle" font-size="15" opacity="0.6">⇄</text><text x="406" y="56" text-anchor="middle" class="tt">Engine</text>
+  <rect x="436" y="22" width="52" height="40" rx="9" fill="#ecebe6"/>
+  <text x="462" y="40" text-anchor="middle" font-size="15">ⓘ</text><text x="462" y="56" text-anchor="middle" class="tt">About</text>
+  <line x1="190" y1="70" x2="690" y2="70" stroke="#e4e2db"/>
+  <!-- icon -->
+  <rect x="300" y="92" width="56" height="56" rx="14" fill="#1B201D"/>
+  <path d="M316 120 h24 M328 108 v24 M321 112 q7 6 14 0 M321 128 q7 -6 14 0" stroke="#F7F4EE" stroke-width="1.6" fill="none"/>
+  <text x="372" y="108" font-family="Fraunces,serif" font-size="17" fill="#1B201D" font-weight="600">Translator Everywhere</text>
+  <text x="372" y="128" class="hint">Version 1.0 (1) · unsigned build</text>
+  <text x="372" y="150" font-family="IBM Plex Mono" font-size="12" fill="#3b6cf0">github.com/cdcupt/translator-everywhere ↗</text>
+  <line x1="300" y1="172" x2="580" y2="172" stroke="#ece9e2"/>
+  <text x="300" y="196" class="hint">Built on the <tspan font-family="IBM Plex Mono" fill="#5f655f">te</tspan> command-line translator. The CLI</text>
+  <text x="300" y="214" class="hint">still works alongside this app — same capture pipeline.</text>
+  <text x="300" y="232" class="hint">MIT License · OCR runs on-device via Apple Vision.</text>
+</svg>
+<div class="cap">Fig 8 — Preferences ▸ About. App name, version/build, a GitHub link, the <code>te</code> CLI mention (PRD), license, and the on-device-OCR privacy line. The standalone "About" menu item shows this same content.</div>
+</div>
+
+<!-- ============================ 2d ONBOARDING ============================ -->
+<h2 id="onboard"><span class="n">2d</span>First-run onboarding</h2>
+<p>Three short steps in a single centred window, shown only on first launch (or when permission is missing). The middle step is the one that matters — it makes the Screen-Recording-then-relaunch dance painless.</p>
+<div class="fig">
+<svg viewBox="0 0 880 330" role="img" aria-label="Three onboarding steps wireframes">
+  <style>.ti{font-family:Fraunces,serif;font-size:15px;fill:#1B201D;font-weight:600}.bd{font-family:-apple-system,Inter,sans-serif;font-size:11.5px;fill:#5f655f}.dot{fill:#cfccc4}.dota{fill:#3b6cf0}.btn{font-family:Inter,sans-serif;font-size:12px}</style>
+  <!-- step 1 -->
+  <rect x="14" y="20" width="270" height="290" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
+  <rect x="40" y="44" width="50" height="50" rx="13" fill="#1B201D"/>
+  <path d="M54 70 h22 M65 59 v22 M58 63 q7 5 14 0 M58 77 q7 -5 14 0" stroke="#F7F4EE" stroke-width="1.5" fill="none"/>
+  <text x="40" y="124" class="ti">Translate anything</text>
+  <text x="40" y="142" class="ti">on your screen</text>
+  <text x="40" y="168" class="bd">Press <tspan font-family="IBM Plex Mono" fill="#C8643C">⌃⌥Y</tspan>, drag a box around</text>
+  <text x="40" y="184" class="bd">any text, and read the translation</text>
+  <text x="40" y="200" class="bd">instantly. It's also copied for you.</text>
+  <text x="40" y="226" class="bd">Free by default — no account,</text>
+  <text x="40" y="242" class="bd">no API key, runs on-device.</text>
+  <circle cx="118" cy="282" r="4" class="dota"/><circle cx="134" cy="282" r="4" class="dot"/><circle cx="150" cy="282" r="4" class="dot"/>
+  <rect x="190" y="270" width="74" height="26" rx="8" fill="#3b6cf0"/><text x="227" y="287" text-anchor="middle" class="btn" fill="#fff">Continue</text>
+
+  <!-- step 2 -->
+  <rect x="305" y="20" width="270" height="290" rx="14" fill="#fbfbfd" stroke="#B8841F" stroke-width="1.4"/>
+  <circle cx="356" cy="68" r="25" fill="#fff8ef" stroke="#B8841F"/>
+  <text x="356" y="76" text-anchor="middle" font-size="22" fill="#B8841F">⛶</text>
+  <text x="331" y="118" class="ti">Allow Screen</text>
+  <text x="331" y="136" class="ti">Recording</text>
+  <text x="331" y="162" class="bd">To capture a region of your screen,</text>
+  <text x="331" y="178" class="bd">macOS needs Screen Recording</text>
+  <text x="331" y="194" class="bd">permission. We only read the box</text>
+  <text x="331" y="210" class="bd">you draw — nothing else.</text>
+  <rect x="331" y="226" width="214" height="24" rx="7" fill="#3b6cf0"/><text x="438" y="242" text-anchor="middle" class="btn" fill="#fff">Open System Settings</text>
+  <rect x="331" y="256" width="214" height="24" rx="7" fill="#fff" stroke="#B8841F"/><text x="438" y="272" text-anchor="middle" class="btn" fill="#B8841F">Quit &amp; Reopen</text>
+  <text x="331" y="298" font-family="IBM Plex Mono" font-size="9.5" fill="#9a978f">macOS requires a relaunch after granting</text>
+
+  <!-- step 3 -->
+  <rect x="596" y="20" width="270" height="290" rx="14" fill="#fbfbfd" stroke="#d9d6cf"/>
+  <circle cx="647" cy="68" r="25" fill="#f3fbf7" stroke="#1F6F5C"/>
+  <text x="647" y="77" text-anchor="middle" font-size="24" fill="#1F6F5C">✓</text>
+  <text x="622" y="118" class="ti">You're all set</text>
+  <text x="622" y="148" class="bd">Press <tspan font-family="IBM Plex Mono" fill="#C8643C">⌃⌥Y</tspan> now and drag a box</text>
+  <text x="622" y="164" class="bd">around some text to try it.</text>
+  <text x="622" y="194" class="bd">Find everything in the menu-bar</text>
+  <text x="622" y="210" class="bd">icon — change the hotkey or engine</text>
+  <text x="622" y="226" class="bd">anytime in Preferences.</text>
+  <circle cx="700" cy="282" r="4" class="dot"/><circle cx="716" cy="282" r="4" class="dot"/><circle cx="732" cy="282" r="4" class="dota"/>
+  <rect x="772" y="270" width="74" height="26" rx="8" fill="#1F6F5C"/><text x="809" y="287" text-anchor="middle" class="btn" fill="#fff">Try it now</text>
+</svg>
+<div class="cap">Fig 9 — Onboarding. 1) Welcome + the default hotkey. 2) Screen Recording — explains why, opens the right Settings pane, and offers <strong>Quit &amp; Reopen</strong> (relaunch is mandatory). 3) Done. On relaunch, a granted permission skips straight to step 3.</div>
+</div>
+<div class="note">
+  <h3>Detail — what step 2 detects</h3>
+  <p>The app checks Screen Recording status (e.g. <code>CGPreflightScreenCaptureAccess()</code>) on launch. Granted → onboarding ends at step 1→3 with no friction. Not granted → step 2 is sticky. "Open System Settings" deep-links to <em>Privacy &amp; Security ▸ Screen Recording</em>. After the user toggles the app on there, macOS itself prompts to quit; our "Quit &amp; Reopen" does it cleanly so the user doesn't have to find us again. Polishing touch: if the user comes back without granting, the copy softens to "Still off — flip the switch next to Translator Everywhere."</p>
+</div>
+
+<!-- ============================ BRAND ============================ -->
+<h2 id="brand"><span class="n">3</span>Brand &amp; menu-bar status-icon concepts</h2>
+<p><strong>App name — confirmed: "Translator Everywhere."</strong> It says exactly what it does (translate anything, anywhere on screen) and matches the PRD. Short-form in tight spots: "Translator". The menu-bar glyph must be a <strong>monochrome template image</strong> — single-colour, legible at 16–18&nbsp;pt, auto-adapting to light/dark menu bars. Three concepts:</p>
+<div class="fig">
+<svg viewBox="0 0 880 230" role="img" aria-label="Three menu-bar icon concepts">
+  <style>.cn{font-family:Fraunces,serif;font-size:14px;fill:#1B201D;font-weight:600}.cd{font-family:-apple-system,Inter,sans-serif;font-size:11.5px;fill:#5f655f}.pk{font-family:IBM Plex Mono,monospace;font-size:10px;fill:#9a978f}</style>
+  <!-- concept A: speech bubble + globe -->
+  <rect x="20" y="20" width="270" height="190" rx="14" fill="#fff" stroke="#1F6F5C" stroke-width="2"/>
+  <rect x="20" y="20" width="270" height="26" rx="14" fill="#1F6F5C"/><text x="36" y="38" class="pk" fill="#fff">RECOMMENDED</text>
+  <!-- large glyph -->
+  <g transform="translate(95,90)">
+    <path d="M0 0 h60 a10 10 0 0 1 10 10 v34 a10 10 0 0 1 -10 10 h-34 l-16 14 v-14 h-10 a10 10 0 0 1 -10 -10 v-34 a10 10 0 0 1 10 -10 z" fill="none" stroke="#1B201D" stroke-width="2.4"/>
+    <circle cx="35" cy="27" r="15" fill="none" stroke="#1B201D" stroke-width="1.8"/>
+    <path d="M20 27 h30 M35 12 v30 M24 18 q11 9 22 0 M24 36 q11 -9 22 0" stroke="#1B201D" stroke-width="1.4" fill="none"/>
+  </g>
+  <text x="36" y="184" class="cn">A · Speech-bubble + globe</text>
+  <text x="36" y="202" class="cd">"translate, anywhere" — reads instantly</text>
+  <!-- menu-bar size proof -->
+  <g transform="translate(248,150) scale(0.34)">
+    <path d="M0 0 h60 a10 10 0 0 1 10 10 v34 a10 10 0 0 1 -10 10 h-34 l-16 14 v-14 h-10 a10 10 0 0 1 -10 -10 v-34 a10 10 0 0 1 10 -10 z" fill="none" stroke="#1B201D" stroke-width="5"/>
+    <circle cx="35" cy="27" r="15" fill="none" stroke="#1B201D" stroke-width="4"/>
+  </g>
+
+  <!-- concept B: 译/A toggle -->
+  <rect x="305" y="20" width="270" height="190" rx="14" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/>
+  <g transform="translate(360,58)">
+    <text x="0" y="40" font-family="Fraunces,serif" font-size="46" fill="#1B201D" font-weight="600">譯</text>
+    <path d="M62 18 l14 0 m-7 -7 l0 14" stroke="#9a978f" stroke-width="2" />
+    <text x="78" y="40" font-family="Inter,sans-serif" font-size="40" fill="#1B201D" font-weight="700">A</text>
+  </g>
+  <text x="321" y="184" class="cn">B · 譯 / A toggle</text>
+  <text x="321" y="202" class="cd">script ↔ latin — explicitly "translation"</text>
+
+  <!-- concept C: crosshair over text -->
+  <rect x="590" y="20" width="270" height="190" rx="14" fill="#fff" stroke="#e4ded2" stroke-width="1.5"/>
+  <g transform="translate(665,55)">
+    <line x1="0" y1="20" x2="80" y2="20" stroke="#1B201D" stroke-width="2.4"/>
+    <line x1="0" y1="36" x2="60" y2="36" stroke="#1B201D" stroke-width="2.4"/>
+    <line x1="0" y1="52" x2="74" y2="52" stroke="#1B201D" stroke-width="2.4"/>
+    <circle cx="56" cy="40" r="22" fill="#fff" stroke="#1B201D" stroke-width="2.4"/>
+    <line x1="56" y1="22" x2="56" y2="58" stroke="#1B201D" stroke-width="1.6"/>
+    <line x1="38" y1="40" x2="74" y2="40" stroke="#1B201D" stroke-width="1.6"/>
+  </g>
+  <text x="606" y="184" class="cn">C · Crosshair over text</text>
+  <text x="606" y="202" class="cd">"select a region of text" — the gesture</text>
+</svg>
+<div class="cap">Fig 10 — Three template-glyph concepts, each shown large with a 16-pt menu-bar proof. All are single-stroke and silhouette-readable.</div>
+</div>
+<div class="reco">
+  <h3>Recommendation — Concept A (speech-bubble + globe)</h3>
+  <p>It reads as "translation" universally (the globe) and as "language/speech" (the bubble) without relying on a specific script, so it works for every locale and stays legible at menu-bar size. Concept&nbsp;B (譯/A) is the most literally "translation" but two glyphs get muddy at 16&nbsp;pt and lean Chinese-specific; Concept&nbsp;C (crosshair-over-text) best describes the <em>gesture</em> but looks like a screenshot/measuring tool out of context. <strong>Ship A as the menu-bar icon; reuse a filled variant of A as the app/Finder/.dmg icon</strong> for a consistent identity. Take B or C as fallbacks if the PM prefers a more explicit "translate" mark.</p>
+</div>
+
+<!-- ============================ COPY ============================ -->
+<h2 id="copy"><span class="n">4</span>Empty / error / permission copy</h2>
+<p>Actual user-facing strings (EN). The result UI itself shows the translated content; these are the system messages around it. Tone: plain, calm, never blaming the user, always pointing to the next action.</p>
+
+<h3>No text / empty</h3>
+<div class="copy"><span class="k">no-text-found · title</span><span class="s">No text found</span></div>
+<div class="copy"><span class="k">no-text-found · body</span><span class="s">We couldn't read any text in that region. Try selecting a tighter box around the words.</span></div>
+<div class="copy"><span class="k">no-text-found · buttons</span><span class="s">[ Try Again ]   [ Close ]</span></div>
+
+<h3>Errors</h3>
+<div class="copy"><span class="k">offline</span><span class="s">Can't reach the translator — you appear to be offline. The text is on your clipboard; try again when you're back online.   [ Retry ] [ Close ]</span></div>
+<div class="copy"><span class="k">engine-down (Google)</span><span class="s">The free translator didn't respond. Please try again in a moment, or switch to OpenAI in Preferences.   [ Retry ] [ Preferences… ]</span></div>
+<div class="copy"><span class="k">openai-bad-key</span><span class="s">Your OpenAI key was rejected. Check the key in Preferences, or switch back to the free engine.   [ Open Preferences ] [ Use Free Engine ]</span></div>
+<div class="copy"><span class="k">openai-quota</span><span class="s">Your OpenAI account is out of quota. Switch to the free engine or add credit at OpenAI.   [ Use Free Engine ] [ Close ]</span></div>
+<div class="copy"><span class="k">unknown</span><span class="s">Something went wrong while translating. The recognized text is on your clipboard.   [ Retry ] [ Close ]</span></div>
+
+<h3>Permission</h3>
+<div class="copy"><span class="k">onboarding step 2 · title</span><span class="s">Allow Screen Recording</span></div>
+<div class="copy"><span class="k">onboarding step 2 · body</span><span class="s">To capture a region of your screen, macOS needs Screen Recording permission. We only read the box you draw — nothing else leaves your Mac.</span></div>
+<div class="copy"><span class="k">onboarding step 2 · buttons</span><span class="s">[ Open System Settings ]   [ Quit &amp; Reopen ]</span></div>
+<div class="copy"><span class="k">permission still off (return)</span><span class="s">Still off — flip the switch next to "Translator Everywhere" in the list, then choose Quit &amp; Reopen.</span></div>
+<div class="copy"><span class="k">hotkey pressed while ungranted</span><span class="s">Translator Everywhere needs Screen Recording permission first. Let's enable it.   [ Continue ]</span></div>
+
+<h3>Engine test (Preferences)</h3>
+<div class="copy"><span class="k">test · success</span><span class="s">✓ Key valid — AI translation enabled.</span></div>
+<div class="copy"><span class="k">test · failure</span><span class="s">✕ That key didn't work. Double-check it and try again.</span></div>
+<div class="copy"><span class="k">keychain note</span><span class="s">🔒 Stored only in your macOS Keychain — never written to disk or sent anywhere but OpenAI.</span></div>
+
+<footer>Design Document · Translator Everywhere macOS app · sdd_pipeline artifact 2/4 · companion: <code>mockup.html</code> (clickable). Next: PM Gate 1 → Tech Document. Surfaces: Menu · Result (+no-text/error) · Preferences (General/Engine/About) · Onboarding (3 steps). Recommended icon: Concept A.</footer>
+
+</div>
+</body>
+</html>
