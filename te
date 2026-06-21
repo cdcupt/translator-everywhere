@@ -1,30 +1,30 @@
 #!/usr/bin/env bash
-# fy — terminal translator between English and Simplified Chinese.
+# te — terminal translator between English and Simplified Chinese.
 # Two engines: AI (OpenAI, default — high quality) and Google Translate (free, no key).
 #
-#   fy                 translate whatever is on the clipboard (auto EN<->ZH)
-#   fy <text...>       translate the given text
-#   echo x | fy        translate piped stdin
-#   fy -g <text>       use the free Google Translate engine instead of AI
-#   fy -e <text>       (AI only) also show a short explanation / pinyin / usage note
-#   fy -i              interactive REPL (one line at a time, blank line or Ctrl-D quits)
-#   fy --popup         read stdin, translate, show a macOS dialog + copy result (used by the Quick Actions)
+#   te                 translate whatever is on the clipboard (auto EN<->ZH)
+#   te <text...>       translate the given text
+#   echo x | te        translate piped stdin
+#   te -g <text>       use the free Google Translate engine instead of AI
+#   te -e <text>       (AI only) also show a short explanation / pinyin / usage note
+#   te -i              interactive REPL (one line at a time, blank line or Ctrl-D quits)
+#   te --popup         read stdin, translate, show a macOS dialog + copy result (used by the Quick Actions)
 #
 # Config (env or ~/.openai/keys.env):
-#   FY_ENGINE          openai | google   (default: openai)
+#   TE_ENGINE          openai | google   (default: openai)
 #   OPENAI_API_KEY     required for the AI engine
-#   FY_MODEL           model id (default: gpt-4o-mini)
-#   FY_KEY_FILE        path to a file exporting OPENAI_API_KEY (default: ~/.openai/keys.env)
+#   TE_MODEL           model id (default: gpt-4o-mini)
+#   TE_KEY_FILE        path to a file exporting OPENAI_API_KEY (default: ~/.openai/keys.env)
 set -euo pipefail
 
-FY_ENGINE="${FY_ENGINE:-openai}"
-FY_MODEL="${FY_MODEL:-gpt-4o-mini}"
-FY_KEY_FILE="${FY_KEY_FILE:-$HOME/.openai/keys.env}"
+TE_ENGINE="${TE_ENGINE:-openai}"
+TE_MODEL="${TE_MODEL:-gpt-4o-mini}"
+TE_KEY_FILE="${TE_KEY_FILE:-$HOME/.openai/keys.env}"
 EXPLAIN=0
 POPUP=0
 INTERACTIVE=0
 
-die() { printf 'fy: %s\n' "$1" >&2; exit 1; }
+die() { printf 'te: %s\n' "$1" >&2; exit 1; }
 
 usage() {
   sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
@@ -33,11 +33,11 @@ usage() {
 
 # --- load API key (AI engine only) ------------------------------------------
 load_key() {
-  [[ "$FY_ENGINE" == "openai" ]] || return 0
-  if [[ -z "${OPENAI_API_KEY:-}" && -f "$FY_KEY_FILE" ]]; then
-    set -a; . "$FY_KEY_FILE"; set +a
+  [[ "$TE_ENGINE" == "openai" ]] || return 0
+  if [[ -z "${OPENAI_API_KEY:-}" && -f "$TE_KEY_FILE" ]]; then
+    set -a; . "$TE_KEY_FILE"; set +a
   fi
-  [[ -n "${OPENAI_API_KEY:-}" ]] || die "OPENAI_API_KEY not set (looked in $FY_KEY_FILE) — or use -g for free Google"
+  [[ -n "${OPENAI_API_KEY:-}" ]] || die "OPENAI_API_KEY not set (looked in $TE_KEY_FILE) — or use -g for free Google"
 }
 
 # --- detect Chinese so we know the target language --------------------------
@@ -49,7 +49,7 @@ is_chinese() {
 translate() {
   local text="$1"
   [[ -n "${text//[[:space:]]/}" ]] || die "nothing to translate"
-  if [[ "$FY_ENGINE" == "google" ]]; then
+  if [[ "$TE_ENGINE" == "google" ]]; then
     google_translate "$text"
   else
     openai_translate "$text"
@@ -97,7 +97,7 @@ for a sentence, note any nuance worth knowing. Keep the note to one or two short
   fi
 
   local payload resp out err
-  payload=$(jq -n --arg model "$FY_MODEL" --arg sys "$sys" --arg user "$text" \
+  payload=$(jq -n --arg model "$TE_MODEL" --arg sys "$sys" --arg user "$text" \
     '{model:$model, temperature:0.2,
       messages:[{role:"system",content:$sys},{role:"user",content:$user}]}')
 
@@ -146,12 +146,12 @@ args=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -e|--explain) EXPLAIN=1; shift ;;
-    -g|--google) FY_ENGINE="google"; shift ;;
-    -a|--ai|--openai) FY_ENGINE="openai"; shift ;;
-    --engine) FY_ENGINE="${2:?--engine needs openai|google}"; shift 2 ;;
+    -g|--google) TE_ENGINE="google"; shift ;;
+    -a|--ai|--openai) TE_ENGINE="openai"; shift ;;
+    --engine) TE_ENGINE="${2:?--engine needs openai|google}"; shift 2 ;;
     -i|--interactive) INTERACTIVE=1; shift ;;
     --popup) POPUP=1; shift ;;
-    -m|--model) FY_MODEL="${2:?-m needs a model}"; shift 2 ;;
+    -m|--model) TE_MODEL="${2:?-m needs a model}"; shift 2 ;;
     -h|--help) usage 0 ;;
     --) shift; args+=("$@"); break ;;
     -*) die "unknown option: $1 (try -h)" ;;
@@ -159,12 +159,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$FY_ENGINE" in
+case "$TE_ENGINE" in
   openai|google) ;;
-  *) die "unknown engine: $FY_ENGINE (use openai or google)" ;;
+  *) die "unknown engine: $TE_ENGINE (use openai or google)" ;;
 esac
 # Explanation notes are an AI-only capability.
-[[ "$FY_ENGINE" == "google" ]] && EXPLAIN=0
+[[ "$TE_ENGINE" == "google" ]] && EXPLAIN=0
 
 load_key
 
@@ -173,7 +173,7 @@ if [[ "$POPUP" == 1 ]]; then
   text="$(cat)"
   out="$(translate "$text")"
   printf '%s' "$out" | pbcopy 2>/dev/null || true
-  if [[ "$FY_ENGINE" == "google" ]]; then popup_title="翻译 · Google"; else popup_title="翻译 · AI"; fi
+  if [[ "$TE_ENGINE" == "google" ]]; then popup_title="翻译 · Google"; else popup_title="翻译 · AI"; fi
   /usr/bin/osascript - "$out" "$popup_title" <<'OSA' >/dev/null 2>&1 || true
 on run argv
   display dialog (item 1 of argv) with title (item 2 of argv) buttons {"OK"} default button "OK"
@@ -184,7 +184,7 @@ fi
 
 # --- interactive REPL -------------------------------------------------------
 if [[ "$INTERACTIVE" == 1 ]]; then
-  printf 'fy interactive — type text, blank line or Ctrl-D to quit\n' >&2
+  printf 'te interactive — type text, blank line or Ctrl-D to quit\n' >&2
   while IFS= read -r -p "› " line || [[ -n "${line:-}" ]]; do
     [[ -z "${line//[[:space:]]/}" ]] && break
     print_result "" "$(translate "$line")"
@@ -201,7 +201,7 @@ elif [[ ! -t 0 ]]; then
 else
   text="$(pbpaste 2>/dev/null || true)"
   src="$text"   # show what came off the clipboard
-  [[ -n "${text//[[:space:]]/}" ]] || die "clipboard is empty — copy some text, or run: fy <text>"
+  [[ -n "${text//[[:space:]]/}" ]] || die "clipboard is empty — copy some text, or run: te <text>"
 fi
 
 print_result "$src" "$(translate "$text")"
