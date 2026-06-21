@@ -8,6 +8,7 @@
 #   te -g <text>       use the free Google Translate engine instead of AI
 #   te -e <text>       (AI only) also show a short explanation / pinyin / usage note
 #   te -i              interactive REPL (one line at a time, blank line or Ctrl-D quits)
+#   te -c [image]      capture a screen region (or translate an image file): OCR + translate (AI engine, macOS)
 #   te --popup         read stdin, translate, show a macOS dialog + copy result (used by the Quick Actions)
 #
 # Config (env or ~/.openai/keys.env):
@@ -23,17 +24,19 @@ TE_KEY_FILE="${TE_KEY_FILE:-$HOME/.openai/keys.env}"
 EXPLAIN=0
 POPUP=0
 INTERACTIVE=0
+CAPTURE=0
 
 die() { printf 'te: %s\n' "$1" >&2; exit 1; }
 
+# Print the contiguous comment header (everything from line 2 until the first
+# non-comment line), stripping the leading "# ". Robust to header edits.
 usage() {
-  sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+  awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"
   exit "${1:-0}"
 }
 
 # --- load API key (AI engine only) ------------------------------------------
 load_key() {
-  [[ "$TE_ENGINE" == "openai" ]] || return 0
   if [[ -z "${OPENAI_API_KEY:-}" && -f "$TE_KEY_FILE" ]]; then
     set -a; . "$TE_KEY_FILE"; set +a
   fi
@@ -80,36 +83,19 @@ google_translate() {
   printf '%s\n' "$out"
 }
 
-# --- AI engine (OpenAI); prints the translation (and optional note) ---------
-openai_translate() {
-  local text="$1" sys
-
-  sys="You are a precise translator between English and Simplified Chinese. \
-Detect the input language: if it is mainly English, translate into natural Simplified Chinese; \
-if it is mainly Chinese, translate into natural, idiomatic English. \
-Preserve meaning, tone and any technical terms. Do not add quotes or commentary."
-  if [[ "$EXPLAIN" == 1 ]]; then
-    sys+=" After the translation, add a line starting with '— ' giving a brief note: \
-for a single word or short term include part of speech and (for Chinese) pinyin and one short usage example; \
-for a sentence, note any nuance worth knowing. Keep the note to one or two short lines."
-  else
-    sys+=" Output ONLY the translation, nothing else."
-  fi
-
-  local payload resp out err
-  payload=$(jq -n --arg model "$TE_MODEL" --arg sys "$sys" --arg user "$text" \
-    '{model:$model, temperature:0.2,
-      messages:[{role:"system",content:$sys},{role:"user",content:$user}]}')
-
-  local attempt
+# --- shared OpenAI chat call -------------------------------------------------
+# Reads the JSON request body from a FILE (not an argument) and POSTs it with
+# --data-binary, so large vision payloads never hit the command-line ARG_MAX.
+openai_chat() {
+  local body_file="$1" resp out err attempt
   resp=""
   for attempt in 1 2 3; do
-    if resp=$(curl -sS --max-time 30 \
+    if resp=$(curl -sS --max-time 60 \
       --retry 2 --retry-connrefused \
       https://api.openai.com/v1/chat/completions \
       -H "Authorization: Bearer $OPENAI_API_KEY" \
       -H "Content-Type: application/json" \
-      -d "$payload" 2>/dev/null); then
+      --data-binary @"$body_file" 2>/dev/null); then
       break
     fi
     resp=""
@@ -123,6 +109,57 @@ for a sentence, note any nuance worth knowing. Keep the note to one or two short
     die "$err"
   fi
   printf '%s\n' "$out"
+}
+
+# --- AI engine (OpenAI); prints the translation (and optional note) ---------
+openai_translate() {
+  local text="$1" sys body
+
+  sys="You are a precise translator between English and Simplified Chinese. \
+Detect the input language: if it is mainly English, translate into natural Simplified Chinese; \
+if it is mainly Chinese, translate into natural, idiomatic English. \
+Preserve meaning, tone and any technical terms. Do not add quotes or commentary."
+  if [[ "$EXPLAIN" == 1 ]]; then
+    sys+=" After the translation, add a line starting with '— ' giving a brief note: \
+for a single word or short term include part of speech and (for Chinese) pinyin and one short usage example; \
+for a sentence, note any nuance worth knowing. Keep the note to one or two short lines."
+  else
+    sys+=" Output ONLY the translation, nothing else."
+  fi
+
+  body="${TMPDIR:-/tmp}/te_body_$$.json"
+  jq -n --arg model "$TE_MODEL" --arg sys "$sys" --arg user "$text" \
+    '{model:$model, temperature:0.2,
+      messages:[{role:"system",content:$sys},{role:"user",content:$user}]}' > "$body"
+  openai_chat "$body"
+  rm -f "$body" 2>/dev/null || true
+}
+
+# --- AI vision engine (OpenAI): OCR + translate the text in an image --------
+openai_translate_image() {
+  local img="$1" small b64 body sys
+  # Downscale a copy (sips is built into macOS) so the base64 payload stays
+  # reasonable; OCR stays accurate at ~1600px on the long edge.
+  small="${TMPDIR:-/tmp}/te_img_$$.png"
+  if /usr/bin/sips -Z 1600 "$img" --out "$small" >/dev/null 2>&1; then img="$small"; fi
+
+  b64="${TMPDIR:-/tmp}/te_b64_$$.txt"
+  base64 < "$img" | tr -d '\n' > "$b64"
+
+  sys="You are an OCR and translation tool. Read all text visible in the image, \
+in natural reading order. If the text is mainly English, translate it into natural Simplified Chinese; \
+if it is mainly Chinese, translate into natural, idiomatic English. \
+Preserve meaning, tone and any technical terms. Output ONLY the translation — no original text, no commentary."
+
+  body="${TMPDIR:-/tmp}/te_body_$$.json"
+  # --rawfile reads the (large) base64 from a file, avoiding jq's ARG_MAX limit.
+  jq -n --arg model "$TE_MODEL" --arg sys "$sys" --rawfile b64 "$b64" \
+    '{model:$model, temperature:0.2,
+      messages:[{role:"system",content:$sys},
+                {role:"user",content:[{type:"text",text:"Translate the text in this image."},
+                                      {type:"image_url",image_url:{url:("data:image/png;base64,"+$b64)}}]}]}' > "$body"
+  openai_chat "$body"
+  rm -f "$small" "$b64" "$body" 2>/dev/null || true
 }
 
 # --- pretty terminal output -------------------------------------------------
@@ -141,6 +178,41 @@ print_result() {
   printf '%s%s%s\n' "$cyan" "$out" "$reset"
 }
 
+# --- macOS dialog showing a result (used by --popup) ------------------------
+show_popup() {
+  local body="$1" title="$2"
+  /usr/bin/osascript - "$body" "$title" <<'OSA' >/dev/null 2>&1 || true
+on run argv
+  display dialog (item 1 of argv) with title (item 2 of argv) buttons {"OK"} default button "OK"
+end run
+OSA
+}
+
+# --- screen-region capture (or image file) -> OCR + translate (AI vision) ---
+# Prints the translation on success. Distinct exit statuses so the caller can
+# tell apart a clean cancel from a real failure:
+#   0  -> success (translation on stdout)
+#   2  -> user cancelled the interactive capture (nothing to do)
+#   1  -> real error: a `die` inside (bad path, network/API failure) propagates 1.
+capture_translate() {
+  local img="${1:-}" shot rc
+  if [[ -n "$img" ]]; then
+    [[ -f "$img" ]] || die "not a readable image file: $img"
+    openai_translate_image "$img"
+    return 0
+  fi
+  shot="${TMPDIR:-/tmp}/te_capture_$$.png"
+  # interactive region selection; Esc cancels and leaves no/empty file
+  /usr/sbin/screencapture -i -x "$shot" 2>/dev/null || true
+  if [[ ! -s "$shot" ]]; then
+    rm -f "$shot" 2>/dev/null || true
+    return 2
+  fi
+  openai_translate_image "$shot"; rc=$?
+  rm -f "$shot" 2>/dev/null || true
+  return "$rc"
+}
+
 # --- parse flags ------------------------------------------------------------
 args=()
 while [[ $# -gt 0 ]]; do
@@ -150,6 +222,7 @@ while [[ $# -gt 0 ]]; do
     -a|--ai|--openai) TE_ENGINE="openai"; shift ;;
     --engine) TE_ENGINE="${2:?--engine needs openai|google}"; shift 2 ;;
     -i|--interactive) INTERACTIVE=1; shift ;;
+    -c|--capture) CAPTURE=1; shift ;;
     --popup) POPUP=1; shift ;;
     -m|--model) TE_MODEL="${2:?-m needs a model}"; shift 2 ;;
     -h|--help) usage 0 ;;
@@ -159,6 +232,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Screen capture uses the AI vision engine (OCR + translate in one call).
+[[ "$CAPTURE" == 1 ]] && TE_ENGINE="openai"
+
 case "$TE_ENGINE" in
   openai|google) ;;
   *) die "unknown engine: $TE_ENGINE (use openai or google)" ;;
@@ -166,7 +242,38 @@ esac
 # Explanation notes are an AI-only capability.
 [[ "$TE_ENGINE" == "google" ]] && EXPLAIN=0
 
-load_key
+# The OpenAI key is only needed for the AI engine (Google and its key-free path
+# never touch it). Load it lazily, and only then.
+if [[ "$TE_ENGINE" == "openai" ]]; then load_key; fi
+
+# --- capture mode (macOS): screen region or image file -> OCR + translate ---
+if [[ "$CAPTURE" == 1 ]]; then
+  errf="${TMPDIR:-/tmp}/te_err_$$.txt"; rc=0
+  out="$(capture_translate "${args[0]:-}" 2>"$errf")" || rc=$?
+  if [[ "$rc" -eq 2 ]]; then            # user cancelled the capture — quiet exit
+    rm -f "$errf" 2>/dev/null || true
+    exit 0
+  fi
+  if [[ "$rc" -ne 0 ]]; then            # real error — surface it, don't fake success
+    err_msg="$(cat "$errf" 2>/dev/null)"; rm -f "$errf" 2>/dev/null || true
+    err_msg="${err_msg:-te: capture failed}"
+    if [[ "$POPUP" == 1 ]]; then show_popup "$err_msg" "翻译 · 截图 (错误)"; fi
+    printf '%s\n' "$err_msg" >&2
+    exit 1
+  fi
+  rm -f "$errf" 2>/dev/null || true
+  if [[ -z "${out//[[:space:]]/}" ]]; then   # capture worked but no text recognised
+    if [[ "$POPUP" == 1 ]]; then show_popup "未识别到文字" "翻译 · 截图"; fi
+    exit 0
+  fi
+  if [[ "$POPUP" == 1 ]]; then
+    printf '%s' "$out" | pbcopy 2>/dev/null || true
+    show_popup "$out" "翻译 · 截图"
+  else
+    print_result "" "$out"
+  fi
+  exit 0
+fi
 
 # --- popup mode (macOS Quick Action): stdin -> dialog + clipboard -----------
 if [[ "$POPUP" == 1 ]]; then
@@ -174,11 +281,7 @@ if [[ "$POPUP" == 1 ]]; then
   out="$(translate "$text")"
   printf '%s' "$out" | pbcopy 2>/dev/null || true
   if [[ "$TE_ENGINE" == "google" ]]; then popup_title="翻译 · Google"; else popup_title="翻译 · AI"; fi
-  /usr/bin/osascript - "$out" "$popup_title" <<'OSA' >/dev/null 2>&1 || true
-on run argv
-  display dialog (item 1 of argv) with title (item 2 of argv) buttons {"OK"} default button "OK"
-end run
-OSA
+  show_popup "$out" "$popup_title"
   exit 0
 fi
 
