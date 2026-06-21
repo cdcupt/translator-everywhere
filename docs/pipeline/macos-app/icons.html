@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Icon Concepts — Translator Everywhere (macOS app)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --paper:#F7F4EE; --ink:#1B201D; --ink-soft:#5f655f; --rule:#e4ded2; --card:#FFFFFF;
+    --accent:#C8643C; --coord:#6D5B8A; --pine:#1F6F5C; --blue:#2D6CA8; --gate:#B23A3A; --gold:#B8841F;
+    --barlight:#E9E6DF; --bardark:#2A2A2C;
+    --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'Inter',system-ui,sans-serif; --serif:'Fraunces',Georgia,serif; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--sans); line-height:1.6; font-size:16px; }
+  .wrap { max-width:920px; margin:0 auto; padding:0 22px 80px; overflow-x:clip; }
+  header { padding:44px 0 22px; border-bottom:2.5px solid var(--ink); }
+  .kicker { font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
+  h1 { font-family:var(--serif); font-size:clamp(2.2rem,6vw,3.4rem); line-height:1.04; font-weight:600; margin:8px 0 8px; }
+  h1 em { font-style:italic; color:var(--coord); }
+  .lede { color:var(--ink-soft); font-size:16px; max-width:680px; }
+  .meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .pill { font-family:var(--mono); font-size:11.5px; background:var(--card); border:1.5px solid var(--rule); border-radius:999px; padding:5px 13px; }
+  .pill b { color:var(--coord); }
+  h2 { font-family:var(--serif); font-size:clamp(1.45rem,3.4vw,2rem); font-weight:600; margin:42px 0 8px; scroll-margin-top:20px; }
+  h2 .n { color:var(--accent); font-style:italic; margin-right:10px; }
+  h3 { font-size:1.05rem; margin:22px 0 6px; }
+  p { margin:9px 0; } ul { margin:8px 0 8px 20px; } li { margin:5px 0; }
+  strong { color:var(--ink); }
+  code { font-family:var(--mono); font-size:.84em; background:#efe9dc; padding:1px 5px; border-radius:4px; overflow-wrap:anywhere; }
+  .fig { background:var(--card); border:1.5px solid var(--rule); border-radius:14px; padding:16px; margin:14px 0; }
+  .fig svg { display:block; max-width:100%; height:auto; }
+  .cap { font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); margin-top:8px; text-align:center; }
+  .toc { background:var(--card); border:1.5px solid var(--rule); border-radius:12px; padding:14px 18px; margin:18px 0; columns:2; column-gap:24px; font-size:13.5px; }
+  .toc a { color:var(--coord); text-decoration:none; } .toc a:hover { text-decoration:underline; }
+  .toc div { break-inside:avoid; margin:3px 0; }
+  .note { background:#fff8ef; border:2px solid var(--gold); border-radius:14px; padding:14px 16px; margin:16px 0; }
+  .note h3 { color:var(--gold); margin-top:0; }
+  .reco { background:#f3fbf7; border:2px solid var(--pine); border-radius:14px; padding:14px 16px; margin:16px 0; }
+  .reco h3 { color:var(--pine); margin-top:0; }
+  .tag { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.05em; padding:2px 8px; border-radius:999px; color:#fff; display:inline-block; }
+  .t-rec{background:var(--pine)} .t-alt{background:var(--blue)} .t-no{background:var(--gate)}
+
+  /* status-icon card grid */
+  .scards { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; margin:14px 0; }
+  .scard { background:var(--card); border:1.5px solid var(--rule); border-radius:14px; padding:15px 16px; }
+  .scard.rec { border:2px solid var(--pine); }
+  .scard .id { font-family:var(--mono); font-size:11px; color:var(--accent); letter-spacing:.06em; }
+  .scard h4 { font-family:var(--serif); font-size:1.06rem; font-weight:600; margin:2px 0 2px; }
+  .scard .desc { font-size:12.5px; color:var(--ink-soft); margin-bottom:10px; min-height:34px; }
+  .scard .big { display:flex; justify-content:center; align-items:center; height:104px; background:#faf8f3; border:1px solid var(--rule); border-radius:10px; }
+
+  /* menu-bar strips */
+  .bars { display:flex; gap:10px; margin-top:11px; flex-wrap:wrap; }
+  .barcol { flex:1 1 0; min-width:0; }
+  .barlbl { font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); margin-bottom:4px; }
+  .strip { display:flex; align-items:center; gap:9px; border-radius:7px; padding:6px 9px; }
+  .strip.light { background:var(--barlight); }
+  .strip.dark  { background:var(--bardark); }
+  .strip .px { font-family:var(--mono); font-size:8.5px; }
+  .strip.light .px { color:#9a978f; }
+  .strip.dark  .px { color:#86847f; }
+  .strip .clock { margin-left:auto; font-family:var(--mono); font-size:10px; }
+  .strip.light .clock { color:#7d7a73; }
+  .strip.dark  .clock { color:#b8b6b0; }
+  .strip svg { display:block; }
+
+  /* app icon grid */
+  .acards { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; margin:14px 0; }
+  .acard { background:var(--card); border:1.5px solid var(--rule); border-radius:14px; padding:15px 16px; text-align:center; }
+  .acard.rec { border:2px solid var(--pine); }
+  .acard .id { font-family:var(--mono); font-size:11px; color:var(--accent); letter-spacing:.06em; text-align:left; }
+  .acard h4 { font-family:var(--serif); font-size:1.06rem; font-weight:600; margin:2px 0 8px; text-align:left; }
+  .acard .row { display:flex; gap:18px; align-items:flex-end; justify-content:center; flex-wrap:wrap; padding:6px 0 4px; }
+  .acard .row figcaption { font-family:var(--mono); font-size:9.5px; color:var(--ink-soft); margin-top:5px; }
+  .acard .desc { font-size:12.5px; color:var(--ink-soft); margin-top:8px; text-align:left; }
+  .acard svg, .scard svg { max-width:100%; height:auto; }
+
+  footer { margin-top:44px; padding-top:16px; border-top:2.5px solid var(--ink); font-size:13px; color:var(--ink-soft); }
+  @media (max-width:520px){ .toc{columns:1;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Icon Concepts · sdd_pipeline · brand artifact</div>
+  <h1>Translator Everywhere — <em>Icons</em></h1>
+  <p class="lede">A focused concept set for the two icons this menu-bar app needs, both anchored on the Simplified-Chinese character <strong>译</strong> ("translate"). Five monochrome <em>status-icon</em> concepts proven at real menu-bar sizes (16&nbsp;px / 22&nbsp;px, light &amp; dark bars), and three full-colour <em>app-icon</em> squircles. Every mark is inline SVG.</p>
+  <div class="meta">
+    <span class="pill"><b>anchor</b> 译 · Simplified (not 譯)</span>
+    <span class="pill"><b>status icon</b> template image · monochrome · 16–18&nbsp;px</span>
+    <span class="pill"><b>app icon</b> full colour · squircle · 512–1024&nbsp;px</span>
+    <span class="pill"><b>palette</b> ink #1B201D · pine #1F6F5C · clay #C8643C</span>
+  </div>
+</header>
+
+<div class="toc" aria-label="Contents">
+  <div><a href="#how">★ Two icons, two rule-sets</a></div>
+  <div><a href="#status">1 · Five status-icon concepts (译)</a></div>
+  <div><a href="#app">2 · Three app-icon concepts (squircle)</a></div>
+  <div><a href="#reco">3 · Recommended pairing</a></div>
+  <div><a href="#usage">4 · How each is used</a></div>
+</div>
+
+<!-- ============================ HOW IT'S USED (intro) ============================ -->
+<h2 id="how"><span class="n">★</span>Two icons, two rule-sets</h2>
+<p>This app lives in the menu bar: press a hotkey → drag a screen region → OCR → translate. It needs two visually-related but technically-different marks. The deciding constraint for the <strong>status icon is legibility at 16&nbsp;px</strong> — at that size 译's interior strokes (the 讠 radical + 睪 body) blur, so the winning concepts use a <strong>bold weight, open counters, and minimal extra ornament</strong>. Everything below renders 译 as drawn vector strokes (not a font) so the silhouette is controllable at any size.</p>
+
+<div class="note">
+  <h3>Why 译 and not 譯</h3>
+  <p>The PM chose the Simplified form. Simplified 译 (7 strokes: the two-dot 讠 speech radical + 睪) is dramatically cleaner at 16&nbsp;px than Traditional 譯 (20 strokes, the full 言 + dense 睪) which collapses into a smudge in the menu bar. Simplified is the right call for a template image — fewer strokes, larger counters, survives the shrink.</p>
+</div>
+
+<!-- ============================ STATUS ICONS ============================ -->
+<h2 id="status"><span class="n">1</span>Five status-icon concepts</h2>
+<p>Each concept wraps 译 in a different container that nods to the app's job. For every one: the form at <strong>~80&nbsp;px</strong> (left), then the <strong>actual 16&nbsp;px and 22&nbsp;px</strong> renders sitting on a <strong>light</strong> and a <strong>dark</strong> menu-bar strip — the real test of a macOS template image. Single ink colour throughout; <code>currentColor</code> would be auto-supplied by AppKit, here drawn black-on-light / white-on-dark to simulate that.</p>
+
+<!-- ============================================================
+     SVG SYMBOL LIBRARY for status concepts.
+     Each <symbol> is the icon on a 100x100 viewBox, drawn with
+     stroke="currentColor"/fill="currentColor" so the strip can
+     recolour it per background. 译 is built from vector strokes.
+     ============================================================ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+  <!-- ===== reusable 译 glyph (bold, vector strokes, ~100 box) =====
+       讠 radical: top dot + descending stroke spine on the left.
+       睪 body: 罒 (eye top, a small box w/ a divider) over 幸 (cross + base).
+       Drawn chunky so counters stay open at 16px. -->
+  <g id="yi-bold">
+    <!-- 讠 speech radical: dot + vertical hook -->
+    <circle cx="17" cy="22" r="5.4" fill="currentColor"/>
+    <path d="M16 34 q-3 22 8 40" fill="none" stroke="currentColor" stroke-width="7.5" stroke-linecap="round"/>
+    <!-- 睪 body, right side -->
+    <!-- 罒 eye box -->
+    <rect x="40" y="20" width="40" height="22" rx="2.5" fill="none" stroke="currentColor" stroke-width="6.5"/>
+    <line x1="60" y1="22" x2="60" y2="40" stroke="currentColor" stroke-width="5"/>
+    <!-- 幸 lower: top bar, vertical spine, mid cross bar, base bar -->
+    <line x1="40" y1="54" x2="80" y2="54" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="60" y1="46" x2="60" y2="86" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+    <line x1="44" y1="68" x2="76" y2="68" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+    <line x1="40" y1="84" x2="80" y2="84" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- A · 译 in a rounded-square badge -->
+  <symbol id="st-A" viewBox="0 0 100 100">
+    <rect x="9" y="9" width="82" height="82" rx="22" fill="none" stroke="currentColor" stroke-width="7"/>
+    <g transform="translate(22 17) scale(0.56)"><use href="#yi-bold"/></g>
+  </symbol>
+
+  <!-- B · 译 in a speech bubble -->
+  <symbol id="st-B" viewBox="0 0 100 100">
+    <path d="M14 16 h72 a10 10 0 0 1 10 10 v40 a10 10 0 0 1 -10 10 h-44 l-20 16 v-16 h-8 a10 10 0 0 1 -10 -10 v-40 a10 10 0 0 1 10 -10 z"
+          fill="none" stroke="currentColor" stroke-width="6.5" stroke-linejoin="round"/>
+    <g transform="translate(20 16) scale(0.56)"><use href="#yi-bold"/></g>
+  </symbol>
+
+  <!-- C · 译 inside a capture / crosshair frame (corner brackets + ticks) -->
+  <symbol id="st-C" viewBox="0 0 100 100">
+    <!-- corner brackets -->
+    <path d="M10 26 V14 a4 4 0 0 1 4 -4 H26" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+    <path d="M74 10 H86 a4 4 0 0 1 4 4 V26" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+    <path d="M90 74 V86 a4 4 0 0 1 -4 4 H74" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+    <path d="M26 90 H14 a4 4 0 0 1 -4 -4 V74" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+    <g transform="translate(24 20) scale(0.52)"><use href="#yi-bold"/></g>
+  </symbol>
+
+  <!-- D · 译 + small globe (globe bottom-right) -->
+  <symbol id="st-D" viewBox="0 0 100 100">
+    <g transform="translate(2 -2) scale(0.78)"><use href="#yi-bold"/></g>
+    <!-- globe badge -->
+    <circle cx="74" cy="74" r="21" fill="none" stroke="currentColor" stroke-width="6"/>
+    <line x1="55" y1="74" x2="93" y2="74" stroke="currentColor" stroke-width="4"/>
+    <ellipse cx="74" cy="74" rx="9" ry="21" fill="none" stroke="currentColor" stroke-width="4"/>
+  </symbol>
+
+  <!-- E · bilingual split: 译 / A divided by a slash -->
+  <symbol id="st-E" viewBox="0 0 100 100">
+    <g transform="translate(-8 8) scale(0.62)"><use href="#yi-bold"/></g>
+    <line x1="58" y1="14" x2="44" y2="88" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+    <text x="62" y="80" font-family="Inter,system-ui,sans-serif" font-size="56" font-weight="800" fill="currentColor">A</text>
+  </symbol>
+</defs>
+</svg>
+
+<div class="scards">
+
+  <!-- A -->
+  <div class="scard rec">
+    <div class="id">CONCEPT A · <span class="tag t-rec">recommended</span></div>
+    <h4>译 in a rounded-square badge</h4>
+    <div class="desc">The glyph held in a soft macOS-square keyline. Calm, app-like, reads as "a translate button".</div>
+    <div class="big"><svg width="80" height="80" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-A"/></svg></div>
+    <div class="bars">
+      <div class="barcol">
+        <div class="barlbl">Light bar</div>
+        <div class="strip light">
+          <svg width="16" height="16" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-A"/></svg><span class="px">16px</span>
+          <svg width="22" height="22" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-A"/></svg><span class="px">22px</span>
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+      <div class="barcol">
+        <div class="barlbl">Dark bar</div>
+        <div class="strip dark">
+          <svg width="16" height="16" viewBox="0 0 100 100" style="color:#F4F2EC"><use href="#st-A"/></svg><span class="px">16px</span>
+          <svg width="22" height="22" viewBox="0 0 100 100" style="color:#F4F2EC"><use href="#st-A"/></svg><span class="px">22px</span>
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="scard">
+    <div class="id">CONCEPT B</div>
+    <h4>译 in a speech bubble</h4>
+    <div class="desc">Bubble says "language / talk", 译 says "translate". Warm, but the tail eats pixels at 16&nbsp;px.</div>
+    <div class="big"><svg width="80" height="80" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-B"/></svg></div>
+    <div class="bars">
+      <div class="barcol">
+        <div class="barlbl">Light bar</div>
+        <div class="strip light">
+          <svg width="16" height="16" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-B"/></svg><span class="px">16px</span>
+          <svg width="22" height="22" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-B"/></svg><span class="px">22px</span>
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+      <div class="barcol">
+        <div class="barlbl">Dark bar</div>
+        <div class="strip dark">
+          <svg width="16" height="16" viewBox="0 0 100 100" style="color:#F4F2EC"><use href="#st-B"/></svg><span class="px">16px</span>
+          <svg width="22" height="22" viewBox="0 0 100 100" style="color:#F4F2EC"><use href="#st-B"/></svg><span class="px">22px</span>
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="scard">
+    <div class="id">CONCEPT C</div>
+    <h4>译 in a capture frame</h4>
+    <div class="desc">Corner brackets nod to "drag a screen region". The most on-the-nose for this app's gesture.</div>
+    <div class="big"><svg width="80" height="80" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-C"/></svg></div>
+    <div class="bars">
+      <div class="barcol">
+        <div class="barlbl">Light bar</div>
+        <div class="strip light">
+          <svg width="16" height="16" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-C"/></svg><span class="px">16px</span>
+          <svg width="22" height="22" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-C"/></svg><span class="px">22px</span>
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+      <div class="barcol">
+        <div class="barlbl">Dark bar</div>
+        <div class="strip dark">
+          <svg width="16" height="16" viewBox="0 0 100 100" style="color:#F4F2EC"><use href="#st-C"/></svg><span class="px">16px</span>
+          <svg width="22" height="22" viewBox="0 0 100 100" style="color:#F4F2EC"><use href="#st-C"/></svg><span class="px">22px</span>
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- D -->
+  <div class="scard">
+    <div class="id">CONCEPT D</div>
+    <h4>译 + a small globe</h4>
+    <div class="desc">译 fills the frame; a globe badge in the corner universalises "translate". Two elements compete at 16&nbsp;px.</div>
+    <div class="big"><svg width="80" height="80" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-D"/></svg></div>
+    <div class="bars">
+      <div class="barcol">
+        <div class="barlbl">Light bar</div>
+        <div class="strip light">
+          <svg width="16" height="16" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-D"/></svg><span class="px">16px</span>
+          <svg width="22" height="22" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-D"/></svg><span class="px">22px</span>
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+      <div class="barcol">
+        <div class="barlbl">Dark bar</div>
+        <div class="strip dark">
+          <svg width="16" height="16" viewBox="0 0 100 100" style="color:#F4F2EC"><use href="#st-D"/></svg><span class="px">16px</span>
+          <svg width="22" height="22" viewBox="0 0 100 100" style="color:#F4F2EC"><use href="#st-D"/></svg><span class="px">22px</span>
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- E -->
+  <div class="scard">
+    <div class="id">CONCEPT E</div>
+    <h4>译 / A bilingual split</h4>
+    <div class="desc">Script ↔ Latin, divided by a slash — literally "translation". Two glyphs + slash is the busiest option.</div>
+    <div class="big"><svg width="80" height="80" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-E"/></svg></div>
+    <div class="bars">
+      <div class="barcol">
+        <div class="barlbl">Light bar</div>
+        <div class="strip light">
+          <svg width="16" height="16" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-E"/></svg><span class="px">16px</span>
+          <svg width="22" height="22" viewBox="0 0 100 100" style="color:#1B201D"><use href="#st-E"/></svg><span class="px">22px</span>
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+      <div class="barcol">
+        <div class="barlbl">Dark bar</div>
+        <div class="strip dark">
+          <svg width="16" height="16" viewBox="0 0 100 100" style="color:#F4F2EC"><use href="#st-E"/></svg><span class="px">16px</span>
+          <svg width="22" height="22" viewBox="0 0 100 100" style="color:#F4F2EC"><use href="#st-E"/></svg><span class="px">22px</span>
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="cap">Fig 1 — Five 译-based status-icon concepts. Each 16/22&nbsp;px render is the actual pixel size it occupies in the menu bar, drawn ink-on-light and white-on-dark to simulate the AppKit template-image inversion.</div>
+
+<!-- ============================ APP ICONS ============================ -->
+<h2 id="app"><span class="n">2</span>Three app-icon concepts</h2>
+<p>Full-colour squircles for the <code>.app</code> / Finder / <code>.dmg</code>, each pairing with a status concept above. Restrained palette — this is a calm utility, not a toy: warm paper, deep ink, one disciplined accent (pine or clay). Shown at <strong>~96&nbsp;px and ~256&nbsp;px</strong>. Depth comes from a soft top-light gradient on the squircle material plus a single layered shadow, never a rainbow.</p>
+
+<!-- app-icon symbol library -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+  <!-- squircle clip + materials -->
+  <clipPath id="sq" clipPathUnits="objectBoundingBox">
+    <path d="M0.5,0 C0.13,0 0,0.13 0,0.5 C0,0.87 0.13,1 0.5,1 C0.87,1 1,0.87 1,0.5 C1,0.13 0.87,0 0.5,0 Z"/>
+  </clipPath>
+
+  <!-- App 1 — Paper card: light cream face, ink 译, pine badge ring -->
+  <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#FBF8F1"/><stop offset="1" stop-color="#EDE7D8"/>
+  </linearGradient>
+  <radialGradient id="g1sheen" cx="0.5" cy="0.12" r="0.9">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+  </radialGradient>
+  <symbol id="app1" viewBox="0 0 100 100">
+    <g clip-path="url(#sq)">
+      <rect width="100" height="100" fill="url(#g1)"/>
+      <rect width="100" height="100" fill="url(#g1sheen)"/>
+      <!-- pine corner-frame nod to capture -->
+      <path d="M22 30 V24 a3 3 0 0 1 3 -3 H31" fill="none" stroke="#1F6F5C" stroke-width="3.4" stroke-linecap="round" opacity="0.9"/>
+      <path d="M69 21 H75 a3 3 0 0 1 3 3 V30" fill="none" stroke="#1F6F5C" stroke-width="3.4" stroke-linecap="round" opacity="0.9"/>
+      <path d="M78 70 V76 a3 3 0 0 1 -3 3 H69" fill="none" stroke="#1F6F5C" stroke-width="3.4" stroke-linecap="round" opacity="0.9"/>
+      <path d="M31 79 H25 a3 3 0 0 1 -3 -3 V70" fill="none" stroke="#1F6F5C" stroke-width="3.4" stroke-linecap="round" opacity="0.9"/>
+      <g transform="translate(28 26) scale(0.46)" style="color:#1B201D"><use href="#yi-bold"/></g>
+    </g>
+    <rect x="0.8" y="0.8" width="98.4" height="98.4" rx="22" fill="none" stroke="#000" stroke-opacity="0.06" stroke-width="1.4" clip-path="url(#sq)"/>
+  </symbol>
+
+  <!-- App 2 — Pine field: deep pine squircle, cream 译, paper speech-bubble -->
+  <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#268068"/><stop offset="1" stop-color="#175546"/>
+  </linearGradient>
+  <radialGradient id="g2sheen" cx="0.5" cy="0.1" r="0.85">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/><stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
+  </radialGradient>
+  <symbol id="app2" viewBox="0 0 100 100">
+    <g clip-path="url(#sq)">
+      <rect width="100" height="100" fill="url(#g2)"/>
+      <rect width="100" height="100" fill="url(#g2sheen)"/>
+      <!-- paper bubble holding 译 -->
+      <path d="M22 26 h56 a9 9 0 0 1 9 9 v30 a9 9 0 0 1 -9 9 h-34 l-15 13 v-13 h-7 a9 9 0 0 1 -9 -9 v-30 a9 9 0 0 1 9 -9 z"
+            fill="#F7F4EE"/>
+      <g transform="translate(27 28) scale(0.46)" style="color:#175546"><use href="#yi-bold"/></g>
+    </g>
+    <rect x="0.8" y="0.8" width="98.4" height="98.4" rx="22" fill="none" stroke="#fff" stroke-opacity="0.10" stroke-width="1.4" clip-path="url(#sq)"/>
+  </symbol>
+
+  <!-- App 3 — Ink field, clay 译, bottom globe — dark luxury restraint -->
+  <linearGradient id="g3" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#2A302C"/><stop offset="1" stop-color="#171B18"/>
+  </linearGradient>
+  <radialGradient id="g3sheen" cx="0.5" cy="0.1" r="0.85">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/><stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="clay" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#E07A4F"/><stop offset="1" stop-color="#C05E33"/>
+  </linearGradient>
+  <symbol id="app3" viewBox="0 0 100 100">
+    <g clip-path="url(#sq)">
+      <rect width="100" height="100" fill="url(#g3)"/>
+      <rect width="100" height="100" fill="url(#g3sheen)"/>
+      <!-- faint globe meridians behind glyph -->
+      <g opacity="0.16" stroke="#F7F4EE" stroke-width="2.2" fill="none">
+        <circle cx="50" cy="50" r="34"/>
+        <ellipse cx="50" cy="50" rx="15" ry="34"/>
+        <line x1="16" y1="50" x2="84" y2="50"/>
+      </g>
+      <g transform="translate(26 24) scale(0.5)"><g style="color:#E8763F"><use href="#yi-bold"/></g></g>
+    </g>
+    <rect x="0.8" y="0.8" width="98.4" height="98.4" rx="22" fill="none" stroke="#fff" stroke-opacity="0.09" stroke-width="1.4" clip-path="url(#sq)"/>
+  </symbol>
+
+  <filter id="drop" x="-20%" y="-20%" width="140%" height="150%">
+    <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#1B201D" flood-opacity="0.22"/>
+  </filter>
+</defs>
+</svg>
+
+<div class="acards">
+
+  <!-- App 1 -->
+  <div class="acard rec">
+    <div class="id">APP ICON 1 · <span class="tag t-rec">recommended</span></div>
+    <h4>Paper card · pine capture-frame</h4>
+    <div class="row">
+      <figure><svg width="96" height="96" viewBox="0 0 100 100" style="filter:url(#drop)"><use href="#app1"/></svg><figcaption>96px</figcaption></figure>
+      <figure><svg width="200" height="200" viewBox="0 0 100 100" style="filter:url(#drop)"><use href="#app1"/></svg><figcaption>256px (shown 200)</figcaption></figure>
+    </div>
+    <p class="desc">Pairs with status <strong>A/C</strong>. Cream face + ink 译 mirrors the app's own paper UI; pine corner-brackets quietly carry the "screen capture" idea without a literal camera. Lightest, most utility-like.</p>
+  </div>
+
+  <!-- App 2 -->
+  <div class="acard">
+    <div class="id">APP ICON 2</div>
+    <h4>Pine field · paper bubble</h4>
+    <div class="row">
+      <figure><svg width="96" height="96" viewBox="0 0 100 100" style="filter:url(#drop)"><use href="#app2"/></svg><figcaption>96px</figcaption></figure>
+      <figure><svg width="200" height="200" viewBox="0 0 100 100" style="filter:url(#drop)"><use href="#app2"/></svg><figcaption>256px (shown 200)</figcaption></figure>
+    </div>
+    <p class="desc">Pairs with status <strong>B</strong>. Confident single-accent square; the paper speech-bubble reads as "language" instantly and the pine reads premium. Highest colour presence in the Dock.</p>
+  </div>
+
+  <!-- App 3 -->
+  <div class="acard">
+    <div class="id">APP ICON 3</div>
+    <h4>Ink field · clay 译 · ghost globe</h4>
+    <div class="row">
+      <figure><svg width="96" height="96" viewBox="0 0 100 100" style="filter:url(#drop)"><use href="#app3"/></svg><figcaption>96px</figcaption></figure>
+      <figure><svg width="200" height="200" viewBox="0 0 100 100" style="filter:url(#drop)"><use href="#app3"/></svg><figcaption>256px (shown 200)</figcaption></figure>
+    </div>
+    <p class="desc">Pairs with status <strong>D</strong>. Dark-luxury restraint: clay 译 glows against ink, faint globe meridians sit behind it. Most distinctive at large sizes; the lightest-touch globe avoids the "two competing marks" trap of status&nbsp;D.</p>
+  </div>
+
+</div>
+<div class="cap">Fig 2 — Three app-icon squircles (true macOS superellipse clip, soft top-sheen + single drop shadow). Restrained two-tone-plus-accent palette throughout.</div>
+
+<!-- ============================ RECOMMENDATION ============================ -->
+<h2 id="reco"><span class="n">3</span>Recommended pairing</h2>
+<div class="reco">
+  <h3>Ship Status A (rounded-square 译) + App Icon 1 (paper card)</h3>
+  <p><strong>The status icon's only job is to be unmistakable at 16&nbsp;px, and A wins that test.</strong> The badge keyline is a single thick rounded rectangle that stays crisp when everything else blurs, and inside it 译 keeps its widest possible counters because nothing else is sharing the box. On both the light and dark strips above, A's silhouette stays balanced and centred — no tail, no second glyph, no fine ticks to disappear. It also visually rhymes with App Icon&nbsp;1 (same square-holds-译 idea), giving the app one coherent identity from menu bar to Dock to <code>.dmg</code>.</p>
+  <p>If the PM wants the capture gesture foregrounded, <strong>Status C + App Icon 1</strong> is the strong fallback — C's corner brackets survive 16&nbsp;px better than D's globe or E's slash, and App&nbsp;1 already carries the same pine brackets, so the pair is even tighter conceptually. Keep B as the warmest option if the brand wants "language" over "capture".</p>
+</div>
+
+<div class="note">
+  <h3>Honest 16 px verdict — what fails</h3>
+  <p><strong>Concept E (译 / A split) fails at 16&nbsp;px.</strong> Three marks (译 + slash + A) in a 16-pixel box leaves each one starved; the slash and the A's negative space muddy into the 译 strokes and the result reads as an ink blob. Keep E for marketing/onboarding art only. <strong>Concept D (译 + globe)</strong> is borderline — the corner globe is legible at 22&nbsp;px but at 16&nbsp;px it degrades into a second smudge competing with 译; usable only if the globe is dropped and 译 fills the frame. <strong>Concept B</strong> is fine at 22&nbsp;px but the bubble tail costs vertical room, slightly shrinking 译. A and C are the only two that are genuinely clean at 16&nbsp;px.</p>
+</div>
+
+<!-- ============================ HOW IT'S USED ============================ -->
+<h2 id="usage"><span class="n">4</span>How each icon is used</h2>
+<ul>
+  <li><strong>Status icon → menu-bar template image.</strong> Export the chosen mark (A) as a 1× / 2× PDF or PNG named <code>StatusIcon</code> with <em>Render As: Template Image</em> in the asset catalog. It must be a single colour on transparency — AppKit recolours it automatically for light vs dark menu bars (the proofs above simulate that inversion). Set on <code>NSStatusItem.button.image</code>; do <em>not</em> tint it yourself.</li>
+  <li><strong>App icon → asset catalog <code>AppIcon</code> set.</strong> The full-colour squircle (App Icon&nbsp;1) ships as the standard macOS icon sizes (16→1024, 1× &amp; 2×). macOS applies the squircle mask and Dock shadow at the system level, but provide the full-bleed art; the superellipse here matches the platform mask so the keyline never clips.</li>
+</ul>
+
+<footer>
+  Icon concepts · Translator Everywhere · anchored on Simplified 译 · paper #F7F4EE / ink #1B201D · Fraunces · Inter · IBM&nbsp;Plex&nbsp;Mono · all marks inline SVG, no raster assets.
+</footer>
+
+</div>
+</body>
+</html>
