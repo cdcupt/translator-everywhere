@@ -17,6 +17,14 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         override var canBecomeMain: Bool { true }
     }
 
+    /// Layout constants shared across the result presentation.
+    private enum Layout {
+        /// Minimum height each result scroll view (Translation, Recognized) keeps
+        /// so neither section can be squeezed to near-zero height — the user must
+        /// always be able to read both to compare them.
+        static let minSectionHeight: CGFloat = 56
+    }
+
     private var panel: KeyablePanel?
 
     /// Strong reference to the current result's Save-button controller, if any.
@@ -87,7 +95,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     @MainActor
     private func makePanel() -> KeyablePanel {
         let panel = KeyablePanel(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 280),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 360),
             styleMask: [.titled, .closable, .utilityWindow, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -99,8 +107,13 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         return panel
     }
 
-    /// Result layout: badge + "Copied ✓" header row, large translation, dim
-    /// source underneath. When `onSave` is provided the header gains a
+    /// Result layout: badge + "Copied ✓" header row, then two clearly-labeled,
+    /// legible sections — a "Translation" caption over the primary translation and
+    /// a "Recognized" caption over the OCR original. The recognized text is shown
+    /// at a readable size (not the old faint micro-caption) so the user can compare
+    /// it against the translation and tell whether a bad result came from OCR or
+    /// from the engine. Both scroll views hold a real minimum height so neither
+    /// section can collapse. When `onSave` is provided the header gains a
     /// "Save to Notebook" button (⌘S) that confirms or reports failure in place.
     @MainActor
     private func makeResultContent(
@@ -123,17 +136,24 @@ final class ResultPanel: NSObject, NSWindowDelegate {
             header.addArrangedSubview(saveControl(onSave: onSave))
         }
 
-        let translationView = scrollableText(translation, fontSize: 18, dim: false)
+        let translationCaption = sectionCaption("Translation")
+        let translationView = scrollableText(
+            translation, fontSize: 18, dim: false, minHeight: Layout.minSectionHeight
+        )
 
-        let sourceLabel = NSTextField(labelWithString: "Source")
-        sourceLabel.font = .systemFont(ofSize: 10, weight: .semibold)
-        sourceLabel.textColor = .tertiaryLabelColor
+        let sourceCaption = sectionCaption("Recognized")
+        let sourceView = scrollableText(
+            source, fontSize: 14, dim: true, minHeight: Layout.minSectionHeight
+        )
 
-        let sourceView = scrollableText(source, fontSize: 12, dim: true)
-
-        let stack = verticalStack([header, translationView, sourceLabel, sourceView])
-        stack.setCustomSpacing(12, after: translationView)
-        return wrap(stack, mainView: translationView)
+        let stack = verticalStack([
+            header, translationCaption, translationView, sourceCaption, sourceView,
+        ])
+        // Tight caption→content pairing; breathing room between the two sections.
+        stack.setCustomSpacing(2, after: translationCaption)
+        stack.setCustomSpacing(14, after: translationView)
+        stack.setCustomSpacing(2, after: sourceCaption)
+        return wrap(stack, stretching: [translationView, sourceView])
     }
 
     /// Title + body layout for info/error states.
@@ -179,6 +199,17 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         return container
     }
 
+    /// A small semibold section caption (e.g. "Translation", "Recognized") in
+    /// `.secondaryLabelColor` — legible enough to label a section without
+    /// competing with its content.
+    @MainActor
+    private func sectionCaption(_ text: String) -> NSView {
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        return label
+    }
+
     @MainActor
     private func copiedLabel() -> NSView {
         let label = NSTextField(labelWithString: "Copied ✓")
@@ -218,8 +249,15 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         return view
     }
 
+    /// A non-editable, selectable, scrolling text region. `dim` renders the text
+    /// in `.secondaryLabelColor` (still readable) rather than primary
+    /// `.labelColor`. When `minHeight` is set the scroll view is pinned to at
+    /// least that height so it can't be squeezed to near-zero — the surrounding
+    /// stack/panel grows or scrolls to honor it.
     @MainActor
-    private func scrollableText(_ string: String, fontSize: CGFloat, dim: Bool) -> NSScrollView {
+    private func scrollableText(
+        _ string: String, fontSize: CGFloat, dim: Bool, minHeight: CGFloat? = nil
+    ) -> NSScrollView {
         let textView = NSTextView()
         textView.string = string
         textView.isEditable = false
@@ -234,6 +272,10 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.translatesAutoresizingMaskIntoConstraints = false
+        if let minHeight {
+            scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: minHeight)
+                .isActive = true
+        }
         return scroll
     }
 
@@ -252,18 +294,28 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     /// width so wrapped text uses the panel width.
     @MainActor
     private func wrap(_ stack: NSStackView, mainView: NSView) -> NSView {
+        wrap(stack, stretching: [mainView])
+    }
+
+    /// Pins a stack to fill the content view and makes each view in `stretchers`
+    /// span the full content width, so every wrapped-text region uses the panel
+    /// width (not just the first). Used by the result layout, where both the
+    /// translation and the recognized-source scroll views must stretch.
+    @MainActor
+    private func wrap(_ stack: NSStackView, stretching stretchers: [NSView]) -> NSView {
         let content = NSView()
         content.addSubview(stack)
-        NSLayoutConstraint.activate([
+        let insetWidth = -(stack.edgeInsets.left + stack.edgeInsets.right)
+        var constraints: [NSLayoutConstraint] = [
             stack.topAnchor.constraint(equalTo: content.topAnchor),
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
             stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            mainView.widthAnchor.constraint(
-                equalTo: stack.widthAnchor,
-                constant: -(stack.edgeInsets.left + stack.edgeInsets.right)
-            ),
-        ])
+        ]
+        constraints += stretchers.map { view in
+            view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: insetWidth)
+        }
+        NSLayoutConstraint.activate(constraints)
         return content
     }
 }
