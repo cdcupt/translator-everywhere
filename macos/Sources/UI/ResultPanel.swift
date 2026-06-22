@@ -21,13 +21,22 @@ final class ResultPanel: NSObject, NSWindowDelegate {
 
     /// Shows a successful translation: `translation` is primary/large, `source`
     /// is the dim recognized text, `badge` labels the engine, and `copied`
-    /// reveals the "Copied ✓" affordance. Must be called on the main actor.
+    /// reveals the "Copied ✓" affordance. When `onSave` is non-nil a "Save to
+    /// Notebook" button (⌘S) is offered; clicking it awaits the handler and, on
+    /// success, swaps to a confirmed "★ Saved" state so the user can't
+    /// double-save. Must be called on the main actor.
     @MainActor
-    func showResult(translation: String, source: String, badge: String, copied: Bool, saved: Bool = false) {
+    func showResult(
+        translation: String,
+        source: String,
+        badge: String,
+        copied: Bool,
+        onSave: (@MainActor () async -> Bool)? = nil
+    ) {
         let panel = panel ?? makePanel()
         self.panel = panel
         panel.contentView = makeResultContent(
-            translation: translation, source: source, badge: badge, copied: copied, saved: saved
+            translation: translation, source: source, badge: badge, copied: copied, onSave: onSave
         )
         present(panel)
     }
@@ -83,10 +92,12 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     }
 
     /// Result layout: badge + "Copied ✓" header row, large translation, dim
-    /// source underneath.
+    /// source underneath. When `onSave` is provided the header gains a
+    /// "Save to Notebook" button (⌘S) that confirms or reports failure in place.
     @MainActor
     private func makeResultContent(
-        translation: String, source: String, badge: String, copied: Bool, saved: Bool
+        translation: String, source: String, badge: String, copied: Bool,
+        onSave: (@MainActor () async -> Bool)?
     ) -> NSView {
         let header = NSStackView(views: [badgeView(badge)])
         header.orientation = .horizontal
@@ -95,10 +106,10 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         if copied {
             header.addArrangedSubview(copiedLabel())
         }
-        if saved {
-            header.addArrangedSubview(savedLabel())
-        }
         header.addArrangedSubview(spacer())
+        if let onSave {
+            header.addArrangedSubview(saveControl(onSave: onSave))
+        }
 
         let translationView = scrollableText(translation, fontSize: 18, dim: false)
 
@@ -163,13 +174,25 @@ final class ResultPanel: NSObject, NSWindowDelegate {
 
     @MainActor
     private func savedLabel() -> NSView {
-        // "★ Saved to Notebook" — the quiet rev-2 auto-save affordance (DESIGN
-        // §2b), shown beside "Copied ✓" without competing with the translation.
+        // "★ Saved to Notebook" — the confirmed state shown after the user opts
+        // in via the Save button, beside "Copied ✓" without competing with the
+        // translation.
         let label = NSTextField(labelWithString: "★ Saved")
         label.font = .systemFont(ofSize: 11, weight: .medium)
         label.textColor = .systemPurple
         label.toolTip = "Saved to Notebook"
         return label
+    }
+
+    /// Builds the opt-in "Save to Notebook" control: a ⌘S button backed by a
+    /// `SaveButtonController` that runs `onSave` and swaps the control to the
+    /// confirmed "★ Saved" state (or shows an inline error on failure). The
+    /// controller is retained by the returned view so it outlives this call (an
+    /// `NSButton.target` is a non-owning reference).
+    @MainActor
+    private func saveControl(onSave: @escaping @MainActor () async -> Bool) -> NSView {
+        let controller = SaveButtonController(onSave: onSave, savedLabel: savedLabel)
+        return controller.view
     }
 
     @MainActor
@@ -226,5 +249,94 @@ final class ResultPanel: NSObject, NSWindowDelegate {
             ),
         ])
         return content
+    }
+}
+
+/// Owns the opt-in "Save to Notebook" button and its lifecycle.
+///
+/// A small horizontal stack holding the ⌘S button (plus a transient inline error
+/// label on failure). On click it disables the button, awaits the async save
+/// handler, then either swaps the button for the confirmed "★ Saved" label (so a
+/// second click can't create a duplicate) or re-enables the button and surfaces a
+/// red "Couldn't save" label to retry. The button's `target` is this controller,
+/// which the host view retains so it lives as long as the panel content.
+@MainActor
+private final class SaveButtonController {
+
+    /// The view the result header embeds — retains `self` so the button's
+    /// non-owning `target` reference stays valid.
+    let view: NSStackView
+
+    private let onSave: @MainActor () async -> Bool
+    private let makeSavedLabel: @MainActor () -> NSView
+    private let button: NSButton
+    private var isSaving = false
+
+    init(onSave: @escaping @MainActor () async -> Bool, savedLabel: @escaping @MainActor () -> NSView) {
+        self.onSave = onSave
+        self.makeSavedLabel = savedLabel
+
+        let button = NSButton(title: "Save to Notebook", target: nil, action: nil)
+        button.bezelStyle = .rounded
+        button.controlSize = .small
+        button.font = .systemFont(ofSize: 11, weight: .medium)
+        button.keyEquivalent = "s"
+        button.keyEquivalentModifierMask = .command
+        button.toolTip = "Save to Notebook (⌘S)"
+        self.button = button
+
+        let stack = NSStackView(views: [button])
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 8
+        self.view = stack
+
+        // `objc` action wiring: the controller is the (non-owning) target, kept
+        // alive by `view`'s retain of `self`.
+        button.target = self
+        button.action = #selector(saveTapped)
+    }
+
+    @objc private func saveTapped() {
+        guard !isSaving else { return }
+        isSaving = true
+        button.isEnabled = false
+        clearError()
+
+        Task { @MainActor in
+            let ok = await onSave()
+            isSaving = false
+            if ok {
+                confirmSaved()
+            } else {
+                button.isEnabled = true
+                showError()
+            }
+        }
+    }
+
+    /// Replaces the button with the disabled confirmed "★ Saved" affordance.
+    private func confirmSaved() {
+        clearError()
+        view.removeArrangedSubview(button)
+        button.removeFromSuperview()
+        view.addArrangedSubview(makeSavedLabel())
+    }
+
+    private var errorLabel: NSTextField?
+
+    private func showError() {
+        guard errorLabel == nil else { return }
+        let label = NSTextField(labelWithString: "Couldn’t save")
+        label.font = .systemFont(ofSize: 11, weight: .medium)
+        label.textColor = .systemRed
+        label.toolTip = "Saving to the notebook failed — try again"
+        errorLabel = label
+        view.addArrangedSubview(label)
+    }
+
+    private func clearError() {
+        errorLabel?.removeFromSuperview()
+        errorLabel = nil
     }
 }
