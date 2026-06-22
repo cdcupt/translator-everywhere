@@ -13,6 +13,11 @@ settings:
     CODE_SIGN_IDENTITY: ""
     SWIFT_VERSION: "5.0"
 
+packages:
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: "2.2.0"
+
 targets:
   Translator Everywhere:
     type: application
@@ -20,6 +25,8 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - Sources
+    dependencies:
+      - package: KeyboardShortcuts
     settings:
       base:
         PRODUCT_NAME: Translator Everywhere
@@ -31,3 +38,31 @@ targets:
         INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
         CODE_SIGNING_ALLOWED: NO
+
+  TranslatorEverywhereTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - Tests
+    dependencies:
+      # Host the app so tests can @testable import its symbols (sets TEST_HOST
+      # + BUNDLE_LOADER). KeyboardShortcuts is linked transitively via the host.
+      - target: Translator Everywhere
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cdcupt.translator-everywhere.tests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+
+schemes:
+  Translator Everywhere:
+    build:
+      targets:
+        Translator Everywhere: all
+        TranslatorEverywhereTests: [test]
+    test:
+      targets:
+        - TranslatorEverywhereTests
+    run:
+      config: Debug
