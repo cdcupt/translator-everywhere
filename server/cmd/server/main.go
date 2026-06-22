@@ -52,10 +52,15 @@ func run() error {
 	repo := db.NewPostgresRepository(pool)
 	sessions := auth.NewSessionManager(cfg.JWTSecret)
 	httpClient := &http.Client{Timeout: 10 * time.Second}
-	apple := auth.NewAppleVerifier(cfg.AppleAud, cfg.AppleIss, httpClient)
 	google := auth.NewGoogleVerifier(cfg.GoogleAud, config.GoogleIssuers, httpClient)
 
-	srv := api.NewServer(repo, sessions, apple, google)
+	appleOAuth, err := buildAppleOAuth(cfg, httpClient)
+	if err != nil {
+		return err
+	}
+
+	srv := api.NewServer(repo, sessions, appleOAuth, google)
+	srv.AppCallbackScheme = cfg.AppCallbackScheme
 
 	httpServer := &http.Server{
 		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
@@ -75,6 +80,42 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// buildAppleOAuth wires the Sign in with Apple web-flow exchanger from config.
+// When the Apple web secrets are absent it returns (nil, nil): the server still
+// boots and /auth/apple/callback degrades to an error redirect. A present-but-
+// malformed private key is a hard error so misconfiguration fails fast.
+func buildAppleOAuth(cfg config.Config, client *http.Client) (*auth.AppleOAuth, error) {
+	if !cfg.AppleWebConfigured() {
+		log.Printf("server: Sign in with Apple (web) not configured — /auth/apple/callback will error-redirect")
+		return nil, nil
+	}
+
+	privKey, err := auth.ParseApplePrivateKey([]byte(cfg.ApplePrivateKey))
+	if err != nil {
+		return nil, err
+	}
+	secret, err := auth.NewAppleClientSecret(auth.AppleSecretConfig{
+		TeamID:     cfg.AppleTeamID,
+		KeyID:      cfg.AppleKeyID,
+		ServicesID: cfg.AppleServicesID,
+		PrivateKey: privKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// The web-flow id_token audience is the Services ID (the OAuth client_id).
+	verifier := auth.NewAppleVerifier(cfg.AppleServicesID, cfg.AppleIss, client)
+
+	return auth.NewAppleOAuth(auth.AppleOAuthConfig{
+		ServicesID:  cfg.AppleServicesID,
+		RedirectURI: cfg.AppleRedirectURI,
+		Secret:      secret,
+		Verifier:    verifier,
+		HTTPClient:  client,
+	})
 }
 
 // runMigrations applies the embedded goose migrations against the database.

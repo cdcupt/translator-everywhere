@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestLoadDefaultsAuds(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://localhost/test")
@@ -67,6 +70,88 @@ func TestLoadOverrideAud(t *testing.T) {
 	}
 	if cfg.GoogleAud != "override.apps.googleusercontent.com" {
 		t.Errorf("GoogleAud override not applied: %q", cfg.GoogleAud)
+	}
+}
+
+func TestLoadAppleWebDefaults(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("JWT_SECRET", "secret")
+	// Clear all Apple web overrides.
+	t.Setenv("APPLE_SERVICES_ID", "")
+	t.Setenv("APPLE_KEY_ID", "")
+	t.Setenv("APPLE_TEAM_ID", "")
+	t.Setenv("APPLE_PRIVATE_KEY", "")
+	t.Setenv("APPLE_PRIVATE_KEY_FILE", "")
+	t.Setenv("APPLE_REDIRECT_URI", "")
+	t.Setenv("APP_CALLBACK_SCHEME", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.AppleServicesID != DefaultAppleServicesID {
+		t.Errorf("AppleServicesID = %q, want default %q", cfg.AppleServicesID, DefaultAppleServicesID)
+	}
+	if cfg.AppleTeamID != DefaultAppleTeamID {
+		t.Errorf("AppleTeamID = %q, want default %q", cfg.AppleTeamID, DefaultAppleTeamID)
+	}
+	if cfg.AppleRedirectURI != DefaultAppleRedirectURI {
+		t.Errorf("AppleRedirectURI = %q, want default %q", cfg.AppleRedirectURI, DefaultAppleRedirectURI)
+	}
+	if cfg.AppCallbackScheme != DefaultAppCallbackScheme {
+		t.Errorf("AppCallbackScheme = %q, want default %q", cfg.AppCallbackScheme, DefaultAppCallbackScheme)
+	}
+	// Without a key id + private key, Apple web is NOT considered configured.
+	if cfg.AppleWebConfigured() {
+		t.Error("AppleWebConfigured() should be false without key id + private key")
+	}
+}
+
+func TestLoadAppleWebConfiguredAndKeyFromFile(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := dir + "/AuthKey.p8"
+	if err := os.WriteFile(keyPath, []byte("-----BEGIN PRIVATE KEY-----\nFAKE\n-----END PRIVATE KEY-----\n"), 0o600); err != nil {
+		t.Fatalf("write key file: %v", err)
+	}
+
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("JWT_SECRET", "secret")
+	t.Setenv("APPLE_SERVICES_ID", "com.example.web")
+	t.Setenv("APPLE_KEY_ID", "KEY123")
+	t.Setenv("APPLE_TEAM_ID", "TEAM456")
+	t.Setenv("APPLE_PRIVATE_KEY", "")
+	t.Setenv("APPLE_PRIVATE_KEY_FILE", keyPath)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.AppleServicesID != "com.example.web" {
+		t.Errorf("AppleServicesID override not applied: %q", cfg.AppleServicesID)
+	}
+	if cfg.AppleKeyID != "KEY123" {
+		t.Errorf("AppleKeyID = %q", cfg.AppleKeyID)
+	}
+	if cfg.ApplePrivateKey == "" {
+		t.Error("ApplePrivateKey should be loaded from APPLE_PRIVATE_KEY_FILE")
+	}
+	if !cfg.AppleWebConfigured() {
+		t.Error("AppleWebConfigured() should be true with all fields present")
+	}
+}
+
+func TestLoadAppleInlineKeyWins(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("JWT_SECRET", "secret")
+	t.Setenv("APPLE_PRIVATE_KEY", "INLINE-PEM")
+	t.Setenv("APPLE_PRIVATE_KEY_FILE", "/nonexistent/should/not/be/read")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.ApplePrivateKey != "INLINE-PEM" {
+		t.Errorf("inline key should win: %q", cfg.ApplePrivateKey)
 	}
 }
 

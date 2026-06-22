@@ -21,12 +21,24 @@ type IdentityVerifier interface {
 	Verify(ctx context.Context, rawToken string) (auth.Identity, error)
 }
 
+// AppleCodeExchanger trades a Sign-in-with-Apple authorization code for a
+// verified Identity. *auth.AppleOAuth satisfies this; tests substitute a fake.
+type AppleCodeExchanger interface {
+	ExchangeCode(ctx context.Context, code string) (auth.Identity, error)
+}
+
 // Server holds the handler dependencies.
 type Server struct {
 	Repo     db.Repository
 	Sessions *auth.SessionManager
-	Apple    IdentityVerifier
 	Google   IdentityVerifier
+
+	// AppleOAuth runs the Sign in with Apple web-flow code exchange. It may be
+	// nil when the Apple web secrets are not configured; the callback then
+	// returns an error redirect instead of 500ing.
+	AppleOAuth AppleCodeExchanger
+	// AppCallbackScheme is the custom URL scheme the Apple callback 302s back to.
+	AppCallbackScheme string
 
 	// MaxBatch caps the number of rows accepted by POST /vocab.
 	MaxBatch int
@@ -35,14 +47,20 @@ type Server struct {
 // MaxBatchDefault is the default batch-size cap for POST /vocab.
 const MaxBatchDefault = 500
 
-// NewServer builds a Server with sensible defaults applied.
-func NewServer(repo db.Repository, sessions *auth.SessionManager, apple, google IdentityVerifier) *Server {
+// DefaultAppCallbackScheme matches config.DefaultAppCallbackScheme; duplicated
+// here to avoid an api→config import just for one constant.
+const DefaultAppCallbackScheme = "translator-everywhere"
+
+// NewServer builds a Server with sensible defaults applied. appleOAuth may be
+// nil when Apple web auth is not configured.
+func NewServer(repo db.Repository, sessions *auth.SessionManager, appleOAuth AppleCodeExchanger, google IdentityVerifier) *Server {
 	return &Server{
-		Repo:     repo,
-		Sessions: sessions,
-		Apple:    apple,
-		Google:   google,
-		MaxBatch: MaxBatchDefault,
+		Repo:              repo,
+		Sessions:          sessions,
+		AppleOAuth:        appleOAuth,
+		Google:            google,
+		AppCallbackScheme: DefaultAppCallbackScheme,
+		MaxBatch:          MaxBatchDefault,
 	}
 }
 
@@ -55,7 +73,13 @@ func (s *Server) Router() http.Handler {
 
 	r.Get("/healthz", s.handleHealthz)
 
-	r.Post("/auth/apple", s.handleAppleSignIn)
+	// Sign in with Apple — WEB OAuth flow. Apple posts (form_post) or redirects
+	// (query) the authorization code here; we exchange it and 302 back to the
+	// app's custom scheme. Both verbs are registered because Apple uses form_post
+	// when name/email scope is requested and a GET redirect otherwise.
+	r.Get("/auth/apple/callback", s.handleAppleCallback)
+	r.Post("/auth/apple/callback", s.handleAppleCallback)
+
 	r.Post("/auth/google", s.handleGoogleSignIn)
 	r.Post("/auth/refresh", s.handleRefresh)
 

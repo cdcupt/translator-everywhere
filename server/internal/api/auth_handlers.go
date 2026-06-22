@@ -4,15 +4,12 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/cdcupt/translator-everywhere/server/internal/auth"
 	"github.com/cdcupt/translator-everywhere/server/internal/db"
 )
-
-type appleSignInRequest struct {
-	IdentityToken string `json:"identity_token"`
-}
 
 type googleSignInRequest struct {
 	IDToken string `json:"id_token"`
@@ -38,16 +35,96 @@ type refreshResponse struct {
 	SessionJWT string `json:"session_jwt"`
 }
 
-func (s *Server) handleAppleSignIn(w http.ResponseWriter, r *http.Request) {
-	var req appleSignInRequest
-	if !decodeJSON(w, r, &req) {
+// handleAppleCallback is the Sign in with Apple WEB-flow callback. Apple sends
+// the authorization code here (form_post when name/email scope is requested,
+// otherwise a query-string GET). We exchange the code for a verified id_token,
+// upsert the user, mint our session, and 302 the browser back to the app's
+// custom URL scheme so ASWebAuthenticationSession can capture the result.
+//
+// Contract (success): translator-everywhere://apple-callback?session=<jwt>&refresh=<token>&state=<state>
+// Contract (failure): translator-everywhere://apple-callback?error=<msg>&state=<state>
+func (s *Server) handleAppleCallback(w http.ResponseWriter, r *http.Request) {
+	// ParseForm merges query + form_post body; Apple may use either.
+	if err := r.ParseForm(); err != nil {
+		s.redirectAppleError(w, r, "", "malformed callback request")
 		return
 	}
-	if req.IdentityToken == "" {
-		writeError(w, http.StatusBadRequest, "identity_token is required")
+	state := r.Form.Get("state")
+	code := r.Form.Get("code")
+
+	if code == "" {
+		// Missing code is a malformed callback, not an auth failure — 400 so the
+		// caller (or a misconfigured Apple console) sees the problem directly.
+		writeError(w, http.StatusBadRequest, "code is required")
 		return
 	}
-	s.signInWithProvider(w, r, s.Apple, req.IdentityToken)
+	if s.AppleOAuth == nil {
+		s.redirectAppleError(w, r, state, "apple sign-in is not configured")
+		return
+	}
+
+	ctx := r.Context()
+	identity, err := s.AppleOAuth.ExchangeCode(ctx, code)
+	if err != nil {
+		s.redirectAppleError(w, r, state, "could not verify apple sign-in")
+		return
+	}
+
+	var email *string
+	if identity.Email != "" {
+		email = &identity.Email
+	}
+	user, err := s.Repo.UpsertUser(ctx, db.UpsertUserParams{
+		Provider:        identity.Provider,
+		ProviderSubject: identity.Subject,
+		Email:           email,
+	})
+	if err != nil {
+		s.redirectAppleError(w, r, state, "could not persist user")
+		return
+	}
+
+	resp, err := s.issueSession(ctx, user)
+	if err != nil {
+		s.redirectAppleError(w, r, state, "could not issue session")
+		return
+	}
+
+	s.redirectAppleSuccess(w, r, state, resp.SessionJWT, resp.RefreshToken)
+}
+
+// appleCallbackScheme returns the configured app scheme, defaulting if unset.
+func (s *Server) appleCallbackScheme() string {
+	if s.AppCallbackScheme != "" {
+		return s.AppCallbackScheme
+	}
+	return DefaultAppCallbackScheme
+}
+
+// redirectAppleSuccess 302s back to the app with session + refresh + state.
+func (s *Server) redirectAppleSuccess(w http.ResponseWriter, r *http.Request, state, session, refresh string) {
+	q := url.Values{}
+	q.Set("session", session)
+	q.Set("refresh", refresh)
+	if state != "" {
+		q.Set("state", state)
+	}
+	s.redirectToApp(w, r, q)
+}
+
+// redirectAppleError 302s back to the app with an error message + state.
+func (s *Server) redirectAppleError(w http.ResponseWriter, r *http.Request, state, msg string) {
+	q := url.Values{}
+	q.Set("error", msg)
+	if state != "" {
+		q.Set("state", state)
+	}
+	s.redirectToApp(w, r, q)
+}
+
+func (s *Server) redirectToApp(w http.ResponseWriter, r *http.Request, q url.Values) {
+	target := s.appleCallbackScheme() + "://apple-callback?" + q.Encode()
+	http.Redirect(w, r, target, http.StatusFound)
 }
 
 func (s *Server) handleGoogleSignIn(w http.ResponseWriter, r *http.Request) {
