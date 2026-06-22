@@ -101,45 +101,61 @@ done
 echo "  container healthy on :$PORT"
 
 # --- 6. Caddy snippet (own file + ONE import) -------------------------------
+# Caddy runs in a container and reverse-proxies apps by CONTAINER NAME over the
+# shared 9relay_default network (mirrors billmind/english/status). Host config
+# lives at /opt/9relay/{Caddyfile,caddy-snippets/} (mounted read-only into the
+# container). We edit the HOST files; never touch other apps' snippets.
 log "Wiring Caddy snippet (validate-before-restart, smoke-test-after)"
-CADDY_DIR=$(docker inspect "$CADDY_CONTAINER" -f '{{range .Mounts}}{{if eq .Destination "/etc/caddy"}}{{.Source}}{{end}}{{end}}')
-[[ -n "$CADDY_DIR" ]] || die "could not find $CADDY_CONTAINER /etc/caddy mount"
-SNIP_DIR="$CADDY_DIR/caddy-snippets"; mkdir -p "$SNIP_DIR"
-MAIN="$CADDY_DIR/Caddyfile"
+SNIP_DIR=/opt/9relay/caddy-snippets
+MAIN=/opt/9relay/Caddyfile
+[[ -d "$SNIP_DIR" && -f "$MAIN" ]] || die "expected $MAIN and $SNIP_DIR not found"
 SNIP="$SNIP_DIR/translator.caddy"
-BACKUP=$(mktemp)
-cp "$SNIP" "$BACKUP" 2>/dev/null || echo "__none__" > "$BACKUP"
+BACKUP=$(mktemp); cp "$SNIP" "$BACKUP" 2>/dev/null || echo "__none__" > "$BACKUP"
+MAIN_BACKUP=$(mktemp); cp "$MAIN" "$MAIN_BACKUP"
 
 cat > "$SNIP" <<EOF
+# Translator Everywhere — sync API (own snippet; imported from the Caddyfile).
 $DOMAIN {
-	reverse_proxy 127.0.0.1:$PORT
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy $CONTAINER:$PORT
 }
 EOF
-# ensure exactly one import line for our snippet (never touch others)
-grep -q "import caddy-snippets/translator.caddy" "$MAIN" || \
-  printf '\nimport caddy-snippets/translator.caddy\n' >> "$MAIN"
+# add exactly ONE import line for our snippet (never touch others)
+grep -q "snippets/translator.caddy" "$MAIN" || \
+  printf '\nimport /etc/caddy/snippets/translator.caddy\n' >> "$MAIN"
 
 rollback(){
-  echo "  ROLLING BACK snippet"; if grep -qx '__none__' "$BACKUP"; then rm -f "$SNIP"; else cp "$BACKUP" "$SNIP"; fi
-  docker restart "$CADDY_CONTAINER" >/dev/null; }
+  echo "  ROLLING BACK Caddy changes"
+  if grep -qx '__none__' "$BACKUP"; then rm -f "$SNIP"; else cp "$BACKUP" "$SNIP"; fi
+  cp "$MAIN_BACKUP" "$MAIN"
+  docker restart "$CADDY_CONTAINER" >/dev/null 2>&1 || true; }
 
 log "Validating Caddy config"
 docker exec "$CADDY_CONTAINER" caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
   || { rollback; die "Caddy config invalid — rolled back, NOTHING restarted live"; }
 
 log "Restarting $CADDY_CONTAINER (restart, not reload)"
-docker restart "$CADDY_CONTAINER" >/dev/null; sleep 4
+docker restart "$CADDY_CONTAINER" >/dev/null; sleep 5
 
-log "Smoke-testing all domains"
-FAIL=0
-for d in "${SMOKE_DOMAINS[@]}"; do
-  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 12 "https://$d/healthz" 2>/dev/null || echo 000)
-  # /healthz may 404 on apps without it — treat any < 500 (reachable+TLS) as up, except our own which must be 200
-  if [[ "$d" == "$DOMAIN" ]]; then [[ "$code" == 200 ]] || { echo "  ✘ $d → $code"; FAIL=1; }; \
-  else [[ "$code" =~ ^(200|301|302|401|403|404|405) ]] || { echo "  ✘ $d → $code"; FAIL=1; }; fi
-  echo "  $d → $code"
+# Primary safety after restart: Caddy must be running (a bad config would crash
+# it on boot even though validate passed). If it's down → roll back immediately.
+docker ps --format '{{.Names}}' | grep -qx "$CADDY_CONTAINER" \
+  || { rollback; die "$CADDY_CONTAINER did not come back up — rolled back"; }
+
+log "Smoke-testing domains (own = required 200; others = warn-only, box→public can hairpin)"
+own=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$DOMAIN/healthz" 2>/dev/null || echo 000)
+[[ "$own" == 200 ]] || { rollback; die "$DOMAIN/healthz → $own (expected 200) — rolled back"; }
+echo "  ✔ $DOMAIN → $own"
+for d in claude.9relay.com api.english.daichenlab.com status.daichenlab.com; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 12 "https://$d/" 2>/dev/null || echo 000)
+  if [[ "$code" =~ ^(200|301|302|401|403|404|405) ]]; then echo "  ✔ $d → $code"; else echo "  ⚠ $d → $code (verify externally; Caddy is up + config validated)"; fi
 done
-[[ $FAIL == 0 ]] || { rollback; die "a domain broke after restart — rolled back"; }
 
 # --- 7. e2e proof -----------------------------------------------------------
 log "e2e: bad Google token must be rejected (401)"
