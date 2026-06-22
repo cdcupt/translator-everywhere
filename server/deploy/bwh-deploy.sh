@@ -75,10 +75,7 @@ DO \$\$ BEGIN
     ALTER ROLE $ROLE PASSWORD '$DB_PASS_EFF';
   END IF;
 END \$\$;
-SELECT 'create-db' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='$DB')\gset
-\if :{?create-db}
-  CREATE DATABASE $DB OWNER $ROLE;
-\endif
+SELECT 'CREATE DATABASE $DB OWNER $ROLE' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='$DB')\gexec
 SQL
 echo "  ok"
 
