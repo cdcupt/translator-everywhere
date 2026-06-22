@@ -64,6 +64,11 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.cdcupt.translator-everywhere
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
+        # Real app icon: the Gate-1-approved paper-card 译 squircle, shipped as
+        # the AppIcon image set in Sources/Assets.xcassets (compiled into
+        # Assets.car + AppIcon.icns by actool). Sources/ already includes the
+        # .xcassets, so the catalog is part of the target automatically.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Sign in with Apple uses the WEB flow (ASWebAuthenticationSession), which
         # needs NO native entitlement — but we still ship a (now-empty) entitlements
         # file so Release stays hardened-runtime + manual Developer ID signed.

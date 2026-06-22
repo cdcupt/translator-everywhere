@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Translator Everywhere — styled .dmg installer background.
+  660x420 logical (1320x840 @2x). Cream (#F7F4EE) canvas, a faint 译 watermark,
+  brand pine capture-brackets in the corners, and a clear "drag to install →"
+  cue: an arrow from the app's drop-spot (left) to the /Applications alias
+  (right). The two icon slots below the arrow line up with the Finder icon
+  positions set by build-dmg.sh (app ~ x=180, Applications ~ x=480, y=215).
+  Palette: paper #F7F4EE, ink #1B201D, pine #1F6F5C, clay #C8643C.
+-->
+<svg width="1320" height="840" viewBox="0 0 660 420" xmlns="http://www.w3.org/2000/svg"
+     font-family="-apple-system, 'Helvetica Neue', Inter, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F0"/>
+      <stop offset="1" stop-color="#F2ECDF"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1F6F5C" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#1F6F5C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- canvas -->
+  <rect width="660" height="420" fill="url(#bg)"/>
+
+  <!-- faint 译 watermark (real CJK font glyph), centered low behind everything -->
+  <text x="330" y="352" text-anchor="middle" font-family="'PingFang SC','Hiragino Sans GB',sans-serif" font-size="210" font-weight="700" fill="#1B201D" opacity="0.05">译</text>
+
+  <!-- brand pine capture-brackets framing the window corners -->
+  <g fill="none" stroke="#1F6F5C" stroke-width="3" stroke-linecap="round" opacity="0.55">
+    <path d="M30 52 V38 a8 8 0 0 1 8 -8 H52"/>
+    <path d="M608 30 H622 a8 8 0 0 1 8 8 V52"/>
+    <path d="M630 368 V382 a8 8 0 0 1 -8 8 H608"/>
+    <path d="M52 390 H38 a8 8 0 0 1 -8 -8 V368"/>
+  </g>
+
+  <!-- title -->
+  <text x="330" y="62" text-anchor="middle" font-size="22" font-weight="700" fill="#1B201D">
+    Install Translator Everywhere
+  </text>
+  <text x="330" y="88" text-anchor="middle" font-size="13.5" font-weight="500" fill="#5f655f">
+    译 · translate anywhere — press a hotkey, drag a region, read it in your language
+  </text>
+
+  <!-- "drag to install →" cue between the two icon slots (app ≈ x180, apps ≈ x480, y215) -->
+  <!-- dashed guide arrow from the app slot edge to the Applications slot edge -->
+  <line x1="240" y1="215" x2="408" y2="215" stroke="url(#arrow)" stroke-width="4"
+        stroke-linecap="round" stroke-dasharray="2 11"/>
+  <path d="M404 204 L426 215 L404 226 Z" fill="#1F6F5C"/>
+  <text x="324" y="160" text-anchor="middle" font-size="15" font-weight="700" fill="#1F6F5C"
+        letter-spacing="0.3">drag to install</text>
+
+  <!-- soft slot rings under where the Finder icons land (visual targets only) -->
+  <g fill="none" stroke="#C8643C" stroke-opacity="0.20" stroke-width="2" stroke-dasharray="4 5">
+    <rect x="135" y="170" width="90" height="90" rx="20"/>
+    <rect x="435" y="170" width="90" height="90" rx="20"/>
+  </g>
+  <text x="180" y="290" text-anchor="middle" font-size="12" font-weight="600" fill="#5f655f">Translator Everywhere</text>
+  <text x="480" y="290" text-anchor="middle" font-size="12" font-weight="600" fill="#5f655f">Applications</text>
+
+  <!-- footer hint -->
+  <text x="330" y="402" text-anchor="middle" font-size="11" fill="#9a978f">
+    Drag the app onto the Applications folder, then launch it from Launchpad or Spotlight.
+  </text>
+</svg>
