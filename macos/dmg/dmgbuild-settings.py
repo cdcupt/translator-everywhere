@@ -17,7 +17,9 @@
 import os.path
 
 app = defines.get("app", "Translator Everywhere.app")
-appname = os.path.basename(app)
+# normpath strips any trailing slash so basename never yields "" (a trailing
+# slash, e.g. "Some.app/", would otherwise mis-target icon_locations).
+appname = os.path.basename(os.path.normpath(app))
 
 # ---- volume contents -------------------------------------------------------
 format = "UDZO"            # compressed, read-only (final distributable)
