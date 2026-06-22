@@ -10,10 +10,16 @@ private struct StubGoogleAuth: GoogleAuthorizationProvider {
     }
 }
 
-/// A stub Apple identity provider returning a canned identity-token JWT.
-private struct StubAppleProvider: AppleIdentityProvider {
-    let token: String
-    func identityToken() async throws -> String { token }
+/// A stub Apple web-auth provider returning a canned backend callback URL,
+/// echoing the `state` from the authorize URL so `state` validation passes.
+private struct StubAppleWebAuth: AppleWebAuthorizationProvider {
+    /// `{state}` in this template is replaced with the live state at call time.
+    let callbackTemplate: String
+    func callbackURL(authorizationURL: URL, callbackScheme: String) async throws -> URL {
+        let state = URLComponents(url: authorizationURL, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "state" })?.value ?? ""
+        return URL(string: callbackTemplate.replacingOccurrences(of: "{state}", with: state))!
+    }
 }
 
 @Suite("AuthClient — Google PKCE, Apple, refresh, delete")
@@ -89,7 +95,7 @@ struct AuthClientTests {
             tokens: tokens,
             baseURL: baseURL,
             googleAuthProvider: StubGoogleAuth(code: "auth-code-1"),
-            appleProvider: StubAppleProvider(token: "x")
+            appleAuthProvider: StubAppleWebAuth(callbackTemplate: "translator-everywhere://apple-callback?session=s&refresh=r&state={state}")
         )
 
         let result = try await client.signInWithGoogle()
@@ -126,7 +132,7 @@ struct AuthClientTests {
             tokens: makeTokens(),
             baseURL: baseURL,
             googleAuthProvider: StubGoogleAuth(code: "c"),
-            appleProvider: StubAppleProvider(token: "x")
+            appleAuthProvider: StubAppleWebAuth(callbackTemplate: "translator-everywhere://apple-callback?session=s&refresh=r&state={state}")
         )
         _ = try await client.signInWithGoogle()
 
@@ -152,40 +158,125 @@ struct AuthClientTests {
             tokens: tokens,
             baseURL: baseURL,
             googleAuthProvider: StubGoogleAuth(code: "c"),
-            appleProvider: StubAppleProvider(token: "x")
+            appleAuthProvider: StubAppleWebAuth(callbackTemplate: "translator-everywhere://apple-callback?session=s&refresh=r&state={state}")
         )
         await #expect(throws: AuthError.self) { _ = try await client.signInWithGoogle() }
         #expect(tokens.load() == nil)
     }
 
-    // MARK: - Apple (headless smoke — ASAuthorization can't run here)
+    // MARK: - Apple (WEB flow — ASWebAuthenticationSession, no native entitlement)
 
-    @Test("Apple sign-in posts identity_token to /auth/apple and stores tokens")
-    func appleSignInPostsIdentityToken() async throws {
+    /// Builds a base64url JWT with the given payload (header/signature are dummy)
+    /// so `AuthClient.appleUser(fromSessionJWT:)` has real claims to decode.
+    private func makeJWT(payload: [String: Any]) -> String {
+        let body = try! JSONSerialization.data(withJSONObject: payload)
+        let header = PKCE.base64URLEncode(Data(#"{"alg":"none"}"#.utf8))
+        let claims = PKCE.base64URLEncode(body)
+        return "\(header).\(claims).sig"
+    }
+
+    @Test("Apple authorize URL carries the Services ID client_id, redirect, scope, state")
+    func appleAuthorizationURL() {
+        let url = AuthClient.appleAuthorizationURL(state: "state-123")
+        let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        let items = Dictionary(uniqueKeysWithValues: comps.queryItems!.map { ($0.name, $0.value) })
+        #expect(comps.host == "appleid.apple.com")
+        #expect(comps.path == "/auth/authorize")
+        #expect(items["client_id"] == AuthConfig.appleServicesID)
+        #expect(items["client_id"] == "com.cdcupt.translator-everywhere.web")
+        #expect(items["redirect_uri"] == AuthConfig.appleRedirectURI)
+        #expect(items["redirect_uri"] == "https://api.translator.daichenlab.com/auth/apple/callback")
+        #expect(items["response_type"] == "code")
+        #expect(items["response_mode"] == "query")
+        #expect((items["scope"] ?? nil) == "name email")
+        #expect(items["state"] == "state-123")
+    }
+
+    @Test("Apple web sign-in parses the backend callback and stores session + refresh (no backend POST)")
+    func appleWebSignInStoresTokens() async throws {
         MockURLProtocol.reset()
         defer { MockURLProtocol.reset() }
-        var path: String?
-        var body: Data?
+        // The web flow does NOT hit our backend from the app — the backend already
+        // minted the tokens before redirecting. Any network call here is a bug.
+        var sawNetwork = false
         MockURLProtocol.handler = { request in
-            path = request.url?.path
-            body = MockURLProtocol.lastBody
-            return (self.sessionJSON(provider: "apple"), MockURLProtocol.okResponse(for: request))
+            sawNetwork = true
+            return (Data(), MockURLProtocol.okResponse(for: request))
         }
+        let jwt = makeJWT(payload: ["sub": "apple_user_1", "email": "erik@icloud.com"])
         let tokens = makeTokens()
         let client = AuthClient(
             session: MockURLProtocol.makeSession(),
             tokens: tokens,
             baseURL: baseURL,
             googleAuthProvider: StubGoogleAuth(code: "x"),
-            appleProvider: StubAppleProvider(token: "apple.identity.jwt")
+            appleAuthProvider: StubAppleWebAuth(
+                callbackTemplate: "translator-everywhere://apple-callback?session=\(jwt)&refresh=apple.refresh.9&state={state}"
+            )
         )
+
         let result = try await client.signInWithApple()
 
-        #expect(path == "/auth/apple")
-        let json = try JSONSerialization.jsonObject(with: body ?? Data()) as? [String: Any]
-        #expect(json?["identity_token"] as? String == "apple.identity.jwt")
+        #expect(sawNetwork == false)
+        #expect(result.sessionJWT == jwt)
+        #expect(result.refreshToken == "apple.refresh.9")
         #expect(result.user.provider == .apple)
-        #expect(tokens.load()?.sessionJWT == "sess.jwt.token")
+        #expect(result.user.id == "apple_user_1")
+        #expect(result.user.email == "erik@icloud.com")
+        // Persisted: a fresh load returns the same session.
+        #expect(tokens.load()?.sessionJWT == jwt)
+        #expect(tokens.load()?.refreshToken == "apple.refresh.9")
+    }
+
+    @Test("Apple callback parsing extracts session + refresh and accepts a matching state")
+    func appleCallbackExtractsTokens() throws {
+        let url = URL(string: "translator-everywhere://apple-callback?session=sess.jwt&refresh=ref.tok&state=abc")!
+        let session = try AuthClient.appleSession(from: url, expectedState: "abc")
+        #expect(session.sessionJWT == "sess.jwt")
+        #expect(session.refreshToken == "ref.tok")
+        #expect(session.user.provider == .apple)
+    }
+
+    @Test("Apple callback rejects a mismatched state (CSRF guard)")
+    func appleCallbackRejectsStateMismatch() {
+        let url = URL(string: "translator-everywhere://apple-callback?session=s&refresh=r&state=evil")!
+        #expect(throws: AuthError.providerResponseInvalid) {
+            _ = try AuthClient.appleSession(from: url, expectedState: "expected")
+        }
+    }
+
+    @Test("Apple callback with ?error= surfaces an auth error")
+    func appleCallbackErrorSurfaces() {
+        let url = URL(string: "translator-everywhere://apple-callback?error=user_cancelled&state=abc")!
+        #expect(throws: AuthError.providerResponseInvalid) {
+            _ = try AuthClient.appleSession(from: url, expectedState: "abc")
+        }
+    }
+
+    @Test("Apple web sign-in surfaces the ?error= path through the full flow")
+    func appleWebSignInErrorPath() async {
+        let tokens = makeTokens()
+        let client = AuthClient(
+            session: MockURLProtocol.makeSession(),
+            tokens: tokens,
+            baseURL: baseURL,
+            googleAuthProvider: StubGoogleAuth(code: "x"),
+            appleAuthProvider: StubAppleWebAuth(
+                callbackTemplate: "translator-everywhere://apple-callback?error=access_denied&state={state}"
+            )
+        )
+        await #expect(throws: AuthError.providerResponseInvalid) {
+            _ = try await client.signInWithApple()
+        }
+        #expect(tokens.load() == nil)
+    }
+
+    @Test("Apple user falls back to an empty id / nil email for an opaque session token")
+    func appleUserOpaqueToken() {
+        let user = AuthClient.appleUser(fromSessionJWT: "not-a-jwt")
+        #expect(user.provider == .apple)
+        #expect(user.id == "")
+        #expect(user.email == nil)
     }
 
     // MARK: - Refresh / sign-out / delete

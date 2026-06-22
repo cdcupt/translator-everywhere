@@ -2,14 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Developer ID, no sandbox; Sign in with Apple needs the provisioning
-	     profile + App ID capability. The App Sandbox is intentionally OFF: the app
-	     shells out to /usr/sbin/screencapture and uses a Carbon global hotkey, both
-	     of which the sandbox blocks. Without the sandbox network works freely, so
-	     the (sandbox-only) network.client entitlement is unnecessary. -->
-	<key>com.apple.developer.applesignin</key>
-	<array>
-		<string>Default</string>
-	</array>
+	<!-- Intentionally empty. Sign in with Apple now uses the WEB flow
+	     (ASWebAuthenticationSession → backend callback), which needs NO native
+	     com.apple.developer.applesignin entitlement — that's what lets the app
+	     ship signed with a plain Developer ID and no provisioning profile.
+	     The App Sandbox is OFF: the app shells out to /usr/sbin/screencapture and
+	     uses a Carbon global hotkey, both of which the sandbox blocks. Without the
+	     sandbox, network works freely (no network.client entitlement needed).
+	     Hardened Runtime stays ON via the ENABLE_HARDENED_RUNTIME build setting. -->
 </dict>
 </plist>

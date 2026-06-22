@@ -25,6 +25,31 @@ enum AuthConfig {
 
     /// Scopes — `openid email` is enough to mint the id_token our server needs.
     static let googleScope = "openid email profile"
+
+    // MARK: - Apple (Sign in with Apple — WEB flow)
+
+    /// Apple OAuth **Services ID** used as the `client_id` for the web flow.
+    /// This is the Services ID registered in the Apple Developer portal (NOT the
+    /// app's bundle id), with `redirect_uri` `appleRedirectURI` registered on it.
+    // TODO(coordinator): confirm real Services ID.
+    static let appleServicesID = "com.cdcupt.translator-everywhere.web"
+
+    /// Apple's web authorization endpoint (OAuth 2.0 / OIDC).
+    static let appleAuthorizationEndpoint = URL(string: "https://appleid.apple.com/auth/authorize")!
+
+    /// `redirect_uri` registered on the Services ID — our backend's callback. The
+    /// backend exchanges Apple's `code` for the id_token, mints our session, then
+    /// 302s back to the app via `appleCallbackScheme`.
+    static let appleRedirectURI = "https://api.translator.daichenlab.com/auth/apple/callback"
+
+    /// Custom URL scheme the backend redirects to after a successful (or failed)
+    /// Apple sign-in. Registered in the app's `CFBundleURLTypes` (project.yml) and
+    /// handed to `ASWebAuthenticationSession` as the `callbackURLScheme`.
+    static let appleCallbackScheme = "translator-everywhere"
+
+    /// Scopes requested from Apple. `name email` is what our backend needs to
+    /// build the user; Apple returns these only on the first authorization.
+    static let appleScope = "name email"
 }
 
 /// Which provider minted the current session — display only.
@@ -55,12 +80,6 @@ struct AuthSession: Sendable, Equatable {
 struct GoogleSignInRequest: Encodable {
     let idToken: String
     enum CodingKeys: String, CodingKey { case idToken = "id_token" }
-}
-
-/// `POST /auth/apple` request body.
-struct AppleSignInRequest: Encodable {
-    let identityToken: String
-    enum CodingKeys: String, CodingKey { case identityToken = "identity_token" }
 }
 
 /// `POST /auth/refresh` request body.

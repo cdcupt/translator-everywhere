@@ -6,9 +6,13 @@ private struct StubGoogleAuth: GoogleAuthorizationProvider {
     let code: String
     func authorizationCode(authorizationURL: URL, redirectScheme: String, expectedState: String) async throws -> String { code }
 }
-private struct StubApple: AppleIdentityProvider {
-    let token: String
-    func identityToken() async throws -> String { token }
+private struct StubAppleWebAuth: AppleWebAuthorizationProvider {
+    let callbackTemplate: String
+    func callbackURL(authorizationURL: URL, callbackScheme: String) async throws -> URL {
+        let state = URLComponents(url: authorizationURL, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "state" })?.value ?? ""
+        return URL(string: callbackTemplate.replacingOccurrences(of: "{state}", with: state))!
+    }
 }
 
 @MainActor
@@ -61,7 +65,7 @@ struct AccountViewModelTests {
         }
         let client = AuthClient(
             session: MockURLProtocol.makeSession(), tokens: makeTokens(), baseURL: baseURL,
-            googleAuthProvider: StubGoogleAuth(code: "c"), appleProvider: StubApple(token: "x")
+            googleAuthProvider: StubGoogleAuth(code: "c"), appleAuthProvider: StubAppleWebAuth(callbackTemplate: "translator-everywhere://apple-callback?session=s&refresh=r&state={state}")
         )
         let syncDate = Date(timeIntervalSince1970: 1_700_000_000)
         var hookFired = false
@@ -75,6 +79,34 @@ struct AccountViewModelTests {
         #expect(model.isSignedIn)
         #expect(hookFired)
         #expect(model.lastSyncedAt == syncDate)
+    }
+
+    @Test("Apple web sign-in transitions to signed-in and fires the sync hook")
+    func appleSignInTransitions() async throws {
+        MockURLProtocol.reset()
+        defer { MockURLProtocol.reset() }
+        // The Apple web flow needs no backend POST from the app; the callback
+        // already carries the minted tokens.
+        let tokens = makeTokens()
+        let client = AuthClient(
+            session: MockURLProtocol.makeSession(), tokens: tokens, baseURL: baseURL,
+            googleAuthProvider: StubGoogleAuth(code: "x"),
+            appleAuthProvider: StubAppleWebAuth(
+                callbackTemplate: "translator-everywhere://apple-callback?session=apple.sess&refresh=apple.ref&state={state}"
+            )
+        )
+        var hookFired = false
+        let model = AccountViewModel(auth: client, onSignedIn: {
+            hookFired = true
+            return Date(timeIntervalSince1970: 1_700_000_000)
+        })
+
+        await model.signInWithApple()
+
+        #expect(model.isSignedIn)
+        #expect(model.currentUser?.provider == .apple)
+        #expect(hookFired)
+        #expect(tokens.load()?.sessionJWT == "apple.sess")
     }
 
     @Test("sign-out returns to signed-out and clears tokens")
@@ -134,7 +166,7 @@ struct AccountViewModelTests {
         }
         let client = AuthClient(
             session: MockURLProtocol.makeSession(), tokens: makeTokens(), baseURL: baseURL,
-            googleAuthProvider: StubGoogleAuth(code: "c"), appleProvider: StubApple(token: "x")
+            googleAuthProvider: StubGoogleAuth(code: "c"), appleAuthProvider: StubAppleWebAuth(callbackTemplate: "translator-everywhere://apple-callback?session=s&refresh=r&state={state}")
         )
         let model = AccountViewModel(auth: client)
         await model.signInWithGoogle()
