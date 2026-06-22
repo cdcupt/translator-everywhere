@@ -141,16 +141,18 @@ final class AuthClient {
         return session
     }
 
-    /// Builds Apple's web authorization URL. `response_mode=query` keeps the
-    /// backend callback simple (params on the query string); the backend exchanges
-    /// the `code` for the id_token regardless. Internal for tests.
+    /// Builds Apple's web authorization URL. Apple requires `response_mode=form_post`
+    /// whenever a scope (name/email) is requested — `query` is rejected with
+    /// `invalid_request`. Apple form-POSTs the `code` to the backend callback (which
+    /// handles GET+POST), and the backend hands back via the `translator-everywhere://`
+    /// redirect that ASWebAuthenticationSession captures. Internal for tests.
     static func appleAuthorizationURL(state: String) -> URL {
         var components = URLComponents(url: AuthConfig.appleAuthorizationEndpoint, resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "client_id", value: AuthConfig.appleServicesID),
             URLQueryItem(name: "redirect_uri", value: AuthConfig.appleRedirectURI),
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "response_mode", value: "query"),
+            URLQueryItem(name: "response_mode", value: "form_post"),
             URLQueryItem(name: "scope", value: AuthConfig.appleScope),
             URLQueryItem(name: "state", value: state),
         ]

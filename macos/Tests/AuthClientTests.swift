@@ -187,7 +187,7 @@ struct AuthClientTests {
         #expect(items["redirect_uri"] == AuthConfig.appleRedirectURI)
         #expect(items["redirect_uri"] == "https://api.translator.daichenlab.com/auth/apple/callback")
         #expect(items["response_type"] == "code")
-        #expect(items["response_mode"] == "query")
+        #expect(items["response_mode"] == "form_post")
         #expect((items["scope"] ?? nil) == "name email")
         #expect(items["state"] == "state-123")
     }
