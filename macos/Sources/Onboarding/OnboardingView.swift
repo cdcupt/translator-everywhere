@@ -18,6 +18,9 @@ final class OnboardingModel: ObservableObject {
     private var flow: OnboardingFlow
     private let permission: PermissionService
     private let onFinish: () -> Void
+    /// Whether we've already asked macOS to register the app with TCC. Guards the
+    /// proactive `requestAccess()` so we only fire it once per onboarding session.
+    private var didRequestAccess = false
 
     init(
         permission: PermissionService = PermissionService(),
@@ -31,20 +34,40 @@ final class OnboardingModel: ObservableObject {
         )
         self.flow = OnboardingFlow(step: initial)
         self.step = initial
+        // If we open straight onto the permission step, register up front so the
+        // app shows up in the Settings list before the user does anything.
+        requestAccessIfNeeded()
     }
 
     /// Advances from the current step, re-checking permission live.
     func advance() {
         flow.advance(permissionGranted: permission.isGranted)
         step = flow.step
+        // Landing on the permission step: ask macOS now so the native prompt
+        // appears and the app is registered with TCC (it then shows up in the
+        // Settings list) even before the user clicks "Open System Settings".
+        requestAccessIfNeeded()
         if flow.isComplete { onFinish() }
     }
 
     /// Opens System Settings and remembers we've sent the user there, so a
-    /// later re-check that's still ungranted softens the copy.
+    /// later re-check that's still ungranted softens the copy. Requests access
+    /// first so macOS registers the app — otherwise the Screen Recording list is
+    /// empty and there's nothing for the user to toggle.
     func openSystemSettings() {
+        permission.requestAccess()
         permission.openSettings()
         didReturnUngranted = true
+    }
+
+    /// Triggers `CGRequestScreenCaptureAccess()` once, the first time we reach the
+    /// Screen Recording step. The underlying call only shows its dialog on the
+    /// very first invocation and is a safe no-op afterwards, but we still guard it
+    /// so a later step transition can't re-trigger the registration path.
+    private func requestAccessIfNeeded() {
+        guard step == .screenRecording, !didRequestAccess else { return }
+        didRequestAccess = true
+        permission.requestAccess()
     }
 
     /// Re-checks permission (e.g. on window focus) and advances to Done if it's
