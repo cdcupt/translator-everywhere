@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Translator Everywhere — macOS app icon (Gate-1 approved "App Icon 1").
+  Paper/cream squircle, ink 译 (Simplified) centered, subtle pine (#1F6F5C)
+  capture/crosshair corner-brackets. Palette: paper #F7F4EE, ink #1B201D,
+  pine #1F6F5C, clay #C8643C. Authored on a 1024x1024 canvas.
+
+  Geometry is the docs/pipeline/macos-app/icons.html `app1` symbol (100-unit
+  viewBox). The squircle is drawn on a 1024 box, then the whole mark is scaled
+  to ~92% and centered so there is a little transparent padding for the macOS
+  Dock shadow / system mask (the "rounded-square fills most of the canvas with
+  a little padding" brief). 译 is the Simplified form, drawn as vector strokes.
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- macOS superellipse (squircle) clip on the full 1024 box -->
+    <clipPath id="squircle" clipPathUnits="userSpaceOnUse">
+      <path d="M512,0 C133.12,0 0,133.12 0,512 C0,890.88 133.12,1024 512,1024 C890.88,1024 1024,890.88 1024,512 C1024,133.12 890.88,0 512,0 Z"/>
+    </clipPath>
+
+    <!-- cream paper face -->
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBF8F1"/>
+      <stop offset="1" stop-color="#EDE7D8"/>
+    </linearGradient>
+
+    <!-- soft top sheen -->
+    <radialGradient id="sheen" cx="0.5" cy="0.12" r="0.9">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- whole mark scaled to 92% (≈42px padding each side) and centered -->
+  <g transform="translate(41 41) scale(0.92)">
+    <g clip-path="url(#squircle)">
+      <!-- paper face + sheen -->
+      <rect width="1024" height="1024" fill="url(#face)"/>
+      <rect width="1024" height="1024" fill="url(#sheen)"/>
+
+      <!--
+        Pine capture/crosshair corner-brackets.
+        icons.html app1 brackets live on a 100-box at roughly x:22..78, y:21..79
+        with stroke 3.4. Scaled x10.24: coords x10.24, stroke ~35, corner r ~31.
+      -->
+      <g fill="none" stroke="#1F6F5C" stroke-width="35" stroke-linecap="round" opacity="0.9">
+        <!-- top-left -->
+        <path d="M225 307 V246 a31 31 0 0 1 31 -31 H317"/>
+        <!-- top-right -->
+        <path d="M707 215 H768 a31 31 0 0 1 31 31 V307"/>
+        <!-- bottom-right -->
+        <path d="M799 717 V778 a31 31 0 0 1 -31 31 H707"/>
+        <!-- bottom-left -->
+        <path d="M317 809 H256 a31 31 0 0 1 -31 -31 V717"/>
+      </g>
+
+      <!--
+        译 (Simplified), ink #1B201D — vector strokes from the `yi-bold` glyph.
+        yi-bold is drawn on a ~100 box. icons.html app1 places it at
+        translate(28 26) scale(0.46) inside the 100-box. On the 1024 canvas that
+        is translate(286.72 266.24) then scale(0.46 * 10.24 = 4.7104).
+      -->
+      <g transform="translate(286.72 266.24) scale(4.7104)" fill="#1B201D" stroke="#1B201D">
+        <!-- 讠 speech radical: dot + descending hook -->
+        <circle cx="17" cy="22" r="5.4" stroke="none"/>
+        <path d="M16 34 q-3 22 8 40" fill="none" stroke-width="7.5" stroke-linecap="round"/>
+        <!-- 睪 body, right side -->
+        <!-- 罒 eye box -->
+        <rect x="40" y="20" width="40" height="22" rx="2.5" fill="none" stroke-width="6.5"/>
+        <line x1="60" y1="22" x2="60" y2="40" stroke-width="5"/>
+        <!-- 幸 lower: top bar, vertical spine, mid cross bar, base bar -->
+        <line x1="40" y1="54" x2="80" y2="54" stroke-width="6.5" stroke-linecap="round"/>
+        <line x1="60" y1="46" x2="60" y2="86" stroke-width="7" stroke-linecap="round"/>
+        <line x1="44" y1="68" x2="76" y2="68" stroke-width="6" stroke-linecap="round"/>
+        <line x1="40" y1="84" x2="80" y2="84" stroke-width="6.5" stroke-linecap="round"/>
+      </g>
+    </g>
+
+    <!-- subtle inner hairline matching the squircle edge -->
+    <path d="M512,8 C137.5,8 8,137.5 8,512 C8,886.5 137.5,1016 512,1016 C886.5,1016 1016,886.5 1016,512 C1016,137.5 886.5,8 512,8 Z"
+          fill="none" stroke="#000000" stroke-opacity="0.06" stroke-width="14"/>
+  </g>
+</svg>
