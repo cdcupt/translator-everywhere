@@ -15,7 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let resultPanel = ResultPanel()
 
     /// The local vocabulary notebook (SwiftData). `nil` only if the store can't
-    /// be opened — capture still works, it just won't auto-save.
+    /// be opened — capture still works, the result panel just won't offer the
+    /// "Save to Notebook" button.
     private lazy var notebook: NotebookStore? = {
         do { return try NotebookStore() }
         catch {

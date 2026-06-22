@@ -5,8 +5,8 @@ import Foundation
 ///
 /// Sequences `PermissionService` → `RegionCapturer` → `OCRService` and shows the
 /// result in `ResultPanel`. An `actor` so the capture/OCR path runs off the main
-/// actor; only UI mutation hops to `@MainActor`. Translation + auto-save land in
-/// slice 3 at the marked hand-off point.
+/// actor; only UI mutation hops to `@MainActor`. Saving to the notebook is
+/// opt-in — the panel surfaces a Save button that calls back into `save`.
 actor CaptureCoordinator {
 
     private let permission: PermissionService
@@ -14,9 +14,10 @@ actor CaptureCoordinator {
     private let ocr: OCRService
     private let resultPanel: ResultPanel
     private let resolver: EngineResolver
-    /// The notebook every successful capture is auto-saved to. Optional so the
-    /// capture path still works if the store failed to open at launch (the panel
-    /// just won't show "★ Saved").
+    /// The notebook a capture can be saved to *on demand*. Saving is opt-in: the
+    /// result panel offers a "Save to Notebook" button (⌘S) that calls `save`.
+    /// Optional so the capture path still works if the store failed to open at
+    /// launch (the panel just won't show the Save button).
     private let notebook: NotebookStore?
 
     init(
@@ -89,28 +90,38 @@ actor CaptureCoordinator {
         }
 
         // 5. Copy the translation to the clipboard, then show the result panel
-        //    with the "Copied ✓" affordance.
+        //    with the "Copied ✓" affordance. Saving to the notebook is opt-in:
+        //    nothing is written until the user clicks "Save to Notebook" (⌘S),
+        //    so the panel only gets a save handler when a store exists.
         let copied = await copyToPasteboard(translation)
 
-        // SLICE 4 HAND-OFF: `trimmed` (source) + `translation` + `engine.kind`
-        // are the vocabulary entry. Auto-save them to `NotebookStore` *after*
-        // the result is computed; the save is offline-first and never blocks the
-        // popup. `saved` drives the quiet "★ Saved" affordance on the panel.
-        let saved = await autoSave(source: trimmed, translation: translation, kind: engine.kind)
+        // `trimmed` (source) + `translation` + `engine.kind` are the vocabulary
+        // entry. Hand the panel a closure that persists exactly this capture when
+        // (and only when) the user chooses to. `nil` notebook → no Save button.
+        // Capture `self` weakly: the panel (owned by the coordinator) retains the
+        // Save controller, which retains this closure — a strong `self` here would
+        // be a retain cycle. If the coordinator is gone the save reports failure.
+        let onSave: (@MainActor () async -> Bool)? = notebook.map { _ in
+            { [weak self] in
+                guard let self else { return false }
+                return await self.save(source: trimmed, translation: translation, kind: engine.kind)
+            }
+        }
 
         await presentResult(translation: translation,
                             source: trimmed,
                             badge: engine.kind.badge,
                             copied: copied,
-                            saved: saved)
+                            onSave: onSave)
     }
 
-    /// Persists the capture to the notebook. Returns whether the save succeeded
-    /// so the panel only claims "★ Saved" when it really did. Never throws to
-    /// the capture path — a notebook write failure must not break translation.
-    /// The read of `notebook` stays on this actor; only the `@MainActor` store
+    /// Persists the capture to the notebook when the user opts in via the panel's
+    /// Save button. Returns whether the save succeeded so the panel only claims
+    /// "★ Saved" when it really did. Never throws to the caller — a notebook
+    /// write failure surfaces as an inline retry on the panel, not a crash. The
+    /// read of `notebook` stays on this actor; only the `@MainActor` store
     /// mutation hops to the main actor.
-    private func autoSave(source: String, translation: String, kind: EngineKind) async -> Bool {
+    func save(source: String, translation: String, kind: EngineKind) async -> Bool {
         guard let notebook else { return false }
         do {
             try await MainActor.run {
@@ -118,7 +129,7 @@ actor CaptureCoordinator {
             }
             return true
         } catch {
-            NSLog("[TE] Notebook auto-save failed: \(error.localizedDescription)")
+            NSLog("[TE] Notebook save failed: \(error.localizedDescription)")
             return false
         }
     }
@@ -135,10 +146,18 @@ actor CaptureCoordinator {
     }
 
     @MainActor
-    private func presentResult(translation: String, source: String, badge: String, copied: Bool, saved: Bool) {
+    private func presentResult(
+        translation: String,
+        source: String,
+        badge: String,
+        copied: Bool,
+        onSave: (@MainActor () async -> Bool)?
+    ) {
         // LSUIElement agents launch unfocused — grab focus before showing.
         NSApp.activate(ignoringOtherApps: true)
-        resultPanel.showResult(translation: translation, source: source, badge: badge, copied: copied, saved: saved)
+        resultPanel.showResult(
+            translation: translation, source: source, badge: badge, copied: copied, onSave: onSave
+        )
     }
 
     @MainActor
