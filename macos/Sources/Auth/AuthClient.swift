@@ -10,28 +10,26 @@ protocol GoogleAuthorizationProvider: Sendable {
     func authorizationCode(authorizationURL: URL, redirectScheme: String, expectedState: String) async throws -> String
 }
 
-/// Acquires an Apple identity token via `ASAuthorizationController`. Injected so
-/// the request-builder + backend POST can be smoke-tested; the real controller
-/// can't run headlessly (and needs code-signing at runtime — slice 8).
-protocol AppleIdentityProvider: Sendable {
-    /// Runs the native Sign in with Apple sheet and returns the identity-token
-    /// JWT string.
-    func identityToken() async throws -> String
-}
-
 /// Sign-in via AuthenticationServices (TECH §8.6).
 ///
-/// Apple via `ASAuthorizationController`; Google via `ASWebAuthenticationSession`
-/// + PKCE. Both end the same way: get a provider identity token on-device, POST
-/// it to our `/auth/<provider>` endpoint, receive our session JWT + refresh,
-/// store both in the Keychain, and return the `AuthSession`. The app works fully
-/// without ever signing in — this only enables cross-Mac sync.
+/// Both Apple and Google run through `ASWebAuthenticationSession`. They diverge
+/// only in who does the token exchange:
+/// - **Google**: the app runs PKCE, gets a `code`, exchanges it for an `id_token`,
+///   POSTs that to `/auth/google`, and receives our session JWT + refresh.
+/// - **Apple (web flow)**: the app opens Apple's `/auth/authorize`; Apple
+///   redirects to our backend, which verifies the `code`, mints our session, and
+///   302s back to the app's custom scheme carrying `session`+`refresh` directly —
+///   so there's no native entitlement and no on-device token exchange.
+///
+/// Both end the same way: store the session JWT + refresh in the Keychain and
+/// return the `AuthSession`. The app works fully without ever signing in — this
+/// only enables cross-Mac sync.
 final class AuthClient {
 
     private let session: URLSession
     private let tokens: TokenStore
     private let googleAuthProvider: GoogleAuthorizationProvider
-    private let appleProvider: AppleIdentityProvider
+    private let appleAuthProvider: AppleWebAuthorizationProvider
     private let baseURL: URL
 
     init(
@@ -39,13 +37,13 @@ final class AuthClient {
         tokens: TokenStore = TokenStore(),
         baseURL: URL = AuthConfig.backendBaseURL,
         googleAuthProvider: GoogleAuthorizationProvider = WebGoogleAuthorizationProvider(),
-        appleProvider: AppleIdentityProvider = ControllerAppleIdentityProvider()
+        appleAuthProvider: AppleWebAuthorizationProvider = WebAppleAuthorizationProvider()
     ) {
         self.session = session
         self.tokens = tokens
         self.baseURL = baseURL
         self.googleAuthProvider = googleAuthProvider
-        self.appleProvider = appleProvider
+        self.appleAuthProvider = appleAuthProvider
     }
 
     /// The persisted session, or `nil` when signed out.
@@ -118,24 +116,104 @@ final class AuthClient {
         return decoded.idToken
     }
 
-    // MARK: - Apple (compiles now; runtime needs code-signing — slice 8)
+    // MARK: - Apple (web flow — ASWebAuthenticationSession, NO native entitlement)
 
-    /// Drives Sign in with Apple, then the same backend exchange as Google.
+    /// Drives Sign in with Apple entirely through the browser:
+    /// 1. generate a random `state`, build Apple's `/auth/authorize` URL,
+    /// 2. open `ASWebAuthenticationSession`; it follows Apple → our backend
+    ///    callback → the `translator-everywhere://apple-callback?...` redirect,
+    /// 3. parse the callback (validate `state`, extract `session`+`refresh`),
+    /// 4. store both tokens in the Keychain.
     ///
-    /// NOTE: `ASAuthorizationController` (in `ControllerAppleIdentityProvider`)
-    /// requires the app to be code-signed with the `applesignin` entitlement, so
-    /// this WON'T succeed at runtime until slice 8. The structure (identity token
-    /// → `POST /auth/apple` → store tokens) is identical to Google and IS
-    /// unit-tested via an injected `AppleIdentityProvider`.
+    /// Because the backend does the code→id_token exchange and mints the session,
+    /// the app needs NO `com.apple.developer.applesignin` entitlement — which is
+    /// what lets it ship signed with a plain Developer ID, no provisioning profile.
     @discardableResult
     func signInWithApple() async throws -> AuthSession {
-        let identityToken = try await appleProvider.identityToken()
-        let session = try await postSignIn(
-            path: "/auth/apple",
-            body: AppleSignInRequest(identityToken: identityToken)
+        let state = PKCE.randomURLSafeToken(byteCount: 16)
+        let authURL = Self.appleAuthorizationURL(state: state)
+        let callback = try await appleAuthProvider.callbackURL(
+            authorizationURL: authURL,
+            callbackScheme: AuthConfig.appleCallbackScheme
         )
+        let session = try Self.appleSession(from: callback, expectedState: state)
         try tokens.save(session)
         return session
+    }
+
+    /// Builds Apple's web authorization URL. `response_mode=query` keeps the
+    /// backend callback simple (params on the query string); the backend exchanges
+    /// the `code` for the id_token regardless. Internal for tests.
+    static func appleAuthorizationURL(state: String) -> URL {
+        var components = URLComponents(url: AuthConfig.appleAuthorizationEndpoint, resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "client_id", value: AuthConfig.appleServicesID),
+            URLQueryItem(name: "redirect_uri", value: AuthConfig.appleRedirectURI),
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "response_mode", value: "query"),
+            URLQueryItem(name: "scope", value: AuthConfig.appleScope),
+            URLQueryItem(name: "state", value: state),
+        ]
+        return components.url!
+    }
+
+    /// Parses the backend's hand-back redirect
+    /// `translator-everywhere://apple-callback?session=&refresh=&state=` into an
+    /// `AuthSession`. Validates `state` (CSRF guard), surfaces an `?error=`, and
+    /// derives the display user from the session JWT's payload. Internal for tests.
+    static func appleSession(from url: URL, expectedState: String) throws -> AuthSession {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            throw AuthError.providerResponseInvalid
+        }
+        let items = Dictionary(
+            (components.queryItems ?? []).map { ($0.name, $0.value ?? "") },
+            uniquingKeysWith: { first, _ in first }
+        )
+        // An explicit backend error wins, but still guard state to avoid acting on
+        // a spoofed callback.
+        guard items["state"] == expectedState else {
+            throw AuthError.providerResponseInvalid
+        }
+        if let error = items["error"], !error.isEmpty {
+            throw AuthError.providerResponseInvalid
+        }
+        guard let sessionJWT = items["session"], !sessionJWT.isEmpty,
+              let refreshToken = items["refresh"], !refreshToken.isEmpty
+        else {
+            throw AuthError.providerResponseInvalid
+        }
+        let user = Self.appleUser(fromSessionJWT: sessionJWT)
+        return AuthSession(sessionJWT: sessionJWT, refreshToken: refreshToken, user: user)
+    }
+
+    /// Best-effort display user from the session JWT payload (`sub`/`email`). The
+    /// callback carries no user object, so we read what the backend already signed
+    /// into the JWT; an opaque/undecodable token still yields a valid Apple user.
+    static func appleUser(fromSessionJWT jwt: String) -> AuthUser {
+        let claims = decodeJWTPayload(jwt)
+        let id = (claims["sub"] as? String) ?? (claims["user_id"] as? String) ?? ""
+        let email = claims["email"] as? String
+        return AuthUser(id: id, email: email, provider: .apple)
+    }
+
+    /// Decodes a JWT's base64url payload to a claims dictionary. Returns `[:]` for
+    /// anything that isn't a well-formed three-part JWT (the session still works;
+    /// only the display name/email is best-effort).
+    static func decodeJWTPayload(_ jwt: String) -> [String: Any] {
+        let parts = jwt.split(separator: ".")
+        guard parts.count == 3 else { return [:] }
+        var base64 = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        // Restore base64 padding stripped by base64url.
+        let padding = base64.count % 4
+        if padding != 0 { base64 += String(repeating: "=", count: 4 - padding) }
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return [:]
+        }
+        return json
     }
 
     // MARK: - Refresh / sign-out

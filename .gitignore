@@ -5,6 +5,8 @@
 /macos/*.xcodeproj/
 /macos/.build/
 /macos/DerivedData/
+# xcodegen-generated Info.plist (from project.yml `info:` block) is build output.
+/macos/Generated/
 # Distribution artifacts (signed .app, notarization zip, release .dmg) are never committed.
 /macos/*.dmg
 /macos/*.app
