@@ -5,6 +5,7 @@ import AppKit
 /// TECH §8.1: installs the `NSStatusItem`, builds the menu, and will later wire
 /// the global hotkey (`HotkeyManager`) and route "Capture & Translate" into the
 /// `CaptureCoordinator` actor. For slice 1 every action is a logging stub.
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Strong reference; an `NSStatusItem` is removed from the bar when released.
@@ -13,8 +14,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The result UI (main-actor AppKit). Owned here for the app's lifetime.
     private let resultPanel = ResultPanel()
 
+    /// The local vocabulary notebook (SwiftData). `nil` only if the store can't
+    /// be opened — capture still works, it just won't auto-save.
+    private lazy var notebook: NotebookStore? = {
+        do { return try NotebookStore() }
+        catch {
+            NSLog("[TE] Notebook store failed to open: \(error.localizedDescription)")
+            return nil
+        }
+    }()
+
+    /// Lazily-created controller for the standalone Notebook window.
+    private lazy var notebookWindow: NotebookWindowController? =
+        notebook.map { NotebookWindowController(store: $0) }
+
     /// The off-main capture state machine.
-    private lazy var coordinator = CaptureCoordinator(resultPanel: resultPanel)
+    private lazy var coordinator = CaptureCoordinator(resultPanel: resultPanel, notebook: notebook)
 
     /// The global hotkey owner. Fires the same path as the menu item.
     private lazy var hotkeyManager = HotkeyManager { [weak self] in
@@ -59,7 +74,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                               modifiers: [.control, .option]))
         menu.addItem(.separator())
         menu.addItem(menuItem(title: "Open Notebook…",
-                              action: #selector(openNotebook)))
+                              action: #selector(openNotebook),
+                              key: "n",
+                              modifiers: [.control, .option]))
         menu.addItem(menuItem(title: "Preferences…",
                               action: #selector(openPreferences),
                               key: ","))
@@ -93,8 +110,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openNotebook() {
-        // TODO(slice: notebook): present NotebookWindow (SwiftUI Table).
-        NSLog("[TE] Open Notebook — not implemented yet")
+        guard let notebookWindow else {
+            NSLog("[TE] Open Notebook — store unavailable")
+            return
+        }
+        notebookWindow.show()
     }
 
     @objc private func openPreferences() {

@@ -38,6 +38,13 @@ struct GoogleEngine: TranslationEngine {
         return translated
     }
 
+    /// The free engine can't summarize, so — by design ("free is simpler") — it
+    /// returns a cleanly formatted list of the items rather than a synthesized
+    /// study list. No network call. See `StudyListFormatter`.
+    func summarize(_ items: [VocabItem]) async throws -> String {
+        StudyListFormatter.plainList(items)
+    }
+
     // MARK: - Request
 
     /// Builds the GET request. Exposed (internal) so tests can assert the URL.
@@ -66,6 +73,7 @@ struct GoogleEngine: TranslationEngine {
                 }
                 return data
             } catch {
+                try Task.checkCancellation() // don't retry a cancelled task
                 lastError = error
                 if attempt < Self.maxAttempts {
                     try? await Task.sleep(for: retryDelay)

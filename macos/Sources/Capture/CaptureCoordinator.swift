@@ -14,19 +14,25 @@ actor CaptureCoordinator {
     private let ocr: OCRService
     private let resultPanel: ResultPanel
     private let resolver: EngineResolver
+    /// The notebook every successful capture is auto-saved to. Optional so the
+    /// capture path still works if the store failed to open at launch (the panel
+    /// just won't show "★ Saved").
+    private let notebook: NotebookStore?
 
     init(
         permission: PermissionService = PermissionService(),
         capturer: RegionCapturer = RegionCapturer(),
         ocr: OCRService = OCRService(),
         resolver: EngineResolver = EngineResolver(),
-        resultPanel: ResultPanel
+        resultPanel: ResultPanel,
+        notebook: NotebookStore? = nil
     ) {
         self.permission = permission
         self.capturer = capturer
         self.ocr = ocr
         self.resolver = resolver
         self.resultPanel = resultPanel
+        self.notebook = notebook
     }
 
     /// Runs one capture→OCR→show cycle. Safe to call repeatedly; the `actor`
@@ -87,13 +93,34 @@ actor CaptureCoordinator {
         let copied = await copyToPasteboard(translation)
 
         // SLICE 4 HAND-OFF: `trimmed` (source) + `translation` + `engine.kind`
-        // are the vocabulary entry. The notebook slice auto-saves them to
-        // `NotebookStore` here — *after* the panel is up — and later enriches
-        // with `summarize`. Slice 3 stops at the on-screen result + clipboard.
+        // are the vocabulary entry. Auto-save them to `NotebookStore` *after*
+        // the result is computed; the save is offline-first and never blocks the
+        // popup. `saved` drives the quiet "★ Saved" affordance on the panel.
+        let saved = await autoSave(source: trimmed, translation: translation, kind: engine.kind)
+
         await presentResult(translation: translation,
                             source: trimmed,
                             badge: engine.kind.badge,
-                            copied: copied)
+                            copied: copied,
+                            saved: saved)
+    }
+
+    /// Persists the capture to the notebook. Returns whether the save succeeded
+    /// so the panel only claims "★ Saved" when it really did. Never throws to
+    /// the capture path — a notebook write failure must not break translation.
+    /// The read of `notebook` stays on this actor; only the `@MainActor` store
+    /// mutation hops to the main actor.
+    private func autoSave(source: String, translation: String, kind: EngineKind) async -> Bool {
+        guard let notebook else { return false }
+        do {
+            try await MainActor.run {
+                try notebook.add(source: source, translation: translation, engine: kind)
+            }
+            return true
+        } catch {
+            NSLog("[TE] Notebook auto-save failed: \(error.localizedDescription)")
+            return false
+        }
     }
 
     // MARK: - UI hops (main actor)
@@ -108,10 +135,10 @@ actor CaptureCoordinator {
     }
 
     @MainActor
-    private func presentResult(translation: String, source: String, badge: String, copied: Bool) {
+    private func presentResult(translation: String, source: String, badge: String, copied: Bool, saved: Bool) {
         // LSUIElement agents launch unfocused — grab focus before showing.
         NSApp.activate(ignoringOtherApps: true)
-        resultPanel.showResult(translation: translation, source: source, badge: badge, copied: copied)
+        resultPanel.showResult(translation: translation, source: source, badge: badge, copied: copied, saved: saved)
     }
 
     @MainActor
