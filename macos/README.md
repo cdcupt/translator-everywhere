@@ -5,9 +5,12 @@ screen region, OCRs it on-device, translates it, and saves to a local notebook.
 This directory is the on-device half of the product (TECH §8); the backend lives
 elsewhere and is strictly optional.
 
-**Slice 1 status:** project scaffold only. The menu-bar item and menu exist;
-every action is a logging stub. Later slices flesh out the module folders under
-`Sources/`.
+**Status: v1.0.0 — feature-complete.** Hotkey → drag a screen region → on-device
+Vision OCR → translate (Google free / OpenAI) → result popup + clipboard →
+auto-save to a searchable vocabulary notebook (export / summarize). Preferences
+(in-app hotkey recorder, engine, account) + first-run onboarding. Optional
+Google / Apple (web OAuth) sign-in syncs the notebook across Macs via the backend.
+Distributed as a signed (+ notarized) `.dmg` via GitHub Releases.
 
 ## Requirements
 

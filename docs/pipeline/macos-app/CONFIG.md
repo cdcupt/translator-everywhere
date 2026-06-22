@@ -7,9 +7,7 @@
 ## App / Apple
 - **Bundle ID:** `com.cdcupt.translator-everywhere`
 - **Apple Team ID:** `NK3U2C365Z`
-- **Sign in with Apple:** native macOS flow (`ASAuthorizationController`). Backend verifies the Apple
-  identity-token JWT against Apple's public JWKS with `aud = com.cdcupt.translator-everywhere`,
-  `iss = https://appleid.apple.com`. No Apple private key / Services ID needed for v1.
+- **Sign in with Apple:** **WEB OAuth flow** (`ASWebAuthenticationSession`, `response_mode=form_post`) — the native `ASAuthorizationController` flow is NOT available for Developer-ID (non-App-Store) distribution. Uses a **Services ID** `com.cdcupt.translator-everywhere.web` (the OAuth `client_id`), a **Sign-in-with-Apple key** (`.p8`, Key ID `57Z3AW3BS6`) for the client-secret JWT, redirect `https://api.translator.daichenlab.com/auth/apple/callback`, app callback scheme `translator-everywhere`. See the "Apple web OAuth flow defaults" block below.
 
 ## Google sign-in
 - **OAuth Client ID (Desktop app):** `328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem.apps.googleusercontent.com`
