@@ -17,6 +17,8 @@ Distributed as a signed (+ notarized) `.dmg` via GitHub Releases.
 - macOS 14.0+ (deployment target)
 - Xcode 26.x (this repo was scaffolded with 26.5)
 - [`xcodegen`](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
+- [`dmgbuild`](https://pypi.org/project/dmgbuild) — only for packaging the installer
+  DMG (`python3 -m pip install --user dmgbuild`); see `dmg/build-dmg.sh`
 
 The `.xcodeproj` is **generated** from `project.yml` and is git-ignored — never
 edit it by hand. Regenerate it after pulling or after changing sources.
