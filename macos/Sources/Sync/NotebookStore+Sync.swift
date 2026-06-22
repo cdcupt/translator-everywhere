@@ -15,11 +15,17 @@ extension NotebookStore: VocabSyncStore {
         return try context.fetch(descriptor).map(Self.row(from:))
     }
 
-    func clearDirty(_ clientUUIDs: [UUID]) throws {
-        let set = Set(clientUUIDs)
+    func clearDirty(_ pushed: [UUID: Date]) throws {
         let descriptor = FetchDescriptor<VocabItem>(predicate: #Predicate { $0.isDirty })
-        for item in try context.fetch(descriptor) where set.contains(item.clientUUID) {
-            item.isDirty = false
+        for item in try context.fetch(descriptor) {
+            // Compare-and-clear: only de-queue a row whose live `updatedAt` still
+            // matches the value we actually pushed. If the user edited it while
+            // the push was in flight (newer `updatedAt`), leave it dirty so the
+            // newer edit re-pushes next cycle — otherwise that edit is lost.
+            guard let pushedUpdatedAt = pushed[item.clientUUID] else { continue }
+            if item.updatedAt == pushedUpdatedAt {
+                item.isDirty = false
+            }
         }
         try context.save()
     }

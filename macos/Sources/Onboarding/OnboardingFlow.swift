@@ -5,6 +5,17 @@ enum OnboardingStep: Int, CaseIterable, Sendable {
     case welcome
     case screenRecording
     case done
+
+    /// The NSWindow title for this step. The in-content heading stays separate
+    /// (it's longer / more descriptive); the title bar tracks the step so it
+    /// doesn't sit stuck on "Welcome" as the user advances.
+    var windowTitle: String {
+        switch self {
+        case .welcome: return "Welcome"
+        case .screenRecording: return "Screen Recording"
+        case .done: return "All Set"
+        }
+    }
 }
 
 /// Pure step-routing logic for first-run onboarding (DESIGN §2f).

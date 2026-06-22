@@ -97,13 +97,17 @@ actor SyncClient {
         try Self.ensureOK(response)
 
         // Adopt any server-newer conflict rows the merge returned, then clear
-        // dirty for everything we pushed (idempotent on client_uuid).
+        // dirty — but only for rows whose live `updatedAt` still matches what we
+        // pushed. Carry the snapshot `updatedAt` per clientUUID so an edit made
+        // DURING this in-flight push (which bumps `updatedAt` and re-dirties the
+        // row) is NOT wiped from the queue → no lost update.
         if let decoded = try? Self.decoder.decode(VocabPushResponse.self, from: data) {
             for dto in decoded.conflicts {
                 if let row = dto.toRow() { _ = try await store.mergePulled(row) }
             }
         }
-        try await store.clearDirty(dirty.map(\.clientUUID))
+        let pushed = Dictionary(dirty.map { ($0.clientUUID, $0.updatedAt) }, uniquingKeysWith: { _, last in last })
+        try await store.clearDirty(pushed)
     }
 
     // MARK: - Pull

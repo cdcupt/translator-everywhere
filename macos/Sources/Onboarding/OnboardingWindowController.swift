@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Owns the first-run onboarding window (DESIGN §2f).
@@ -15,6 +16,7 @@ final class OnboardingWindowController {
     private let permission: PermissionService
     private var window: NSWindow?
     private var model: OnboardingModel?
+    private var titleObserver: AnyCancellable?
 
     init(
         settings: SettingsStore = SettingsStore(),
@@ -53,13 +55,19 @@ final class OnboardingWindowController {
         // sizes the content; we just don't mirror it into the window extrema.
         hosting.sizingOptions = []
         let window = NSWindow(contentViewController: hosting)
-        window.title = "Welcome"
+        window.title = model.step.windowTitle
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
 
         self.model = model
         self.window = window
+
+        // Track the step so the title bar advances with the flow (Welcome →
+        // Screen Recording → All Set) instead of staying stuck on "Welcome".
+        titleObserver = model.$step.sink { [weak window] step in
+            window?.title = step.windowTitle
+        }
 
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)

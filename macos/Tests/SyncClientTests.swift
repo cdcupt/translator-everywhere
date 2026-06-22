@@ -19,9 +19,17 @@ private final class FakeStore: VocabSyncStore {
         dirty.compactMap { rows[$0] }
     }
 
-    func clearDirty(_ clientUUIDs: [UUID]) throws {
-        clearedDirty.append(clientUUIDs)
-        for id in clientUUIDs { dirty.remove(id) }
+    func clearDirty(_ pushed: [UUID: Date]) throws {
+        // Mirror the production compare-and-clear: only de-queue a row whose live
+        // `updatedAt` still equals the pushed snapshot value. A mid-flight edit
+        // (newer `updatedAt`) stays dirty so it re-pushes next cycle.
+        var actuallyCleared: [UUID] = []
+        for (id, pushedUpdatedAt) in pushed where dirty.contains(id) {
+            guard let live = rows[id], live.updatedAt == pushedUpdatedAt else { continue }
+            dirty.remove(id)
+            actuallyCleared.append(id)
+        }
+        clearedDirty.append(actuallyCleared)
     }
 
     @discardableResult

@@ -28,9 +28,13 @@ protocol VocabSyncStore: AnyObject {
     /// All rows where `isDirty == true` (the push queue), tombstones included.
     func dirtyRows() throws -> [VocabRow]
 
-    /// Clears `isDirty` for the rows with these `clientUUID`s after a successful
-    /// push.
-    func clearDirty(_ clientUUIDs: [UUID]) throws
+    /// Clears `isDirty` after a successful push, but only for rows that have NOT
+    /// changed since they were snapshotted into the push. `pushed` maps each
+    /// pushed `clientUUID` to the `updatedAt` that was actually sent. A row is
+    /// de-queued only when its live `updatedAt` still equals the pushed value;
+    /// if the user edited it mid-flight (newer `updatedAt`), it stays dirty so
+    /// the newer edit re-pushes next cycle (no lost update).
+    func clearDirty(_ pushed: [UUID: Date]) throws
 
     /// Applies a pulled row by last-write-wins on `updatedAt`, keyed by
     /// `clientUUID`: insert if new, overwrite (incl. tombstone) only when the
