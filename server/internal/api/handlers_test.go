@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/cdcupt/translator-everywhere/server/internal/db"
 )
 
-// fakeVerifier is an IdentityVerifier stub.
+// fakeVerifier is an IdentityVerifier stub (Google path).
 type fakeVerifier struct {
 	identity auth.Identity
 	err      error
@@ -26,11 +27,28 @@ func (f fakeVerifier) Verify(_ context.Context, _ string) (auth.Identity, error)
 	return f.identity, f.err
 }
 
+// fakeAppleExchanger is an AppleCodeExchanger stub: it maps a known good code to
+// a verified Identity and fails on anything else.
+type fakeAppleExchanger struct {
+	identity auth.Identity
+	err      error
+}
+
+func (f fakeAppleExchanger) ExchangeCode(_ context.Context, code string) (auth.Identity, error) {
+	if f.err != nil {
+		return auth.Identity{}, f.err
+	}
+	if code != "good-code" {
+		return auth.Identity{}, errors.New("invalid code")
+	}
+	return f.identity, nil
+}
+
 func newTestServer(t *testing.T) (*Server, *db.FakeRepository) {
 	t.Helper()
 	repo := db.NewFakeRepository()
 	sessions := auth.NewSessionManager("test-secret")
-	apple := fakeVerifier{identity: auth.Identity{Provider: "apple", Subject: "apple-sub-1", Email: "a@example.com"}}
+	apple := fakeAppleExchanger{identity: auth.Identity{Provider: "apple", Subject: "apple-sub-1", Email: "a@example.com"}}
 	google := fakeVerifier{identity: auth.Identity{Provider: "google", Subject: "google-sub-1"}}
 	return NewServer(repo, sessions, apple, google), repo
 }
@@ -52,19 +70,61 @@ func doJSON(t *testing.T, h http.Handler, method, target string, body any, beare
 	return rec
 }
 
-// signIn drives POST /auth/apple and returns the session response.
+// appleCallbackResult is the parsed redirect target the Apple callback 302s to.
+type appleCallbackResult struct {
+	session string
+	refresh string
+	state   string
+	errMsg  string
+}
+
+// doAppleCallback drives the Apple web callback (GET, query-string) and parses
+// the resulting translator-everywhere:// redirect URL.
+func doAppleCallback(t *testing.T, srv *Server, code, state string) (*httptest.ResponseRecorder, appleCallbackResult) {
+	t.Helper()
+	q := url.Values{}
+	if code != "" {
+		q.Set("code", code)
+	}
+	if state != "" {
+		q.Set("state", state)
+	}
+	rec := doJSON(t, srv.Router(), http.MethodGet, "/auth/apple/callback?"+q.Encode(), nil, "")
+
+	var out appleCallbackResult
+	if loc := rec.Header().Get("Location"); loc != "" {
+		u, err := url.Parse(loc)
+		if err != nil {
+			t.Fatalf("parse redirect %q: %v", loc, err)
+		}
+		if u.Scheme != "translator-everywhere" || u.Host != "apple-callback" {
+			t.Fatalf("redirect target = %q, want translator-everywhere://apple-callback", loc)
+		}
+		vals := u.Query()
+		out = appleCallbackResult{
+			session: vals.Get("session"),
+			refresh: vals.Get("refresh"),
+			state:   vals.Get("state"),
+			errMsg:  vals.Get("error"),
+		}
+	}
+	return rec, out
+}
+
+// signIn drives the Apple web callback happy path and returns the session.
 func signIn(t *testing.T, srv *Server) sessionResponse {
 	t.Helper()
-	rec := doJSON(t, srv.Router(), http.MethodPost, "/auth/apple",
-		appleSignInRequest{IdentityToken: "x"}, "")
-	if rec.Code != http.StatusOK {
+	rec, res := doAppleCallback(t, srv, "good-code", "")
+	if rec.Code != http.StatusFound {
 		t.Fatalf("sign in: status %d, body %s", rec.Code, rec.Body.String())
 	}
-	var resp sessionResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decode session: %v", err)
+	if res.errMsg != "" {
+		t.Fatalf("sign in error redirect: %q", res.errMsg)
 	}
-	return resp
+	if res.session == "" || res.refresh == "" {
+		t.Fatalf("sign in: missing session/refresh in redirect")
+	}
+	return sessionResponse{SessionJWT: res.session, RefreshToken: res.refresh}
 }
 
 func TestHealthz(t *testing.T) {
@@ -75,36 +135,104 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
-func TestAppleSignInIssuesSession(t *testing.T) {
+func TestAppleCallbackHappyPathRedirectsToApp(t *testing.T) {
 	srv, repo := newTestServer(t)
-	resp := signIn(t, srv)
 
-	if resp.SessionJWT == "" || resp.RefreshToken == "" {
-		t.Fatal("expected session + refresh tokens")
+	rec, res := doAppleCallback(t, srv, "good-code", "state-xyz")
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302; body %s", rec.Code, rec.Body.String())
 	}
-	if resp.User.Provider != "apple" {
-		t.Errorf("provider = %q", resp.User.Provider)
+	if res.session == "" || res.refresh == "" {
+		t.Fatalf("redirect missing session/refresh: %+v", res)
 	}
-	// The session JWT must verify back to the same user.
-	id, err := srv.Sessions.VerifyAccessToken(resp.SessionJWT)
+	if res.state != "state-xyz" {
+		t.Errorf("state = %q, want state-xyz (round-tripped)", res.state)
+	}
+	if res.errMsg != "" {
+		t.Errorf("unexpected error param: %q", res.errMsg)
+	}
+
+	// The session JWT must verify back to a persisted user.
+	id, err := srv.Sessions.VerifyAccessToken(res.session)
 	if err != nil {
 		t.Fatalf("verify issued jwt: %v", err)
 	}
-	if _, err := repo.GetUser(context.Background(), id); err != nil {
+	user, err := repo.GetUser(context.Background(), id)
+	if err != nil {
 		t.Fatalf("user not persisted: %v", err)
+	}
+	if user.Provider != "apple" {
+		t.Errorf("provider = %q, want apple", user.Provider)
 	}
 }
 
-func TestSignInRejectsBadToken(t *testing.T) {
+func TestAppleCallbackAcceptsFormPost(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	form := url.Values{}
+	form.Set("code", "good-code")
+	form.Set("state", "fp-state")
+	req := httptest.NewRequest(http.MethodPost, "/auth/apple/callback", bytes.NewBufferString(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("form_post status = %d, want 302; body %s", rec.Code, rec.Body.String())
+	}
+	loc := rec.Header().Get("Location")
+	u, err := url.Parse(loc)
+	if err != nil {
+		t.Fatalf("parse redirect: %v", err)
+	}
+	if u.Query().Get("session") == "" {
+		t.Fatalf("form_post redirect missing session: %q", loc)
+	}
+	if u.Query().Get("state") != "fp-state" {
+		t.Errorf("state = %q, want fp-state", u.Query().Get("state"))
+	}
+}
+
+func TestAppleCallbackBadCodeRedirectsError(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	rec, res := doAppleCallback(t, srv, "wrong-code", "st")
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", rec.Code)
+	}
+	if res.errMsg == "" {
+		t.Fatalf("expected error param in redirect, got %+v", res)
+	}
+	if res.session != "" || res.refresh != "" {
+		t.Errorf("error redirect must not carry tokens: %+v", res)
+	}
+	if res.state != "st" {
+		t.Errorf("state = %q, want st (preserved on error)", res.state)
+	}
+}
+
+func TestAppleCallbackMissingCodeReturns400(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	rec, _ := doAppleCallback(t, srv, "", "st")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestAppleCallbackNotConfiguredRedirectsError(t *testing.T) {
 	repo := db.NewFakeRepository()
 	sessions := auth.NewSessionManager("test-secret")
-	bad := fakeVerifier{err: errors.New("invalid")}
-	srv := NewServer(repo, sessions, bad, bad)
+	google := fakeVerifier{identity: auth.Identity{Provider: "google", Subject: "g"}}
+	// nil AppleOAuth = Apple web auth not configured.
+	srv := NewServer(repo, sessions, nil, google)
 
-	rec := doJSON(t, srv.Router(), http.MethodPost, "/auth/apple",
-		appleSignInRequest{IdentityToken: "x"}, "")
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401", rec.Code)
+	rec, res := doAppleCallback(t, srv, "good-code", "")
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", rec.Code)
+	}
+	if res.errMsg == "" {
+		t.Fatalf("expected error redirect when Apple not configured")
 	}
 }
 

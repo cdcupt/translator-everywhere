@@ -57,6 +57,14 @@ func NewGoogleVerifier(aud string, issuers []string, client *http.Client) *Provi
 	}
 }
 
+// NewAppleVerifierWithJWKS builds an Apple verifier pointed at an arbitrary
+// JWKS endpoint. It exists so callers outside this package (and the OAuth
+// code-exchange flow in tests) can verify Apple id_tokens against a mocked JWKS
+// server. In production, prefer NewAppleVerifier.
+func NewAppleVerifierWithJWKS(jwksURL, aud, iss string, client *http.Client) *ProviderVerifier {
+	return newVerifierWithJWKSURL("apple", jwksURL, aud, []string{iss}, client)
+}
+
 // newVerifierWithJWKSURL is the test seam: it builds a verifier pointed at an
 // arbitrary JWKS endpoint (a httptest server serving a fake JWKS).
 func newVerifierWithJWKSURL(provider, jwksURL, aud string, issuers []string, client *http.Client) *ProviderVerifier {

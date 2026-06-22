@@ -25,10 +25,10 @@ server/
 
 ## Endpoints
 
-| Method · path             | Auth        | Purpose                                              |
-|---------------------------|-------------|------------------------------------------------------|
-| `POST /auth/apple`        | public      | Verify Apple identity token → upsert user → session  |
-| `POST /auth/google`       | public      | Verify Google id_token → upsert user → session       |
+| Method · path                  | Auth        | Purpose                                              |
+|--------------------------------|-------------|------------------------------------------------------|
+| `GET·POST /auth/apple/callback`| public      | Sign in with Apple WEB flow: exchange code → 302 to app scheme |
+| `POST /auth/google`            | public      | Verify Google id_token → upsert user → session       |
 | `POST /auth/refresh`      | refresh tok | Exchange a refresh token for a fresh access JWT      |
 | `POST /auth/signout`      | Bearer JWT  | Best-effort revoke the refresh token                 |
 | `GET  /vocab?since=<ts>`  | Bearer JWT  | Pull rows (incl. tombstones) changed after a cursor  |
@@ -38,9 +38,18 @@ server/
 
 ## Auth model
 
-- **Provider tokens** (Apple/Google) are verified against the provider JWKS
-  (cached, auto-refreshed for key rotation): RS256 signature, `aud`, `iss`,
-  `exp`. On success the user is upserted by `(provider, subject)`.
+- **Apple** uses the **WEB OAuth flow**. The app opens
+  `ASWebAuthenticationSession` against Apple's authorize URL with the Services ID
+  as `client_id`; Apple posts the authorization `code` to
+  `/auth/apple/callback` (`form_post` when name/email scope is requested,
+  otherwise a query GET). The backend mints an ES256 `client_secret` JWT, trades
+  the code at Apple's token endpoint for an `id_token`, verifies it against
+  Apple's JWKS (`aud`=Services ID, `iss`, `exp`), then **302-redirects** to
+  `translator-everywhere://apple-callback?session=…&refresh=…&state=…` (on error
+  `…?error=<msg>&state=…`). No Apple secret ever reaches the client.
+- **Google** id_tokens are verified directly against Google's JWKS (RS256
+  signature, `aud`, `iss`, `exp`). On success the user is upserted by
+  `(provider, subject)`.
 - **Our session JWT** is HS256, signed with `JWT_SECRET` (env). Short-lived
   access token + a long-lived opaque refresh token (only a SHA-256 hash of the
   refresh token is stored server-side).
@@ -62,6 +71,15 @@ upserts rather than duplicates.
 | `APPLE_AUD`    | no       | `com.cdcupt.translator-everywhere`    |
 | `GOOGLE_AUD`   | no       | the public OAuth client id (CONFIG)   |
 | `PORT`         | no       | `8110`                                |
+| `APPLE_SERVICES_ID`      | for Apple web | `com.cdcupt.translator-everywhere.web` (placeholder) |
+| `APPLE_KEY_ID`           | for Apple web | — (.p8 key id; SECRET-adjacent)      |
+| `APPLE_TEAM_ID`          | no            | `NK3U2C365Z`                         |
+| `APPLE_PRIVATE_KEY` / `APPLE_PRIVATE_KEY_FILE` | for Apple web | — (.p8 PEM; **SECRET**) |
+| `APPLE_REDIRECT_URI`     | no            | `https://api.translator.daichenlab.com/auth/apple/callback` |
+| `APP_CALLBACK_SCHEME`    | no            | `translator-everywhere`              |
+
+When the Apple web secrets are absent the server still boots; `/auth/apple/callback`
+degrades to an error redirect instead of failing startup.
 
 ## Develop
 
