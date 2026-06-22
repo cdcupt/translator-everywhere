@@ -58,7 +58,7 @@ func run() error {
 	srv := api.NewServer(repo, sessions, apple, google)
 
 	httpServer := &http.Server{
-		Addr:              net.JoinHostPort("127.0.0.1", cfg.Port),
+		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
 		Handler:           srv.Router(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
