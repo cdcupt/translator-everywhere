@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 
 /// Owns the menu-bar presence and routes menu actions.
 ///
@@ -10,6 +11,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Strong reference; an `NSStatusItem` is removed from the bar when released.
     private var statusItem: NSStatusItem?
+
+    /// Sparkle's standard updater. Constructed once with `startingUpdater: true`
+    /// so the daily background-check schedule (driven by the Info.plist keys
+    /// `SUEnableAutomaticChecks` / `SUScheduledCheckInterval`) starts at launch.
+    /// The appcast feed + EdDSA verification are configured via Info.plist; the
+    /// release pipeline owns the signed appcast.
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     /// The result UI (main-actor AppKit). Owned here for the app's lifetime.
     private let resultPanel = ResultPanel()
@@ -132,7 +144,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
-    private func makeMenu() -> NSMenu {
+    /// Builds the status-bar menu. Non-private so the test bundle can assert the
+    /// menu wiring (e.g. the "Check for Updates…" item) via `@testable import`.
+    func makeMenu() -> NSMenu {
         let menu = NSMenu()
 
         menu.addItem(menuItem(title: "Capture & Translate",
@@ -148,6 +162,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                               action: #selector(openPreferences),
                               key: ","))
         menu.addItem(.separator())
+        // Sparkle in-app update. We route through AppDelegate and forward to the
+        // updater so the menu item keeps AppDelegate as its target like the rest
+        // of the menu; the updater still validates availability via the forward.
+        menu.addItem(menuItem(title: "Check for Updates…",
+                              action: #selector(checkForUpdates)))
         menu.addItem(menuItem(title: "About Translator Everywhere",
                               action: #selector(showAbout)))
         menu.addItem(.separator())
@@ -186,6 +205,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openPreferences() {
         preferencesWindow.show()
+    }
+
+    @objc private func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
     }
 
     @objc private func showAbout() {
