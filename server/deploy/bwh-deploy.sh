@@ -89,8 +89,14 @@ echo "  built $IMAGE"
 # --- 5. (re)run the container on 127.0.0.1:$PORT ----------------------------
 log "Starting $CONTAINER on 127.0.0.1:$PORT"
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+# Mount the Sign-in-with-Apple .p8 key (secret) read-only if present; the app
+# reads it via APPLE_PRIVATE_KEY_FILE (set in deploy.env).
+APPLE_KEY_HOST="$ENV_DIR/apple_signin_key.p8"
+APPLE_MOUNT=()
+[ -f "$APPLE_KEY_HOST" ] && APPLE_MOUNT=(-v "$APPLE_KEY_HOST:/run/apple_key.p8:ro") && echo "  mounting Apple key → /run/apple_key.p8"
 docker run -d --name "$CONTAINER" --restart unless-stopped \
   --network "$(docker inspect "$PG_CONTAINER" -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}')" \
+  "${APPLE_MOUNT[@]}" \
   -p 127.0.0.1:$PORT:$PORT --env-file "$ENV_FILE" "$IMAGE" >/dev/null
 sleep 3
 for i in $(seq 1 10); do
