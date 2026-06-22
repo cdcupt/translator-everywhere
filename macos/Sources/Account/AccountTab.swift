@@ -8,6 +8,12 @@ import SwiftUI
 /// destructive "Delete account & cloud data" (with a confirm).
 struct AccountTab: View {
 
+    /// v1.0 ships Google-login-only as a Developer ID build (no provisioning
+    /// profile). The Sign in with Apple button is hidden behind this flag while
+    /// the `AuthClient` Apple provider code stays intact for v1.1.
+    // TODO(v1.1): re-enable once the Developer ID provisioning profile with Sign in with Apple is added
+    private let appleSignInEnabled = false
+
     @State private var model: AccountViewModel
 
     init(model: AccountViewModel) {
@@ -71,15 +77,18 @@ struct AccountTab: View {
                 .multilineTextAlignment(.center)
         }
 
-        // Apple first (Apple's HIG ordering), then Google.
+        // Apple first (Apple's HIG ordering), then Google. The Apple button is
+        // gated off for v1.0 (Google-login-only Developer ID build).
         VStack(spacing: 8) {
-            Button {
-                Task { await model.signInWithApple() }
-            } label: {
-                Label("Sign in with Apple", systemImage: "applelogo")
-                    .frame(maxWidth: .infinity)
+            if appleSignInEnabled {
+                Button {
+                    Task { await model.signInWithApple() }
+                } label: {
+                    Label("Sign in with Apple", systemImage: "applelogo")
+                        .frame(maxWidth: .infinity)
+                }
+                .controlSize(.large)
             }
-            .controlSize(.large)
 
             Button {
                 Task { await model.signInWithGoogle() }

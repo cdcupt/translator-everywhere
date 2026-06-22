@@ -7,12 +7,9 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
-	<!-- Sign in with Apple (slice 7). Only effective once the app is
-	     code-signed with this entitlement on the provisioning profile (slice 8);
-	     until then ASAuthorizationController fails at runtime — expected. -->
-	<key>com.apple.developer.applesignin</key>
-	<array>
-		<string>Default</string>
-	</array>
+	<!-- TODO(v1.1): re-enable once the Developer ID provisioning profile with
+	     Sign in with Apple is added. The com.apple.developer.applesignin
+	     entitlement requires that profile; it is removed for the v1.0
+	     Google-login-only Developer ID build so the app notarizes without one. -->
 </dict>
 </plist>
