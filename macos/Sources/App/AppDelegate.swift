@@ -28,6 +28,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var notebookWindow: NotebookWindowController? =
         notebook.map { NotebookWindowController(store: $0) }
 
+    /// Non-secret preferences (engine choice + onboarding flag).
+    private let settings = SettingsStore()
+
+    /// Screen-recording permission gate, shared with onboarding.
+    private let permission = PermissionService()
+
+    /// The Preferences window (General / Engine / Account / About).
+    private lazy var preferencesWindow = PreferencesWindowController(settings: settings)
+
+    /// First-run onboarding window; also the ungranted-hotkey destination.
+    private lazy var onboardingWindow =
+        OnboardingWindowController(settings: settings, permission: permission)
+
     /// The off-main capture state machine.
     private lazy var coordinator = CaptureCoordinator(resultPanel: resultPanel, notebook: notebook)
 
@@ -39,10 +52,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installStatusItem()
         hotkeyManager.start()
+        // The unit-test bundle hosts this app; don't pop the onboarding window
+        // (or any UI) during the test runner's launch, which has no display
+        // session and would crash the host before tests connect.
+        guard !Self.isRunningTests else { return }
+        onboardingWindow.presentIfNeeded()
     }
 
-    /// Kicks one capture→OCR→show cycle on the coordinator actor.
+    /// `true` when the process is hosting the XCTest bundle.
+    private static var isRunningTests: Bool {
+        NSClassFromString("XCTestCase") != nil
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    /// Kicks one capture→OCR→show cycle — but if Screen Recording isn't granted
+    /// yet, route to onboarding step 2 instead of capturing (DESIGN §2f). A
+    /// fresh grant only takes effect after relaunch, so we never try to capture
+    /// while ungranted.
     private func runCapture() {
+        guard permission.isGranted else {
+            onboardingWindow.present()
+            return
+        }
         Task { await coordinator.captureAndTranslate() }
     }
 
@@ -118,8 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openPreferences() {
-        // TODO(slice: prefs): present PreferencesWindow.
-        NSLog("[TE] Preferences — not implemented yet")
+        preferencesWindow.show()
     }
 
     @objc private func showAbout() {

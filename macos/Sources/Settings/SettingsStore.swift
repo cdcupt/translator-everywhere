@@ -12,13 +12,15 @@ enum EnginePreference: String, CaseIterable, Sendable {
 
 /// Non-secret preferences backed by `UserDefaults` (TECH §8.1).
 ///
-/// Slice 3 needs only `enginePreference`. Default target language,
-/// launch-at-login, and the last-sync cursor land with the full Preferences UI
-/// in slice 5. Secrets (the OpenAI key) live in `KeychainStore`, never here.
+/// Holds `enginePreference` (slice 3) and the `didOnboard` first-run flag
+/// (slice 5). Launch-at-login is *not* mirrored here — `SMAppService` is the
+/// single source of truth for that (see `LaunchAtLogin`). Secrets (the OpenAI
+/// key) live in `KeychainStore`, never here.
 final class SettingsStore {
 
     private enum Key {
         static let enginePreference = "enginePreference"
+        static let didOnboard = "didOnboard"
     }
 
     private let defaults: UserDefaults
@@ -40,5 +42,12 @@ final class SettingsStore {
         set {
             defaults.set(newValue.rawValue, forKey: Key.enginePreference)
         }
+    }
+
+    /// `true` once the user has finished (or skipped past) first-run onboarding.
+    /// Defaults to `false`, so onboarding shows on the very first launch.
+    var didOnboard: Bool {
+        get { defaults.bool(forKey: Key.didOnboard) }
+        set { defaults.set(newValue, forKey: Key.didOnboard) }
     }
 }
