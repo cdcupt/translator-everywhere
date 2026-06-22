@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beta Report — Translator Everywhere v1.0.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --paper:#F7F4EE; --ink:#1B201D; --ink-soft:#5f655f; --rule:#e4ded2; --card:#FFFFFF;
+    --accent:#C8643C; --coord:#6D5B8A; --pine:#1F6F5C; --blue:#2D6CA8; --gate:#B23A3A; --gold:#B8841F;
+    --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'Inter',system-ui,sans-serif; --serif:'Fraunces',Georgia,serif; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--sans); line-height:1.6; font-size:16px; }
+  .wrap { max-width:900px; margin:0 auto; padding:0 22px 80px; overflow-x:clip; }
+  header { padding:44px 0 22px; border-bottom:2.5px solid var(--ink); }
+  .kicker { font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
+  h1 { font-family:var(--serif); font-size:clamp(2rem,5.5vw,3.2rem); line-height:1.04; font-weight:600; margin:8px 0 8px; }
+  h1 em { font-style:italic; color:var(--coord); }
+  .lede { color:var(--ink-soft); font-size:16px; max-width:680px; }
+  .verdict { display:inline-flex; gap:8px; align-items:center; margin-top:14px; font-family:var(--mono); font-size:13px; background:#f3fbf7; border:2px solid var(--pine); color:var(--pine); border-radius:999px; padding:6px 16px; font-weight:600; }
+  h2 { font-family:var(--serif); font-size:clamp(1.4rem,3.4vw,2rem); font-weight:600; margin:40px 0 8px; }
+  h2 .n { color:var(--accent); font-style:italic; margin-right:10px; }
+  p { margin:9px 0; } ul { margin:8px 0 8px 20px; } li { margin:5px 0; }
+  strong { color:var(--ink); }
+  code { font-family:var(--mono); font-size:.84em; background:#efe9dc; padding:1px 5px; border-radius:4px; overflow-wrap:anywhere; }
+  .fig { background:var(--card); border:1.5px solid var(--rule); border-radius:14px; padding:16px; margin:14px 0; overflow-x:auto; }
+  .fig svg { display:block; max-width:100%; height:auto; }
+  .cap { font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); margin-top:8px; text-align:center; }
+  .glance { border:2px solid var(--ink); }
+  .tablewrap { overflow-x:auto; border:1.5px solid var(--rule); border-radius:12px; margin:12px 0; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; min-width:560px; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  th { background:#efe9dc; font-family:var(--mono); font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); }
+  tr:last-child td { border-bottom:none; }
+  .tag { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.05em; padding:2px 7px; border-radius:5px; color:#fff; white-space:nowrap; }
+  .t-fixed{background:var(--pine)} .t-defer{background:var(--gold)} .t-known{background:var(--blue)} .t-high{background:var(--gate)} .t-med{background:var(--gold)} .t-low{background:var(--ink-soft)}
+  .twocol { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+  .col { background:var(--card); border:1.5px solid var(--rule); border-radius:12px; padding:14px 16px; border-left-width:5px; }
+  .col.a { border-left-color:var(--pine); } .col.b { border-left-color:var(--blue); }
+  .col h4 { font-family:var(--serif); font-size:1.08rem; margin-bottom:4px; }
+  .human { background:#fff8ef; border:2px solid var(--gold); border-radius:14px; padding:16px 20px; margin:16px 0; }
+  .human h3 { color:var(--gold); margin-bottom:6px; }
+  .human ol { margin-left:20px; } .human li { margin:7px 0; }
+  footer { margin-top:40px; padding-top:16px; border-top:2.5px solid var(--ink); font-size:13px; color:var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Beta Report · sdd_pipeline · Gate 3 surface</div>
+  <h1>Translator Everywhere <em>v1.0.0</em> — beta pass</h1>
+  <p class="lede">Two independent beta-testers exercised the running app and the live backend. Both returned <strong>ship</strong>. Real defects found were fixed; lower-severity items are triaged to v1.1. The interactive flows that can't be driven headlessly are listed for your hands-on check.</p>
+  <div class="verdict">✓ Tester A: SHIP &nbsp;·&nbsp; ✓ Tester B: SHIP</div>
+</header>
+
+<h2><span class="n">★</span>At a glance</h2>
+<div class="fig glance">
+<svg viewBox="0 0 880 300" role="img" aria-label="Beta pass at a glance: both ship, findings triaged">
+  <style>.l{font-family:'IBM Plex Mono',monospace;font-size:12px;fill:#1B201D}.s{font-family:'IBM Plex Mono',monospace;font-size:10px;fill:#5f655f}.h{font-family:Fraunces,serif;font-size:14px;fill:#1B201D;font-weight:600}</style>
+  <rect x="0" y="0" width="880" height="40" fill="#1F6F5C"/>
+  <text x="20" y="26" style="font-family:Fraunces,serif;font-size:16px;fill:#fff;font-weight:600">Both beta-testers: SHIP · app launches clean · backend to-contract · code review strong</text>
+  <!-- two testers -->
+  <rect x="20" y="60" width="410" height="92" rx="11" fill="#f3fbf7" stroke="#1F6F5C" stroke-width="1.5"/>
+  <text x="36" y="84" class="h" fill="#1F6F5C">Tester A — new-user / visual</text>
+  <text x="36" y="106" class="s">First-run onboarding shows + no crash; menu-bar 译 item;</text>
+  <text x="36" y="122" class="s">app feels finished. 1 cosmetic nit. Pixel-polish + the</text>
+  <text x="36" y="138" class="s">interactive flows need a human GUI pass.</text>
+  <rect x="450" y="60" width="410" height="92" rx="11" fill="#eef4fb" stroke="#2D6CA8" stroke-width="1.5"/>
+  <text x="466" y="84" class="h" fill="#2D6CA8">Tester B — backend / robustness</text>
+  <text x="466" y="106" class="s">Every endpoint to contract (healthz/auth/vocab); Apple</text>
+  <text x="466" y="122" class="s">authorize URL valid; JWKS+JWT+Keychain+LWW+tombstones</text>
+  <text x="466" y="138" class="s">solid. 1 medium data-loss window (fixed), rest v1.1.</text>
+  <!-- triage -->
+  <text x="20" y="186" class="h">Findings triage</text>
+  <rect x="20" y="198" width="270" height="86" rx="10" fill="#fff" stroke="#1F6F5C" stroke-width="1.5"/>
+  <text x="34" y="220" class="l" fill="#1F6F5C">✓ Fixed before Gate 3</text>
+  <text x="34" y="240" class="s">• clearDirty data-loss (PR #19)</text>
+  <text x="34" y="256" class="s">• onboarding title (PR #19)</text>
+  <text x="34" y="272" class="s">• stale docs (CONFIG/README)</text>
+  <rect x="305" y="198" width="270" height="86" rx="10" fill="#fff" stroke="#B8841F" stroke-width="1.5"/>
+  <text x="319" y="220" class="l" fill="#B8841F">→ Deferred to v1.1</text>
+  <text x="319" y="240" class="s">• refresh-token rotation</text>
+  <text x="319" y="256" class="s">• rate-limit / body-size cap</text>
+  <text x="319" y="272" class="s">• LWW equal-timestamp tiebreak</text>
+  <rect x="590" y="198" width="270" height="86" rx="10" fill="#fff" stroke="#2D6CA8" stroke-width="1.5"/>
+  <text x="604" y="220" class="l" fill="#2D6CA8">◷ Known / in flight</text>
+  <text x="604" y="240" class="s">• notarization pending Apple</text>
+  <text x="604" y="256" class="s">  (backlog; auto-staple on clear;</text>
+  <text x="604" y="272" class="s">  release has the signed build)</text>
+</svg>
+<div class="cap">Fig 1 — Both testers ship; the one real defect (a notebook lost-update window) is fixed; the rest is triaged.</div>
+</div>
+
+<h2><span class="n">1</span>What each tester found</h2>
+<div class="twocol">
+  <div class="col a"><h4>Tester A — new-user / first-run / visual</h4>
+    <p>Built + launched the real app. <strong>First-run onboarding shows and does not crash</strong> (the earlier launch crash is fixed); the menu-bar 译 status item appears; the app feels finished. One cosmetic nit (window title). Could not do pixel-level visual checks or the interactive flows (screen-recording grant, region drag, real sign-in) — those need a human on a GUI session. <strong>Verdict: ship.</strong></p>
+  </div>
+  <div class="col b"><h4>Tester B — backend / robustness / data</h4>
+    <p>Every backend probe matched the contract: <code>/healthz</code>→200, bad Google token→401, Apple callback no-code→400 / bad-code→302 error, unauth <code>/vocab</code>→401. The <strong>Apple authorize URL is valid at Apple</strong> (Services ID + redirect correctly provisioned). Code review strong: RS256+aud+iss+exp+kid JWKS rotation, HS256 session (no alg-confusion), secrets only in Keychain, CSRF state, consistent client/server last-write-wins + tombstones + <code>client_uuid</code> uniqueness. <strong>Verdict: ship.</strong></p>
+  </div>
+</div>
+
+<h2><span class="n">2</span>Findings &amp; disposition</h2>
+<div class="tablewrap"><table>
+  <tr><th>Sev</th><th>Finding</th><th>Disposition</th></tr>
+  <tr><td><span class="tag t-high">high</span></td><td>Released DMG not yet notarized → Gatekeeper warns on first open (right-click→Open)</td><td><span class="tag t-known">known / in flight</span> Apple notarization backlogged; auto-staple + asset-swap on clear. Disclosed in release notes.</td></tr>
+  <tr><td><span class="tag t-med">med</span></td><td><strong>clearDirty lost-update:</strong> a notebook edit during an in-flight push was de-queued (data loss)</td><td><span class="tag t-fixed">fixed</span> compare-and-clear (only clear <code>isDirty</code> if <code>updatedAt</code> unchanged) + regression test — <strong>PR #19</strong></td></tr>
+  <tr><td><span class="tag t-low">low</span></td><td>Onboarding window title stuck on "Welcome" across steps</td><td><span class="tag t-fixed">fixed</span> per-step title — <strong>PR #19</strong></td></tr>
+  <tr><td><span class="tag t-low">low</span></td><td>Stale docs (CONFIG.md "native Apple flow"; macOS README "scaffold only")</td><td><span class="tag t-fixed">fixed</span> corrected to the shipped web-OAuth flow + v1.0.0 status</td></tr>
+  <tr><td><span class="tag t-low">low</span></td><td>Refresh token not rotated on use (60-day reusable; hashed at rest, revocable)</td><td><span class="tag t-defer">v1.1</span> rotate-on-refresh + reuse detection</td></tr>
+  <tr><td><span class="tag t-low">low</span></td><td>No request body-size cap / rate-limit / timeout (behind Caddy; bounded by MaxBatch + field caps)</td><td><span class="tag t-defer">v1.1</span> add <code>MaxBytesReader</code> + basic rate limiting before wider exposure</td></tr>
+  <tr><td><span class="tag t-low">low</span></td><td>LWW uses strict <code>&gt;</code> — same-millisecond edits on two Macs can diverge (inherent LWW)</td><td><span class="tag t-defer">v1.1</span> add a deterministic tiebreak; vanishingly rare</td></tr>
+</table></div>
+
+<div class="human">
+  <h3>⚑ Your hands-on check at Gate 3 (what headless testing can't cover)</h3>
+  <p>Download the app and verify these interactive flows on your Mac:</p>
+  <ol>
+    <li><strong>Capture → translate:</strong> press <code>⌃⌥Y</code>, drag a box over on-screen text → confirm OCR + translation + the result popup + clipboard + that it auto-saved to the Notebook.</li>
+    <li><strong>Screen-Recording permission:</strong> first capture triggers the macOS prompt → grant → Quit &amp; Reopen → confirm capture then works.</li>
+    <li><strong>Google sign-in:</strong> Preferences → Account → Sign in with Google → confirm the browser flow returns and the notebook syncs.</li>
+    <li><strong>Apple sign-in:</strong> same via Sign in with Apple (the new web flow) → confirm it completes.</li>
+    <li><strong>Cross-Mac sync</strong> (if you have a second Mac): sign in on both, add/edit/delete → confirm convergence + tombstones.</li>
+    <li><strong>Visual polish:</strong> spacing, contrast, light/dark, the 译 menu-bar glyph at Retina.</li>
+  </ol>
+</div>
+
+<h2><span class="n">3</span>State at Gate 3</h2>
+<ul>
+  <li><strong>Code:</strong> app + backend complete; <strong>95 app tests + backend suite green</strong>; the launch-crash and the data-loss window are fixed and re-verified (app launches clean).</li>
+  <li><strong>Backend:</strong> live at <code>api.translator.daichenlab.com</code>, all endpoints to-contract, both auth providers provisioned.</li>
+  <li><strong>Release:</strong> <a href="https://github.com/cdcupt/translator-everywhere/releases/tag/v1.0.0">v1.0.0</a> — signed Developer-ID <code>.dmg</code> (launches clean; right-click→Open until the notarized asset lands).</li>
+  <li><strong>Notarization:</strong> pending Apple's backlog; will auto-staple + replace the asset (no further work needed).</li>
+</ul>
+
+<footer>Beta Report · Translator Everywhere v1.0.0 · sdd_pipeline · two independent testers, both SHIP · real defects fixed (PR #19), low-severity triaged to v1.1 · awaiting PM Gate-3 sign-off.</footer>
+
+</div>
+</body>
+</html>
