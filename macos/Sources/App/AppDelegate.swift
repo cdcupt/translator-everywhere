@@ -10,8 +10,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Strong reference; an `NSStatusItem` is removed from the bar when released.
     private var statusItem: NSStatusItem?
 
+    /// The result UI (main-actor AppKit). Owned here for the app's lifetime.
+    private let resultPanel = ResultPanel()
+
+    /// The off-main capture state machine.
+    private lazy var coordinator = CaptureCoordinator(resultPanel: resultPanel)
+
+    /// The global hotkey owner. Fires the same path as the menu item.
+    private lazy var hotkeyManager = HotkeyManager { [weak self] in
+        self?.runCapture()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         installStatusItem()
+        hotkeyManager.start()
+    }
+
+    /// Kicks one capture→OCR→show cycle on the coordinator actor.
+    private func runCapture() {
+        Task { await coordinator.captureAndTranslate() }
     }
 
     // MARK: - Status item
@@ -72,8 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Menu actions (slice-1 stubs)
 
     @objc private func captureAndTranslate() {
-        // TODO(slice: capture): hand off to CaptureCoordinator (TECH §8.2).
-        NSLog("[TE] Capture & Translate — not implemented yet")
+        runCapture()
     }
 
     @objc private func openNotebook() {
