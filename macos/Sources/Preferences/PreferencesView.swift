@@ -8,6 +8,7 @@ struct PreferencesView: View {
     let settings: SettingsStore
     let keychain: KeychainStore
     let launchAtLogin: LaunchAtLogin
+    let accountModel: AccountViewModel
 
     var body: some View {
         TabView {
@@ -17,7 +18,7 @@ struct PreferencesView: View {
             EngineTab(settings: settings, keychain: keychain)
                 .tabItem { Label("Engine", systemImage: "globe") }
 
-            AccountTab()
+            AccountTab(model: accountModel)
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
 
             AboutTab()
@@ -83,30 +84,3 @@ private struct GeneralTab: View {
     }
 }
 
-// MARK: - Account (stub — slice 7)
-
-/// Sign-in stub. Filled in by slice 7; disabled for now (DESIGN §2e).
-private struct AccountTab: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "person.crop.circle.badge.clock")
-                .font(.system(size: 44))
-                .foregroundStyle(.secondary)
-            Text("Sign in — coming soon")
-                .font(.headline)
-            Text("Sign in with Apple or Google to sync your notebook across "
-                 + "devices. We only ever store text vocabulary rows — never your "
-                 + "screen images.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            HStack {
-                Button("Sign in with Apple") {}
-                Button("Sign in with Google") {}
-            }
-            .disabled(true)
-        }
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity)
-    }
-}

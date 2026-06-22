@@ -21,6 +21,7 @@ final class SettingsStore {
     private enum Key {
         static let enginePreference = "enginePreference"
         static let didOnboard = "didOnboard"
+        static let lastSyncedAt = "sync.lastSyncedAt"
     }
 
     private let defaults: UserDefaults
@@ -49,5 +50,23 @@ final class SettingsStore {
     var didOnboard: Bool {
         get { defaults.bool(forKey: Key.didOnboard) }
         set { defaults.set(newValue, forKey: Key.didOnboard) }
+    }
+
+    /// The sync cursor — the server clock (`server_time`) from the last
+    /// successful pull, sent as `?since=` next time so sync is incremental
+    /// (TECH §8.5). `nil` until the first sync; a sign-in resets it to `nil` so
+    /// the first pull is a full `since=0`.
+    var lastSyncedAt: Date? {
+        get {
+            let raw = defaults.double(forKey: Key.lastSyncedAt)
+            return raw > 0 ? Date(timeIntervalSince1970: raw) : nil
+        }
+        set {
+            if let newValue {
+                defaults.set(newValue.timeIntervalSince1970, forKey: Key.lastSyncedAt)
+            } else {
+                defaults.removeObject(forKey: Key.lastSyncedAt)
+            }
+        }
     }
 }

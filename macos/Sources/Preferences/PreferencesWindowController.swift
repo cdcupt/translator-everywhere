@@ -13,16 +13,19 @@ final class PreferencesWindowController {
     private let settings: SettingsStore
     private let keychain: KeychainStore
     private let launchAtLogin: LaunchAtLogin
+    private let accountModel: AccountViewModel
     private var window: NSWindow?
 
     init(
         settings: SettingsStore = SettingsStore(),
         keychain: KeychainStore = KeychainStore(),
-        launchAtLogin: LaunchAtLogin = LaunchAtLogin()
+        launchAtLogin: LaunchAtLogin = LaunchAtLogin(),
+        accountModel: AccountViewModel
     ) {
         self.settings = settings
         self.keychain = keychain
         self.launchAtLogin = launchAtLogin
+        self.accountModel = accountModel
     }
 
     /// Brings the Preferences window forward, creating it on first use.
@@ -36,7 +39,8 @@ final class PreferencesWindowController {
         let root = PreferencesView(
             settings: settings,
             keychain: keychain,
-            launchAtLogin: launchAtLogin
+            launchAtLogin: launchAtLogin,
+            accountModel: accountModel
         )
         let hosting = NSHostingController(rootView: root)
         let window = NSWindow(contentViewController: hosting)

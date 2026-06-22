@@ -13,9 +13,15 @@ final class MockURLProtocol: URLProtocol {
     /// Captures the last request seen, for payload/URL assertions.
     nonisolated(unsafe) static var lastRequest: URLRequest?
 
+    /// Captures the last request *body*. `URLProtocol` strips `httpBody` for
+    /// streamed uploads, so we drain `httpBodyStream` here — the only reliable
+    /// way to assert push / sign-in body shapes in tests.
+    nonisolated(unsafe) static var lastBody: Data?
+
     static func reset() {
         handler = nil
         lastRequest = nil
+        lastBody = nil
     }
 
     /// Builds a `URLSession` wired to this protocol.
@@ -31,6 +37,7 @@ final class MockURLProtocol: URLProtocol {
 
     override func startLoading() {
         MockURLProtocol.lastRequest = request
+        MockURLProtocol.lastBody = Self.bodyData(from: request)
 
         guard let handler = MockURLProtocol.handler else {
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
@@ -48,6 +55,24 @@ final class MockURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
+
+    /// Reads the outgoing body, preferring the inline `httpBody` and falling back
+    /// to draining `httpBodyStream` (what `URLSession` actually sends).
+    private static func bodyData(from request: URLRequest) -> Data? {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        let bufferSize = 4096
+        var buffer = [UInt8](repeating: 0, count: bufferSize)
+        while stream.hasBytesAvailable {
+            let read = stream.read(&buffer, maxLength: bufferSize)
+            if read <= 0 { break }
+            data.append(buffer, count: read)
+        }
+        return data
+    }
 }
 
 /// Helpers for building canned responses in tests.

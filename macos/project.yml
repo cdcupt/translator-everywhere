@@ -38,6 +38,9 @@ targets:
         INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
         CODE_SIGNING_ALLOWED: NO
+        # Sign in with Apple entitlement (slice 7). Honored at runtime only once
+        # the app is code-signed (slice 8); compiles & links now regardless.
+        CODE_SIGN_ENTITLEMENTS: "Translator Everywhere.entitlements"
 
   TranslatorEverywhereTests:
     type: bundle.unit-test
