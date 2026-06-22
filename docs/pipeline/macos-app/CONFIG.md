@@ -24,3 +24,9 @@
 ## Pending (slice 8 — signing/notarization only)
 - Developer ID Application certificate (in login keychain).
 - App-specific password for `notarytool` → store in `~/.translator-everywhere/deploy.env`.
+
+## Backend deploy (slice 6b) — PREPARED, not yet run
+- DB `translator_everywhere` + role `te_app` on shared `9relay-postgres`; container `translator-everywhere-server` on `127.0.0.1:8110`; Caddy snippet `caddy-snippets/translator.caddy` → `api.translator.daichenlab.com`.
+- Secrets (DB pass, JWT_SECRET) generated on the box into `~/.translator-everywhere/deploy.env` — never in repo.
+- One-shot idempotent deployer: `server/deploy/bwh-deploy.sh` (run on BWH; validates Caddy before restart, smoke-tests all domains, auto-rolls-back on failure).
+- BLOCKED: SSH from the current dev Mac drops on non-trivial commands (proxy/network quirk), so the deploy was NOT run — too risky to do half a deploy on the shared prod box. Run the script via a reliable path (KiwiVM web console, or a machine with clean SSH).
