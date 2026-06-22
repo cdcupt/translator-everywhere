@@ -20,12 +20,38 @@ struct NotebookSyncBridgeTests {
         #expect(dirty.contains { $0.clientUUID == item.clientUUID })
     }
 
-    @Test("clearDirty drains the queue for the given UUIDs")
+    @Test("clearDirty drains the queue for unchanged pushed rows")
     func clearDirtyDrains() throws {
         let store = try makeStore()
         let item = try store.add(source: "hi", translation: "嗨", engine: .free)
-        try store.clearDirty([item.clientUUID])
+        // Push snapshot == live updatedAt → row is unchanged → de-queue it.
+        try store.clearDirty([item.clientUUID: item.updatedAt])
         #expect(try store.dirtyRows().isEmpty)
+    }
+
+    @Test("clearDirty keeps a row edited DURING the in-flight push (no lost update)")
+    func clearDirtyKeepsMidFlightEdit() throws {
+        let store = try makeStore()
+        let item = try store.add(source: "hi", translation: "嗨", engine: .free)
+
+        // 1. Sync snapshots the dirty row and pushes it (capture that updatedAt).
+        let pushedUpdatedAt = item.updatedAt
+
+        // 2. The user edits the SAME row while the push is in flight: this bumps
+        //    updatedAt and re-marks it dirty (mirrors a real edit/softDelete).
+        item.translation = "嗨嗨"
+        item.updatedAt = pushedUpdatedAt.addingTimeInterval(5)
+        item.isDirty = true
+        try store.context.save()
+
+        // 3. The push completes and clears dirty using the SNAPSHOT value. The
+        //    newer edit must survive: the row stays dirty so it re-pushes next
+        //    cycle. (On the old unconditional clear this row was wrongly drained
+        //    → the edit was lost from the queue.)
+        try store.clearDirty([item.clientUUID: pushedUpdatedAt])
+
+        let stillQueued = try store.dirtyRows().contains { $0.clientUUID == item.clientUUID }
+        #expect(stillQueued)
     }
 
     @Test("mergePulled inserts a brand-new cloud row (not dirty)")
