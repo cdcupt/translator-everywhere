@@ -15,6 +15,10 @@ const (
 	DefaultAppleIss  = "https://appleid.apple.com"
 	DefaultGoogleAud = "328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem.apps.googleusercontent.com"
 	DefaultPort      = "8110"
+	// DefaultBindAddr binds all interfaces inside the container. This is NOT a
+	// public exposure: the container is published only on the host's
+	// 127.0.0.1:8110, so 0.0.0.0 here is reachable solely from the host loopback.
+	DefaultBindAddr = "0.0.0.0"
 )
 
 // GoogleIssuers are the two issuer strings Google's id_tokens use.
@@ -28,6 +32,7 @@ type Config struct {
 	AppleIss    string
 	GoogleAud   string
 	Port        string
+	BindAddr    string
 }
 
 // Load reads configuration from the environment. DATABASE_URL and JWT_SECRET
@@ -40,6 +45,7 @@ func Load() (Config, error) {
 		AppleIss:    envOr("APPLE_ISS", DefaultAppleIss),
 		GoogleAud:   envOr("GOOGLE_AUD", DefaultGoogleAud),
 		Port:        envOr("PORT", DefaultPort),
+		BindAddr:    envOr("BIND_ADDR", DefaultBindAddr),
 	}
 	if c.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")

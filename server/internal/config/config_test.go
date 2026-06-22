@@ -23,6 +23,37 @@ func TestLoadDefaultsAuds(t *testing.T) {
 	if cfg.Port != DefaultPort {
 		t.Errorf("Port = %q, want default %q", cfg.Port, DefaultPort)
 	}
+	if cfg.BindAddr != DefaultBindAddr {
+		t.Errorf("BindAddr = %q, want default %q", cfg.BindAddr, DefaultBindAddr)
+	}
+}
+
+func TestLoadBindAddrDefault(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("JWT_SECRET", "secret")
+	t.Setenv("BIND_ADDR", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.BindAddr != "0.0.0.0" {
+		t.Errorf("BindAddr = %q, want %q", cfg.BindAddr, "0.0.0.0")
+	}
+}
+
+func TestLoadBindAddrOverride(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("JWT_SECRET", "secret")
+	t.Setenv("BIND_ADDR", "127.0.0.1")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.BindAddr != "127.0.0.1" {
+		t.Errorf("BindAddr override not applied: %q", cfg.BindAddr)
+	}
 }
 
 func TestLoadOverrideAud(t *testing.T) {
