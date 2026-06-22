@@ -62,6 +62,11 @@ schemes:
         Translator Everywhere: all
         TranslatorEverywhereTests: [test]
     test:
+      # SwiftData in-memory ModelContainers collide if several exist at once in
+      # one process (a new container resets a sibling's context, invalidating its
+      # @Model instances). Run the test bundle single-threaded so each store's
+      # container is the only one alive at a time.
+      parallelizable: false
       targets:
         - TranslatorEverywhereTests
     run:

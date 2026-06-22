@@ -23,11 +23,11 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     /// is the dim recognized text, `badge` labels the engine, and `copied`
     /// reveals the "Copied ✓" affordance. Must be called on the main actor.
     @MainActor
-    func showResult(translation: String, source: String, badge: String, copied: Bool) {
+    func showResult(translation: String, source: String, badge: String, copied: Bool, saved: Bool = false) {
         let panel = panel ?? makePanel()
         self.panel = panel
         panel.contentView = makeResultContent(
-            translation: translation, source: source, badge: badge, copied: copied
+            translation: translation, source: source, badge: badge, copied: copied, saved: saved
         )
         present(panel)
     }
@@ -86,7 +86,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     /// source underneath.
     @MainActor
     private func makeResultContent(
-        translation: String, source: String, badge: String, copied: Bool
+        translation: String, source: String, badge: String, copied: Bool, saved: Bool
     ) -> NSView {
         let header = NSStackView(views: [badgeView(badge)])
         header.orientation = .horizontal
@@ -94,6 +94,9 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         header.spacing = 8
         if copied {
             header.addArrangedSubview(copiedLabel())
+        }
+        if saved {
+            header.addArrangedSubview(savedLabel())
         }
         header.addArrangedSubview(spacer())
 
@@ -155,6 +158,17 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         let label = NSTextField(labelWithString: "Copied ✓")
         label.font = .systemFont(ofSize: 11, weight: .medium)
         label.textColor = .systemGreen
+        return label
+    }
+
+    @MainActor
+    private func savedLabel() -> NSView {
+        // "★ Saved to Notebook" — the quiet rev-2 auto-save affordance (DESIGN
+        // §2b), shown beside "Copied ✓" without competing with the translation.
+        let label = NSTextField(labelWithString: "★ Saved")
+        label.font = .systemFont(ofSize: 11, weight: .medium)
+        label.textColor = .systemPurple
+        label.toolTip = "Saved to Notebook"
         return label
     }
 

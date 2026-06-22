@@ -22,6 +22,17 @@ struct OpenAIEngine: TranslationEngine {
     Output ONLY the translation, nothing else.
     """
 
+    /// Study-list system prompt for `summarize`. Asks for theme grouping and a
+    /// short example sentence per item — the richer output DESIGN §2c promises
+    /// for the AI engine.
+    static let summarizeSystemPrompt = """
+    You are a language study coach. You are given a list of vocabulary captures, \
+    each "source => translation". Produce a concise, well-structured Markdown \
+    study list: group the items by theme with a short heading per group, and for \
+    each item add one natural example sentence using it. Keep it tight and \
+    practical. Output ONLY the Markdown study list, no preamble.
+    """
+
     static let maxAttempts = 3
     static let retryDelay: Duration = .seconds(1)
 
@@ -51,11 +62,31 @@ struct OpenAIEngine: TranslationEngine {
         return try Self.parse(data)
     }
 
+    /// Produces a real study-list summary: groups the captures by theme and adds
+    /// an example sentence per item via the chat model (DESIGN §2c). Reuses the
+    /// translate transport (same key, retries, parsing).
+    func summarize(_ items: [VocabItem]) async throws -> String {
+        guard !items.isEmpty else { throw TranslationError.emptyInput }
+        let user = StudyListFormatter.promptLines(items)
+        let request = try makeChatRequest(
+            system: Self.summarizeSystemPrompt,
+            user: user,
+            temperature: 0.4
+        )
+        let data = try await fetchWithRetry(request)
+        return try Self.parse(data)
+    }
+
     // MARK: - Request
 
-    /// Builds the POST request with the chat-completions payload. Internal so
-    /// tests can assert the body + headers.
+    /// Builds the translate POST request with the translator system prompt.
+    /// Internal so tests can assert the body + headers.
     func makeRequest(text: String) throws -> URLRequest {
+        try makeChatRequest(system: Self.systemPrompt, user: text, temperature: 0.2)
+    }
+
+    /// Shared chat-completions request builder for translate + summarize.
+    func makeChatRequest(system: String, user: String, temperature: Double) throws -> URLRequest {
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
             throw TranslationError.invalidRequest
         }
@@ -66,10 +97,10 @@ struct OpenAIEngine: TranslationEngine {
 
         let payload = ChatRequest(
             model: model,
-            temperature: 0.2,
+            temperature: temperature,
             messages: [
-                .init(role: "system", content: Self.systemPrompt),
-                .init(role: "user", content: text),
+                .init(role: "system", content: system),
+                .init(role: "user", content: user),
             ]
         )
         request.httpBody = try JSONEncoder().encode(payload)
@@ -83,6 +114,7 @@ struct OpenAIEngine: TranslationEngine {
                 let (data, _) = try await session.data(for: request)
                 return data
             } catch {
+                try Task.checkCancellation() // don't retry a cancelled task
                 lastError = error
                 if attempt < Self.maxAttempts {
                     try? await Task.sleep(for: retryDelay)

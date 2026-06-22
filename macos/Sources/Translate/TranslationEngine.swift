@@ -27,6 +27,12 @@ protocol TranslationEngine: Sendable {
     /// Translates `text`, auto-detecting the target language. Throws on a real
     /// failure (network, API error) so the caller can show an error state.
     func translate(_ text: String) async throws -> String
+
+    /// Produces a study-list summary of notebook `items`, client-side (PRD §5 —
+    /// no server AI). The AI engine groups by theme with example sentences; the
+    /// free engine, which can't summarize, returns a cleanly formatted list of
+    /// the items ("free is simpler"). Throws on a real engine failure.
+    func summarize(_ items: [VocabItem]) async throws -> String
 }
 
 /// Auto target-language detection, mirroring the `te` script's `is_chinese`:
