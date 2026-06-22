@@ -7,7 +7,8 @@ elsewhere and is strictly optional.
 
 **Status: v1.0.0 — feature-complete.** Hotkey → drag a screen region → on-device
 Vision OCR → translate (Google free / OpenAI) → result popup + clipboard →
-auto-save to a searchable vocabulary notebook (export / summarize). Preferences
+opt-in "Save to Notebook" (⌘S) to a searchable vocabulary notebook (export /
+summarize). Preferences
 (in-app hotkey recorder, engine, account) + first-run onboarding. Optional
 Google / Apple (web OAuth) sign-in syncs the notebook across Macs via the backend.
 Distributed as a signed (+ notarized) `.dmg` via GitHub Releases.
