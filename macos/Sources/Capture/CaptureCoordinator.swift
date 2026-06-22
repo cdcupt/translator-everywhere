@@ -13,16 +13,19 @@ actor CaptureCoordinator {
     private let capturer: RegionCapturer
     private let ocr: OCRService
     private let resultPanel: ResultPanel
+    private let resolver: EngineResolver
 
     init(
         permission: PermissionService = PermissionService(),
         capturer: RegionCapturer = RegionCapturer(),
         ocr: OCRService = OCRService(),
+        resolver: EngineResolver = EngineResolver(),
         resultPanel: ResultPanel
     ) {
         self.permission = permission
         self.capturer = capturer
         self.ocr = ocr
+        self.resolver = resolver
         self.resultPanel = resultPanel
     }
 
@@ -67,13 +70,55 @@ actor CaptureCoordinator {
             return
         }
 
-        // SLICE 3 HAND-OFF: `trimmed` is the source text. Next slice routes it
-        // through `Translator` (active engine) and auto-saves to `NotebookStore`
-        // *after* the panel is up. For now the panel shows the recognized text.
-        await present(title: "Recognized text", body: trimmed)
+        // 4. Translate via the resolved engine (OpenAI only when preferred AND a
+        //    key exists, else free Google). Direct to the provider, never our
+        //    server.
+        let engine = resolver.resolve()
+        let translation: String
+        do {
+            translation = try await engine.translate(trimmed)
+        } catch {
+            await presentError(title: "Translation failed", message: error.localizedDescription)
+            return
+        }
+
+        // 5. Copy the translation to the clipboard, then show the result panel
+        //    with the "Copied ✓" affordance.
+        let copied = await copyToPasteboard(translation)
+
+        // SLICE 4 HAND-OFF: `trimmed` (source) + `translation` + `engine.kind`
+        // are the vocabulary entry. The notebook slice auto-saves them to
+        // `NotebookStore` here — *after* the panel is up — and later enriches
+        // with `summarize`. Slice 3 stops at the on-screen result + clipboard.
+        await presentResult(translation: translation,
+                            source: trimmed,
+                            badge: engine.kind.badge,
+                            copied: copied)
     }
 
     // MARK: - UI hops (main actor)
+
+    /// Writes `text` to the general pasteboard. Returns whether the write
+    /// succeeded so the panel only claims "Copied ✓" when it really did.
+    @MainActor
+    private func copyToPasteboard(_ text: String) -> Bool {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string)
+    }
+
+    @MainActor
+    private func presentResult(translation: String, source: String, badge: String, copied: Bool) {
+        // LSUIElement agents launch unfocused — grab focus before showing.
+        NSApp.activate(ignoringOtherApps: true)
+        resultPanel.showResult(translation: translation, source: source, badge: badge, copied: copied)
+    }
+
+    @MainActor
+    private func presentError(title: String, message: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        resultPanel.showError(title: title, message: message)
+    }
 
     @MainActor
     private func present(title: String, body: String) {
