@@ -2,14 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- App Sandbox: required for App Store; outgoing network for the sync API. -->
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
-	<key>com.apple.security.network.client</key>
-	<true/>
-	<!-- Sign in with Apple (slice 7). Only effective once the app is
-	     code-signed with this entitlement on the provisioning profile (slice 8);
-	     until then ASAuthorizationController fails at runtime — expected. -->
+	<!-- Developer ID, no sandbox; Sign in with Apple needs the provisioning
+	     profile + App ID capability. The App Sandbox is intentionally OFF: the app
+	     shells out to /usr/sbin/screencapture and uses a Carbon global hotkey, both
+	     of which the sandbox blocks. Without the sandbox network works freely, so
+	     the (sandbox-only) network.client entitlement is unnecessary. -->
 	<key>com.apple.developer.applesignin</key>
 	<array>
 		<string>Default</string>
