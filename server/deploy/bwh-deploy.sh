@@ -65,7 +65,9 @@ DB_PASS_EFF=$(sed -n 's#^DATABASE_URL=postgres://[^:]*:\([^@]*\)@.*#\1#p' "$ENV_
 
 # --- 3. own DB + role on the shared Postgres (idempotent) -------------------
 log "Ensuring database '$DB' and role '$ROLE' on $PG_CONTAINER"
-docker exec -i "$PG_CONTAINER" psql -U postgres -v ON_ERROR_STOP=1 <<SQL
+PG_SUPER=$(docker exec "$PG_CONTAINER" printenv POSTGRES_USER 2>/dev/null || echo postgres)
+echo "  using superuser: $PG_SUPER"
+docker exec -i "$PG_CONTAINER" psql -U "$PG_SUPER" -v ON_ERROR_STOP=1 <<SQL
 DO \$\$ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='$ROLE') THEN
     CREATE ROLE $ROLE LOGIN PASSWORD '$DB_PASS_EFF';
