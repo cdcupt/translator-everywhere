@@ -6,3 +6,10 @@
 /macos/.build/
 /macos/DerivedData/
 .DS_Store
+
+# Backend (/server): never commit real envs or build output. Only .env.example.
+/server/.env
+/server/.env.*
+!/server/.env.example
+/server/server
+/server/bin/
