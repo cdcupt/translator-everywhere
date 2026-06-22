@@ -8,10 +8,20 @@ options:
 
 settings:
   base:
-    # Signing comes in a later slice; off for headless scaffold builds.
-    CODE_SIGNING_ALLOWED: NO
-    CODE_SIGN_IDENTITY: ""
     SWIFT_VERSION: "5.0"
+  configs:
+    # Debug stays unsigned so headless `swift test` / CI builds keep working
+    # (CODE_SIGNING_ALLOWED=NO, no identity required).
+    Debug:
+      CODE_SIGNING_ALLOWED: NO
+      CODE_SIGN_IDENTITY: ""
+    # Release is signed with the Developer ID for notarization + distribution.
+    Release:
+      CODE_SIGNING_ALLOWED: YES
+      DEVELOPMENT_TEAM: NK3U2C365Z
+      CODE_SIGN_STYLE: Manual
+      CODE_SIGN_IDENTITY: "Developer ID Application"
+      ENABLE_HARDENED_RUNTIME: YES
 
 packages:
   KeyboardShortcuts:
@@ -37,10 +47,13 @@ targets:
         # Menu-bar agent: no Dock icon, no main window on launch.
         INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
-        CODE_SIGNING_ALLOWED: NO
-        # Sign in with Apple entitlement (slice 7). Honored at runtime only once
-        # the app is code-signed (slice 8); compiles & links now regardless.
+        # Sign in with Apple entitlement (slice 7). Honored at runtime once the
+        # app is code-signed with this entitlement (slice 8, Release config).
         CODE_SIGN_ENTITLEMENTS: "Translator Everywhere.entitlements"
+      configs:
+        # Keep the app target unsigned in Debug so the test host builds headless.
+        Debug:
+          CODE_SIGNING_ALLOWED: NO
 
   TranslatorEverywhereTests:
     type: bundle.unit-test
