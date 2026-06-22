@@ -98,9 +98,13 @@ actor CaptureCoordinator {
         // `trimmed` (source) + `translation` + `engine.kind` are the vocabulary
         // entry. Hand the panel a closure that persists exactly this capture when
         // (and only when) the user chooses to. `nil` notebook → no Save button.
+        // Capture `self` weakly: the panel (owned by the coordinator) retains the
+        // Save controller, which retains this closure — a strong `self` here would
+        // be a retain cycle. If the coordinator is gone the save reports failure.
         let onSave: (@MainActor () async -> Bool)? = notebook.map { _ in
-            { [self] in
-                await self.save(source: trimmed, translation: translation, kind: engine.kind)
+            { [weak self] in
+                guard let self else { return false }
+                return await self.save(source: trimmed, translation: translation, kind: engine.kind)
             }
         }
 

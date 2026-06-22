@@ -274,13 +274,13 @@ final class ResultPanel: NSObject, NSWindowDelegate {
 /// label on failure). On click it disables the button, awaits the async save
 /// handler, then either swaps the button for the confirmed "★ Saved" label (so a
 /// second click can't create a duplicate) or re-enables the button and surfaces a
-/// red "Couldn't save" label to retry. The button's `target` is this controller,
-/// which the host view retains so it lives as long as the panel content.
+/// red "Couldn't save" label to retry. The button's `target` is this controller;
+/// `ResultPanel` holds the strong reference (in `saveButtonController`) that keeps
+/// it alive for the lifetime of the shown result.
 @MainActor
 private final class SaveButtonController {
 
-    /// The view the result header embeds — retains `self` so the button's
-    /// non-owning `target` reference stays valid.
+    /// The view the result header embeds.
     let view: NSStackView
 
     private let onSave: @MainActor () async -> Bool
@@ -308,7 +308,7 @@ private final class SaveButtonController {
         self.view = stack
 
         // `objc` action wiring: the controller is the (non-owning) target, kept
-        // alive by `view`'s retain of `self`.
+        // alive by `ResultPanel.saveButtonController`.
         button.target = self
         button.action = #selector(saveTapped)
     }
