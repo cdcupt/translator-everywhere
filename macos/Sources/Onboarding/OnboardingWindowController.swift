@@ -45,6 +45,13 @@ final class OnboardingWindowController {
             self?.finish()
         }
         let hosting = NSHostingController(rootView: OnboardingView(model: model))
+        // Don't let the hosting controller push the SwiftUI content's size
+        // extrema onto the window's min/max during the window's own
+        // update-constraints pass — that re-entrant constraint write makes
+        // AppKit throw a fatal "invalid constraint" exception on first show
+        // (EXC_BREAKPOINT via _crashOnException). The SwiftUI `.frame()` still
+        // sizes the content; we just don't mirror it into the window extrema.
+        hosting.sizingOptions = []
         let window = NSWindow(contentViewController: hosting)
         window.title = "Welcome"
         window.styleMask = [.titled, .closable]

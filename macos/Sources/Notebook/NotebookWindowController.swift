@@ -29,10 +29,15 @@ final class NotebookWindowController {
 
         let root = NotebookView(store: store, resolver: resolver)
         let hosting = NSHostingController(rootView: root)
+        // See OnboardingWindowController: clearing sizingOptions stops the
+        // hosting controller from mutating the window's size extrema during the
+        // update-constraints pass, which otherwise crashes on first show.
+        hosting.sizingOptions = []
         let window = NSWindow(contentViewController: hosting)
         window.title = "Notebook"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 820, height: 520))
+        window.contentMinSize = NSSize(width: 720, height: 420)
         window.isReleasedWhenClosed = false
         window.center()
         self.window = window

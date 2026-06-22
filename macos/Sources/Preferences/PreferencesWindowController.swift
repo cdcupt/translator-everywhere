@@ -43,6 +43,10 @@ final class PreferencesWindowController {
             accountModel: accountModel
         )
         let hosting = NSHostingController(rootView: root)
+        // See OnboardingWindowController: clearing sizingOptions stops the
+        // hosting controller from mutating the window's size extrema during the
+        // update-constraints pass, which otherwise crashes on first show.
+        hosting.sizingOptions = []
         let window = NSWindow(contentViewController: hosting)
         window.title = "Preferences"
         // Toolbar-tab preferences are fixed-width; height adapts per tab.
