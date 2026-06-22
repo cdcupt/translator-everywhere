@@ -34,8 +34,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Screen-recording permission gate, shared with onboarding.
     private let permission = PermissionService()
 
+    /// Sign-in + token storage (Keychain). The app works fully signed-out.
+    private let authClient = AuthClient()
+
+    /// Background cloud-sync actor, built only when a notebook store exists.
+    /// `nil` if the store couldn't open — capture still works locally.
+    private lazy var syncClient: SyncClient? = notebook.map { store in
+        SyncClient(
+            store: store,
+            auth: AuthClientSyncProvider(authClient),
+            cursors: DefaultsCursorStore()
+        )
+    }
+
+    /// Account-tab state machine; sign-in triggers a full push+pull.
+    private lazy var accountModel = AccountViewModel(
+        auth: authClient,
+        onSignedIn: { [weak self] in
+            // A fresh sign-in resets the cursor so the first pull is full.
+            self?.settings.lastSyncedAt = nil
+            return await self?.syncClient?.sync(trigger: .signIn) ?? nil
+        },
+        onSignedOut: { /* tokens already cleared; nothing local to undo */ }
+    )
+
     /// The Preferences window (General / Engine / Account / About).
-    private lazy var preferencesWindow = PreferencesWindowController(settings: settings)
+    private lazy var preferencesWindow =
+        PreferencesWindowController(settings: settings, accountModel: accountModel)
 
     /// First-run onboarding window; also the ungranted-hotkey destination.
     private lazy var onboardingWindow =
@@ -57,6 +82,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // session and would crash the host before tests connect.
         guard !Self.isRunningTests else { return }
         onboardingWindow.presentIfNeeded()
+    }
+
+    /// On app foreground, pull anything changed on another Mac, then push local
+    /// dirty rows. A no-op when signed out. Best-effort: never blocks the UI.
+    func applicationDidBecomeActive(_ notification: Notification) {
+        guard !Self.isRunningTests else { return }
+        Task { [weak self] in
+            guard let synced = await self?.syncClient?.sync(trigger: .foreground) else { return }
+            await self?.accountModel.noteSynced(at: synced)
+        }
     }
 
     /// `true` when the process is hosting the XCTest bundle.
