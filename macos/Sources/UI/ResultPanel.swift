@@ -19,6 +19,13 @@ final class ResultPanel: NSObject, NSWindowDelegate {
 
     private var panel: KeyablePanel?
 
+    /// Strong reference to the current result's Save-button controller, if any.
+    /// An `NSButton.target` is non-owning, so without this the controller would
+    /// dealloc as soon as `saveControl` returns and the button's target would
+    /// dangle. Held for the lifetime of the shown result; replaced (and the old
+    /// one released) the next time a result or message is presented.
+    private var saveButtonController: SaveButtonController?
+
     /// Shows a successful translation: `translation` is primary/large, `source`
     /// is the dim recognized text, `badge` labels the engine, and `copied`
     /// reveals the "Copied ✓" affordance. When `onSave` is non-nil a "Save to
@@ -64,6 +71,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     func close() {
         panel?.close()
         panel = nil
+        saveButtonController = nil
     }
 
     // MARK: - Presentation
@@ -99,6 +107,10 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         translation: String, source: String, badge: String, copied: Bool,
         onSave: (@MainActor () async -> Bool)?
     ) -> NSView {
+        // Drop any prior result's Save controller; `saveControl` re-sets it when
+        // this result is savable.
+        saveButtonController = nil
+
         let header = NSStackView(views: [badgeView(badge)])
         header.orientation = .horizontal
         header.alignment = .centerY
@@ -127,6 +139,9 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     /// Title + body layout for info/error states.
     @MainActor
     private func makeMessageContent(title: String, body: String, isError: Bool) -> NSView {
+        // A message/error replaces any savable result — drop its controller.
+        saveButtonController = nil
+
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
         titleLabel.textColor = isError ? .systemRed : .secondaryLabelColor
@@ -187,11 +202,12 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     /// Builds the opt-in "Save to Notebook" control: a ⌘S button backed by a
     /// `SaveButtonController` that runs `onSave` and swaps the control to the
     /// confirmed "★ Saved" state (or shows an inline error on failure). The
-    /// controller is retained by the returned view so it outlives this call (an
-    /// `NSButton.target` is a non-owning reference).
+    /// controller is stored on `self` (`saveButtonController`) so it outlives this
+    /// call — an `NSButton.target` is a non-owning reference.
     @MainActor
     private func saveControl(onSave: @escaping @MainActor () async -> Bool) -> NSView {
         let controller = SaveButtonController(onSave: onSave, savedLabel: savedLabel)
+        saveButtonController = controller
         return controller.view
     }
 
