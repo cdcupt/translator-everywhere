@@ -5,6 +5,10 @@
 /macos/*.xcodeproj/
 /macos/.build/
 /macos/DerivedData/
+# Distribution artifacts (signed .app, notarization zip, release .dmg) are never committed.
+/macos/*.dmg
+/macos/*.app
+/macos/*.zip
 .DS_Store
 
 # Backend (/server): never commit real envs or build output. Only .env.example.
