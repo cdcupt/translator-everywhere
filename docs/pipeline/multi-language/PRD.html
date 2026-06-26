@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRD — Translator Everywhere: Multi-Language Support</title>
+<style>
+  :root{
+    --bg:#f7f6f3; --surface:#ffffff; --ink:#16151a; --muted:#5d5b66;
+    --line:#e3e1db; --accent:#5b3df5; --accent-soft:#efeaff;
+    --ok:#1f8a4c; --okbg:#e6f4ec; --warn:#a8580a; --warnbg:#fbeede;
+    --shadow:0 1px 2px rgba(20,18,30,.05),0 8px 24px rgba(20,18,30,.06);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    padding:clamp(16px,4vw,48px);
+  }
+  .wrap{max-width:920px;margin:0 auto}
+  header.h{margin-bottom:28px}
+  .kicker{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--accent);background:var(--accent-soft);
+    padding:5px 11px;border-radius:999px}
+  h1{font-size:clamp(26px,5vw,40px);line-height:1.12;margin:.5em 0 .15em;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:clamp(15px,2.4vw,18px);max-width:60ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .pill{font-size:12.5px;font-weight:600;color:var(--muted);background:var(--surface);
+    border:1px solid var(--line);border-radius:999px;padding:5px 11px}
+  .pill b{color:var(--ink)}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:clamp(18px,3.5vw,30px);margin:18px 0}
+  h2{font-size:clamp(19px,3vw,24px);margin:0 0 4px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  h2 .n{font-size:13px;font-weight:700;color:#fff;background:var(--accent);width:26px;height:26px;
+    border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  h3{font-size:15px;margin:22px 0 8px;letter-spacing:.01em}
+  p{margin:.5em 0}
+  .lead{color:var(--muted)}
+  .figwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0 6px;
+    border:1px solid var(--line);border-radius:12px;background:#fbfbfa;padding:14px}
+  svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  figcaption{font-size:13px;color:var(--muted);text-align:center;margin-top:8px}
+  ul,ol{margin:.4em 0 .4em;padding-left:1.25em}
+  li{margin:.32em 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px;background:#fcfcfb}
+  .card h4{margin:0 0 6px;font-size:14.5px}
+  .card.in{border-color:#cfe9d8;background:var(--okbg)}
+  .card.out{border-color:#ead9c4;background:var(--warnbg)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0;table-layout:fixed}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;
+    overflow-wrap:anywhere;word-break:break-word}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  td code,p code,li code{background:#efeef0;border:1px solid var(--line);border-radius:5px;
+    padding:1px 5px;font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .tag{display:inline-block;font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 7px}
+  .t-ok{color:var(--ok);background:var(--okbg)}
+  .t-warn{color:var(--warn);background:var(--warnbg)}
+  .decision{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
+    padding:13px 0;border-bottom:1px solid var(--line)}
+  .decision:last-child{border-bottom:0}
+  .decision .b{font-weight:800;color:var(--accent);font-size:14px;white-space:nowrap}
+  .crit{display:flex;gap:10px;align-items:baseline;margin:.4em 0}
+  .crit .id{font:700 12px ui-monospace,Menlo,monospace;color:#fff;background:var(--ink);
+    border-radius:6px;padding:2px 7px;flex:0 0 auto}
+  footer{color:var(--muted);font-size:13px;text-align:center;margin:24px 0 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="h">
+  <span class="kicker">PRD · Pipeline Artifact 1 of 5</span>
+  <h1>Multi-Language Support<br>for Translator Everywhere</h1>
+  <p class="sub">Lift the app and the <code>te</code> CLI out of English⇄Chinese and turn them into
+  true any-language translators — a Google-Translate-style From / To experience across ~100+ languages,
+  on every surface.</p>
+  <div class="meta">
+    <span class="pill">Repo <b>cdcupt/translator-everywhere</b></span>
+    <span class="pill">Branch <b>feat/multi-language</b></span>
+    <span class="pill">PM <b>Erik</b> · Coordinator <b>Claude</b></span>
+    <span class="pill">Status <b>Draft → Gate&nbsp;1 pending</b></span>
+  </div>
+</header>
+
+<!-- ★ AT A GLANCE -->
+<section id="glance">
+  <h2><span class="n">★</span> At a glance</h2>
+  <p class="lead">The whole feature on one screen: the translation loop (unchanged shape), the one thing
+  that changes inside it (the language model), and the scope of where it lands.</p>
+  <div class="figwrap">
+    <svg viewBox="0 0 920 430" role="img" aria-label="Master diagram: translation loop, language-model change, and scope">
+      <defs>
+        <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#5b3df5"/>
+        </marker>
+        <style>
+          .bx{fill:#fff;stroke:#d9d6df;stroke-width:1.4;rx:11}
+          .lbl{font:600 13px -apple-system,sans-serif;fill:#16151a}
+          .sm{font:500 11px -apple-system,sans-serif;fill:#5d5b66}
+          .fl{stroke:#5b3df5;stroke-width:2;fill:none;marker-end:url(#ah)}
+          .hd{font:800 12px -apple-system,sans-serif;fill:#5b3df5;letter-spacing:.08em}
+        </style>
+      </defs>
+
+      <!-- pipeline lane -->
+      <text x="24" y="34" class="hd">THE TRANSLATION LOOP  (shape unchanged)</text>
+      <rect x="24"  y="48" width="150" height="64" rx="11" class="bx"/>
+      <text x="99" y="74" text-anchor="middle" class="lbl">Get text</text>
+      <text x="99" y="93" text-anchor="middle" class="sm">type · clipboard ·</text>
+      <text x="99" y="106" text-anchor="middle" class="sm">screen OCR</text>
+
+      <rect x="206" y="48" width="170" height="64" rx="11" class="bx" style="fill:#f3efff;stroke:#c9bdf7"/>
+      <text x="291" y="71" text-anchor="middle" class="lbl">Choose From / To</text>
+      <text x="291" y="90" text-anchor="middle" class="sm">From: Auto-detect ▾</text>
+      <text x="291" y="104" text-anchor="middle" class="sm">To: any of ~100+ ▾</text>
+
+      <rect x="408" y="48" width="150" height="64" rx="11" class="bx"/>
+      <text x="483" y="74" text-anchor="middle" class="lbl">Engine</text>
+      <text x="483" y="93" text-anchor="middle" class="sm">AI (OpenAI) or</text>
+      <text x="483" y="106" text-anchor="middle" class="sm">Free (Google)</text>
+
+      <rect x="590" y="48" width="150" height="64" rx="11" class="bx"/>
+      <text x="665" y="74" text-anchor="middle" class="lbl">Result</text>
+      <text x="665" y="93" text-anchor="middle" class="sm">translated text +</text>
+      <text x="665" y="106" text-anchor="middle" class="sm">copy · save</text>
+
+      <rect x="772" y="48" width="124" height="64" rx="11" class="bx"/>
+      <text x="834" y="78" text-anchor="middle" class="lbl">Notebook</text>
+      <text x="834" y="96" text-anchor="middle" class="sm">study list</text>
+
+      <line x1="174" y1="80" x2="200" y2="80" class="fl"/>
+      <line x1="376" y1="80" x2="402" y2="80" class="fl"/>
+      <line x1="558" y1="80" x2="584" y2="80" class="fl"/>
+      <line x1="740" y1="80" x2="766" y2="80" class="fl"/>
+
+      <!-- the change -->
+      <text x="24" y="170" class="hd">THE ONE THING THAT CHANGES — THE LANGUAGE MODEL</text>
+      <rect x="24" y="184" width="404" height="96" rx="11" class="bx" style="fill:#fbeede;stroke:#ead9c4"/>
+      <text x="40" y="208" class="lbl">Today</text>
+      <text x="40" y="230" class="sm">enum Target { english, simplifiedChinese }</text>
+      <text x="40" y="249" class="sm">auto = "mostly Han → EN, else → ZH"  (a 2-way flip)</text>
+      <text x="40" y="268" class="sm">no target setting · 2 languages only</text>
+
+      <rect x="492" y="184" width="404" height="96" rx="11" class="bx" style="fill:#e6f4ec;stroke:#cfe9d8"/>
+      <text x="508" y="208" class="lbl">After</text>
+      <text x="508" y="230" class="sm">Language catalog (~100+, BCP-47) + Auto source</text>
+      <text x="508" y="249" class="sm">real source detection · user-chosen From + To</text>
+      <text x="508" y="268" class="sm">remembers last-used pair · shared by both surfaces</text>
+      <line x1="428" y1="232" x2="488" y2="232" class="fl"/>
+
+      <!-- scope -->
+      <text x="24" y="332" class="hd">WHERE IT LANDS</text>
+      <rect x="24" y="346" width="282" height="64" rx="11" class="bx"/>
+      <text x="40" y="370" class="lbl">macOS app  (shipped v1.0)</text>
+      <text x="40" y="390" class="sm">From/To pickers in result panel + Prefs</text>
+      <text x="40" y="403" class="sm">ships as a Sparkle auto-update</text>
+
+      <rect x="322" y="346" width="282" height="64" rx="11" class="bx"/>
+      <text x="338" y="370" class="lbl"><tspan style="font-family:ui-monospace,Menlo,monospace">te</tspan> terminal CLI</text>
+      <text x="338" y="390" class="sm">flags / config for From + To</text>
+      <text x="338" y="403" class="sm">kept at parity with the app</text>
+
+      <rect x="620" y="346" width="276" height="64" rx="11" class="bx" style="fill:#f4f3f6;stroke:#e3e1db"/>
+      <text x="636" y="370" class="lbl" style="fill:#5d5b66">sync server</text>
+      <text x="636" y="390" class="sm">untouched — translation never</text>
+      <text x="636" y="403" class="sm">goes through it (out of scope)</text>
+    </svg>
+    <figcaption>Master diagram — the loop keeps its shape; only the language model inside it generalizes, and it lands on two client surfaces.</figcaption>
+  </div>
+</section>
+
+<!-- 1 PROBLEM -->
+<section id="problem">
+  <h2><span class="n">1</span> Problem &amp; opportunity</h2>
+  <p>Translator Everywhere is a fast, one-tap macOS translator (type / clipboard / screen-OCR → instant
+  translation) plus a terminal <code>te</code> command. Both are <b>locked to English ⇄ Simplified Chinese</b>:
+  the source is guessed by counting Han characters and the result simply flips to "the other one."</p>
+  <p>The engines are <b>not</b> the limitation — the free Google endpoint already accepts any
+  <code>tl=</code> target, and the OpenAI engine can be prompted into any language. The limitation is the
+  <b>language model and UI</b>: a 2-case <code>Target</code> enum, a binary flip, and no way to say
+  "translate this into French." Any user whose work touches a third language is shut out of an otherwise
+  excellent tool — and "it only does Chinese" caps the audience of a shipped, App-Store-style product.</p>
+  <p class="lead">Opportunity: with a real language catalog and a Google-style From / To picker, the same
+  one-tap product serves the whole world's language pairs at near-zero added engine cost.</p>
+</section>
+
+<!-- 2 USERS -->
+<section id="users">
+  <h2><span class="n">2</span> Users &amp; jobs-to-be-done</h2>
+  <table>
+    <tr><th>User</th><th>When they reach for TE</th><th>What multi-language unlocks</th></tr>
+    <tr><td><b>Multilingual reader</b></td><td>Hits a word/sentence in a language they're learning or don't know</td><td>Translate <em>any</em> foreign text into their own language, not just Chinese</td></tr>
+    <tr><td><b>Writer / replier</b></td><td>Needs to produce text in a non-native language</td><td>Pick the exact target (e.g. → German) instead of being forced to ZH</td></tr>
+    <tr><td><b>Screen / OCR user</b></td><td>Captures a region of a foreign UI, menu, or document</td><td>OCR + translate works for Japanese, Korean, Spanish… screens</td></tr>
+    <tr><td><b>Terminal user (Erik)</b></td><td>Quick CLI translation mid-workflow</td><td><code>te -t fr "hello"</code> style any-pair translation, same as the app</td></tr>
+  </table>
+</section>
+
+<!-- 3 GOALS -->
+<section id="goals">
+  <h2><span class="n">3</span> Goals &amp; non-goals</h2>
+  <div class="grid2">
+    <div class="card in">
+      <h4>✓ Goals</h4>
+      <ul>
+        <li>Translate <b>to and from ~100+ languages</b> (Google-style catalog), on both engines.</li>
+        <li><b>From / To pickers</b> on the result surface — <code>From: Auto ▾</code> + <code>To: ▾</code>, switchable per translation, with a <b>searchable</b> list.</li>
+        <li><b>Real source detection</b> (Auto) replacing the 2-way Han flip; the detected language is shown.</li>
+        <li><b>Remember the last-used pair</b> and offer a sensible default target.</li>
+        <li><b>Parity</b>: the <code>te</code> CLI gains the same any-pair capability.</li>
+        <li><b>Preserve the one-tap feel</b> — defaults must keep the zero-config fast path working with no extra clicks.</li>
+        <li>Notebook / study-list and the quick actions keep working with the new model.</li>
+      </ul>
+    </div>
+    <div class="card out">
+      <h4>✗ Non-goals (this round)</h4>
+      <ul>
+        <li><b>No changes to the sync server</b> — translation never routes through it.</li>
+        <li><b>No new engines</b> (still OpenAI + Google free).</li>
+        <li>No offline / on-device translation.</li>
+        <li>No document / file / batch translation.</li>
+        <li>No live conversation or speech mode.</li>
+        <li>No per-app or per-website language rules.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 4 SCOPE -->
+<section id="scope">
+  <h2><span class="n">4</span> Scope by surface</h2>
+  <table>
+    <tr><th>Surface</th><th>In scope</th><th>Notes</th></tr>
+    <tr>
+      <td><b>macOS app</b><br><span class="tag t-ok">primary</span></td>
+      <td>Language catalog + Auto detection; From/To pickers in the result panel; a default-target / last-used preference; searchable picker; engine prompt + <code>tl</code> wiring; notebook compatibility.</td>
+      <td>Ships to existing users via the in-app Sparkle update.</td>
+    </tr>
+    <tr>
+      <td><b><code>te</code> CLI</b><br><span class="tag t-ok">parity</span></td>
+      <td>Source/target flags + config (e.g. <code>-f</code>/<code>-t</code>, env defaults); Auto source detection; same language codes; popup/quick-action paths honor the target.</td>
+      <td>Bash; reuses the same engine endpoints. Shares the canonical language list conceptually.</td>
+    </tr>
+    <tr>
+      <td><b>Quick Actions</b></td>
+      <td>"Translate with te (AI/Google)" + screen-region actions must respect the configured target language.</td>
+      <td>Thin wrappers over <code>te</code> — fall out of CLI work.</td>
+    </tr>
+    <tr>
+      <td><b>Sync server</b><br><span class="tag t-warn">out</span></td>
+      <td>—</td>
+      <td>Untouched. Only stores notebook items; carries no translation.</td>
+    </tr>
+  </table>
+</section>
+
+<!-- 5 DECISIONS -->
+<section id="decisions">
+  <h2><span class="n">5</span> Product decisions (PM-confirmed)</h2>
+  <p class="lead">Captured at scoping, before this PRD — these lock the design direction.</p>
+  <div class="decision"><span class="b">Surface</span><span><b>App + <code>te</code> CLI, at parity.</b> Both client surfaces get multi-language; the sync server is untouched.</span></div>
+  <div class="decision"><span class="b">UX model</span><span><b>Full From / To pickers, Google-style.</b> Two controls on the result surface — <code>From: Auto ▾</code> and <code>To: ▾</code> — switchable per translation, not a single fixed setting.</span></div>
+  <div class="decision"><span class="b">Breadth</span><span><b>Full ~100+ language list.</b> Everything the engines reasonably support, presented through a searchable picker (so a long list stays usable). OpenAI quality on rarer languages is a known, accepted variance.</span></div>
+</section>
+
+<!-- 6 SUCCESS -->
+<section id="success">
+  <h2><span class="n">6</span> Success criteria</h2>
+  <p class="lead">Acceptance is binary per item — these become the QA test plan's spine and the beta Feature-Coverage Matrix.</p>
+  <div class="crit"><span class="id">S1</span><span>From any of the ~100+ languages, a user can translate into any other, on <b>both</b> engines, on <b>both</b> surfaces.</span></div>
+  <div class="crit"><span class="id">S2</span><span><code>From: Auto</code> correctly detects the source for a spread of languages and shows what it detected.</span></div>
+  <div class="crit"><span class="id">S3</span><span>The To picker (and From) is <b>searchable</b> and usable with a 100+ list; selecting a language re-translates without friction.</span></div>
+  <div class="crit"><span class="id">S4</span><span>The <b>last-used pair is remembered</b> across launches; first-run has a sensible default that preserves today's one-tap behavior.</span></div>
+  <div class="crit"><span class="id">S5</span><span>EN⇄ZH still works exactly as before for existing users (no regression in the default experience).</span></div>
+  <div class="crit"><span class="id">S6</span><span>Notebook save / study-list and all quick actions function under the new model.</span></div>
+  <div class="crit"><span class="id">S7</span><span><code>te</code> exposes From/To via flags + config and reaches parity with the app; quick actions honor the target.</span></div>
+  <div class="crit"><span class="id">S8</span><span>Ships cleanly: app builds + auto-updates via Sparkle; CLI installs; no broken existing paths.</span></div>
+</section>
+
+<!-- 7 CONSTRAINTS -->
+<section id="constraints">
+  <h2><span class="n">7</span> Constraints, risks &amp; assumptions</h2>
+  <ul>
+    <li><b>Engine quality variance.</b> OpenAI handles common languages well but is uneven on rare ones; Google covers ~130 reliably. The picker offers the union; we accept the variance and may badge/limit where one engine can't serve a pair.</li>
+    <li><b>Language-code mapping.</b> Google uses BCP-47-ish codes (<code>zh-CN</code>, <code>pt-BR</code>…); OpenAI takes a natural-language hint. A single canonical <code>Language</code> catalog must map cleanly to both. <b>Single source of truth</b> shared in spirit by app + CLI.</li>
+    <li><b>Auto-detect is now real.</b> The 2-way Han flip is replaced by genuine source detection (Google returns the detected source; OpenAI can be prompted). Edge cases (mixed-language input, very short input) need defined behavior.</li>
+    <li><b>Preserve zero-friction.</b> The product's value is one-tap speed. Adding pickers must not add a required step — defaults + memory carry the fast path.</li>
+    <li><b>Two codebases.</b> Swift app and bash CLI must stay conceptually consistent (same languages, same defaults) without literally sharing code.</li>
+    <li><b>Privacy unchanged.</b> Translation continues to go <b>direct</b> to the engine, never through TE's server.</li>
+    <li><b>Assumption:</b> the free Google endpoint remains available and keyless, as today.</li>
+  </ul>
+</section>
+
+<footer>Translator Everywhere · Multi-Language Support · PRD (Artifact 1 of 5) · next: Design Document → Gate 1</footer>
+
+</div>
+</body>
+</html>
