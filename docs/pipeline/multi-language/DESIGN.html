@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design Document — Translator Everywhere: Multi-Language Support</title>
+<style>
+  :root{
+    --bg:#f7f6f3; --surface:#ffffff; --ink:#16151a; --muted:#5d5b66;
+    --line:#e3e1db; --accent:#5b3df5; --accent-soft:#efeaff; --accent-line:#c9bdf7;
+    --ok:#1f8a4c; --okbg:#e6f4ec; --okline:#cfe9d8;
+    --warn:#a8580a; --warnbg:#fbeede; --warnline:#ead9c4;
+    --err:#b3261e; --errbg:#fbe9e7;
+    --shadow:0 1px 2px rgba(20,18,30,.05),0 8px 24px rgba(20,18,30,.06);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    padding:clamp(14px,4vw,48px);
+  }
+  .wrap{max-width:960px;margin:0 auto}
+  header.h{margin-bottom:24px}
+  .kicker{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--accent);background:var(--accent-soft);
+    padding:5px 11px;border-radius:999px}
+  h1{font-size:clamp(25px,5vw,40px);line-height:1.12;margin:.5em 0 .15em;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:clamp(15px,2.4vw,18px);max-width:62ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .pill{font-size:12.5px;font-weight:600;color:var(--muted);background:var(--surface);
+    border:1px solid var(--line);border-radius:999px;padding:5px 11px}
+  .pill b{color:var(--ink)}
+  .toc{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    padding:13px 16px;margin:18px 0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13.5px}
+  .toc a{color:var(--accent);text-decoration:none;white-space:nowrap}
+  .toc a:hover{text-decoration:underline}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:clamp(16px,3.5vw,30px);margin:16px 0}
+  h2{font-size:clamp(19px,3vw,24px);margin:0 0 4px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  h2 .n{font-size:13px;font-weight:700;color:#fff;background:var(--accent);min-width:26px;height:26px;
+    border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;padding:0 6px}
+  h3{font-size:15px;margin:22px 0 8px;letter-spacing:.01em}
+  p{margin:.5em 0}
+  .lead{color:var(--muted)}
+  .figwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0 6px;
+    border:1px solid var(--line);border-radius:12px;background:#fbfbfa;padding:14px}
+  .figwrap.glance{border:2px solid var(--ink)}
+  svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  figcaption{font-size:13px;color:var(--muted);text-align:center;margin-top:8px}
+  ul,ol{margin:.4em 0 .4em;padding-left:1.25em}
+  li{margin:.32em 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:12px;padding:15px;background:#fcfcfb}
+  .card h4{margin:0 0 6px;font-size:14.5px}
+  .card.in{border-color:var(--okline);background:var(--okbg)}
+  .card.out{border-color:var(--warnline);background:var(--warnbg)}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;margin:10px 0}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;table-layout:fixed}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top;
+    overflow-wrap:anywhere;word-break:break-word}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:#faf9f7}
+  tr:last-child td{border-bottom:0}
+  td code,p code,li code,.k{background:#efeef0;border:1px solid var(--line);border-radius:5px;
+    padding:1px 5px;font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+  .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px}
+  .t-ok{color:var(--ok);background:var(--okbg)} .t-warn{color:var(--warn);background:var(--warnbg)}
+  .t-ai{color:#fff;background:#9b59c4} .t-free{color:#fff;background:#2d6ca8}
+  .note{border:2px solid var(--accent-line);background:var(--accent-soft);border-radius:12px;padding:14px 16px;margin:14px 0}
+  .note h4{margin:0 0 6px;color:var(--accent);font-size:14px}
+  .q{display:flex;gap:10px;align-items:baseline;margin:.5em 0}
+  .q .id{font:700 12px ui-monospace,Menlo,monospace;color:#fff;background:var(--accent);
+    border-radius:6px;padding:2px 7px;flex:0 0 auto}
+  .term{background:#1c1b22;color:#e7e6ee;border-radius:10px;padding:14px 16px;margin:10px 0;
+    font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-x:auto}
+  .term .c{color:#8f8da3} .term .g{color:#7fdca0} .term .p{color:#b69bff} .term .d{color:#8f8da3}
+  footer{color:var(--muted);font-size:13px;text-align:center;margin:24px 0 6px}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);margin:6px 2px 0}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:13px;height:13px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.12)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="h">
+  <span class="kicker">Design Document · Pipeline Artifact 2 of 5</span>
+  <h1>Multi-Language Support<br>— Interaction &amp; UI Design</h1>
+  <p class="sub">How the From / To experience lands on the result panel and the <code>te</code> CLI without
+  losing the one-tap speed. Diagram-first: every surface is drawn before it is described; the companion
+  <code>mockup.html</code> is the clickable version of the result panel.</p>
+  <div class="meta">
+    <span class="pill">Repo <b>cdcupt/translator-everywhere</b></span>
+    <span class="pill">Branch <b>feat/multi-language</b></span>
+    <span class="pill">Surfaces <b>Result panel · Picker · Prefs · te CLI</b></span>
+    <span class="pill">Status <b>Gate 1 review surface</b></span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <a href="#glance">★ At a glance</a>
+  <a href="#model">1 · Interaction model</a>
+  <a href="#panel">2 · Result-panel redesign</a>
+  <a href="#picker">3 · Searchable picker</a>
+  <a href="#defaults">4 · Defaults · memory · swap</a>
+  <a href="#states">5 · States</a>
+  <a href="#prefs">6 · Preferences</a>
+  <a href="#cli">7 · te CLI</a>
+  <a href="#flows">8 · Flows</a>
+  <a href="#catalog">9 · Language catalog</a>
+  <a href="#open">10 · Open questions</a>
+</nav>
+
+<!-- ============================ AT A GLANCE ============================ -->
+<section id="glance">
+  <h2><span class="n">★</span> At a glance — screen map</h2>
+  <p class="lead">The whole design on one screen: the existing capture loop (unchanged), the redesigned
+  result panel with its new <b>language bar</b>, the searchable picker it opens, and the two places that
+  carry the fast path — defaults/memory and the <code>te</code> CLI. The picker is the only new surface.</p>
+  <div class="figwrap glance">
+    <svg viewBox="0 0 920 560" role="img" aria-label="Master screen map: capture loop, result panel with language bar, searchable picker, defaults and te CLI">
+      <defs>
+        <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b3df5"/></marker>
+        <marker id="ahd" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#a7a3b3"/></marker>
+        <style>
+          .bx{fill:#fff;stroke:#d9d6df;stroke-width:1.4}
+          .lbl{font:600 13px -apple-system,sans-serif;fill:#16151a}
+          .sm{font:500 11px -apple-system,sans-serif;fill:#5d5b66}
+          .mono{font:600 11px ui-monospace,Menlo,monospace;fill:#16151a}
+          .fl{stroke:#5b3df5;stroke-width:2;fill:none;marker-end:url(#ah)}
+          .fld{stroke:#a7a3b3;stroke-width:1.6;fill:none;stroke-dasharray:4 3;marker-end:url(#ahd)}
+          .hd{font:800 11px -apple-system,sans-serif;fill:#5b3df5;letter-spacing:.07em}
+        </style>
+      </defs>
+
+      <!-- capture loop strip -->
+      <text x="20" y="26" class="hd">THE CAPTURE LOOP — UNCHANGED</text>
+      <rect x="20"  y="36" width="120" height="52" rx="10" class="bx"/>
+      <text x="80" y="60" text-anchor="middle" class="lbl">Capture</text>
+      <text x="80" y="77" text-anchor="middle" class="sm">⌃⌥Y · OCR</text>
+      <rect x="170" y="36" width="120" height="52" rx="10" class="bx" style="fill:#f3efff;stroke:#c9bdf7"/>
+      <text x="230" y="56" text-anchor="middle" class="lbl">Auto-detect</text>
+      <text x="230" y="73" text-anchor="middle" class="sm">source language</text>
+      <rect x="320" y="36" width="120" height="52" rx="10" class="bx"/>
+      <text x="380" y="56" text-anchor="middle" class="lbl">Translate</text>
+      <text x="380" y="73" text-anchor="middle" class="sm">last-used pair</text>
+      <line x1="140" y1="62" x2="166" y2="62" class="fl"/>
+      <line x1="290" y1="62" x2="316" y2="62" class="fl"/>
+      <line x1="440" y1="62" x2="470" y2="62" class="fl"/>
+      <text x="486" y="66" class="sm">→ shows in ↓</text>
+
+      <!-- RESULT PANEL (the redesigned surface) -->
+      <text x="20" y="124" class="hd">REDESIGNED RESULT PANEL  (NSPanel · the only visible UI)</text>
+      <rect x="20" y="134" width="430" height="300" rx="14" class="bx" style="stroke:#5b3df5;stroke-width:2"/>
+      <!-- header row -->
+      <rect x="40" y="152" width="34" height="18" rx="4" fill="#9b59c4"/>
+      <text x="57" y="165" text-anchor="middle" style="font:700 10px -apple-system;fill:#fff">AI</text>
+      <text x="86" y="165" class="sm" fill="#1f8a4c">Copied ✓</text>
+      <rect x="330" y="150" width="100" height="20" rx="6" fill="#f4f3f6" stroke="#e3e1db"/>
+      <text x="380" y="164" text-anchor="middle" class="sm">Save to Notebook</text>
+      <!-- LANGUAGE BAR -->
+      <rect x="36" y="180" width="398" height="40" rx="9" fill="#f3efff" stroke="#c9bdf7"/>
+      <rect x="46" y="189" width="150" height="22" rx="6" fill="#fff" stroke="#d9d6df"/>
+      <text x="56" y="204" class="mono">From: Auto ▾</text>
+      <rect x="204" y="189" width="26" height="22" rx="6" fill="#fff" stroke="#d9d6df"/>
+      <text x="217" y="205" text-anchor="middle" class="lbl">⇄</text>
+      <rect x="238" y="189" width="186" height="22" rx="6" fill="#fff" stroke="#5b3df5"/>
+      <text x="248" y="204" class="mono" fill="#5b3df5">To: 中文 (Chinese) ▾</text>
+      <!-- detected line -->
+      <text x="48" y="236" class="sm" style="font-style:italic">Detected: Japanese · 92%</text>
+      <!-- translation block -->
+      <text x="40" y="262" class="sm">TRANSLATION</text>
+      <rect x="36" y="270" width="398" height="56" rx="8" fill="#fbfbfa" stroke="#eceaf4"/>
+      <text x="48" y="293" class="lbl">你好，世界。你好吗？</text>
+      <text x="48" y="314" class="sm">(re-translates instantly on any picker change)</text>
+      <text x="40" y="350" class="sm">RECOGNIZED</text>
+      <rect x="36" y="358" width="398" height="56" rx="8" fill="#fbfbfa" stroke="#eceaf4"/>
+      <text x="48" y="381" class="sm">こんにちは、世界。元気ですか？</text>
+
+      <!-- arrow from panel To-control to picker -->
+      <line x1="424" y1="200" x2="486" y2="200" class="fl"/>
+      <text x="455" y="192" text-anchor="middle" class="sm">tap ▾</text>
+
+      <!-- SEARCHABLE PICKER popover -->
+      <text x="494" y="124" class="hd">SEARCHABLE PICKER  (new)</text>
+      <rect x="494" y="134" width="406" height="300" rx="12" class="bx" style="stroke:#5b3df5;stroke-width:1.6"/>
+      <rect x="510" y="150" width="374" height="30" rx="8" fill="#fff" stroke="#d9d6df"/>
+      <text x="522" y="170" class="sm">🔍  Search languages…  “sp”</text>
+      <text x="512" y="200" class="hd" style="fill:#5d5b66">RECENT</text>
+      <rect x="510" y="208" width="374" height="26" rx="6" fill="#efeaff"/>
+      <text x="522" y="225" class="lbl">中文 (Simplified) · zh-CN</text>
+      <text x="860" y="225" text-anchor="end" class="sm">↩</text>
+      <rect x="510" y="238" width="374" height="24" rx="6" fill="#fff"/>
+      <text x="522" y="254" class="lbl">English · en</text>
+      <text x="512" y="284" class="hd" style="fill:#5d5b66">ALL LANGUAGES (A–Z)</text>
+      <rect x="510" y="292" width="374" height="26" rx="6" fill="#f3efff" stroke="#c9bdf7"/>
+      <text x="522" y="309" class="lbl">Spanish · Español · es</text>
+      <text x="860" y="309" text-anchor="end" class="sm">highlighted ↑↓</text>
+      <text x="522" y="334" class="sm">Spanish (Latin Am.) · es-419</text>
+      <text x="522" y="356" class="sm">Persian · فارسی · fa</text>
+      <text x="522" y="378" class="sm">… 100+ more, filtered live …</text>
+      <line x1="510" y1="392" x2="884" y2="392" stroke="#e3e1db"/>
+      <text x="522" y="412" class="sm">↑ ↓ navigate · ↩ select · esc close · type to filter</text>
+
+      <!-- bottom row: defaults + cli -->
+      <text x="20" y="470" class="hd">CARRIES THE FAST PATH</text>
+      <rect x="20" y="480" width="286" height="62" rx="11" class="bx"/>
+      <text x="36" y="502" class="lbl">Defaults &amp; memory</text>
+      <text x="36" y="520" class="sm">first run: Auto → 中文 (= today's EN⇄ZH)</text>
+      <text x="36" y="535" class="sm">remembers last pair · ⇄ swap</text>
+
+      <rect x="320" y="480" width="286" height="62" rx="11" class="bx"/>
+      <text x="336" y="502" class="lbl">Preferences ▸ Languages</text>
+      <text x="336" y="520" class="sm">default target + secondary (home pair)</text>
+      <text x="336" y="535" class="sm">inline pickers stay per-translation</text>
+
+      <rect x="620" y="480" width="280" height="62" rx="11" class="bx" style="fill:#f4f3f6"/>
+      <text x="636" y="502" class="mono" style="font-weight:700">te  —  CLI parity</text>
+      <text x="636" y="520" class="sm">te -f auto -t fr "hello"</text>
+      <text x="636" y="535" class="sm">TE_FROM / TE_TO env · quick actions honor it</text>
+
+      <line x1="235" y1="434" x2="160" y2="476" class="fld"/>
+      <line x1="697" y1="434" x2="760" y2="476" class="fld"/>
+    </svg>
+    <figcaption>Master screen map — the capture loop is untouched; the result panel gains a language bar that opens the one new surface (the searchable picker); defaults/memory and the CLI keep the one-tap path.</figcaption>
+  </div>
+  <div class="legend">
+    <span><i class="sw" style="background:#f3efff;border-color:#c9bdf7"></i> new / changed UI</span>
+    <span><i class="sw" style="background:#fff"></i> unchanged</span>
+    <span><i class="sw" style="background:#9b59c4"></i> AI badge</span>
+    <span><i class="sw" style="background:#2d6ca8"></i> FREE badge</span>
+  </div>
+</section>
+
+<!-- ============================ 1 INTERACTION MODEL ============================ -->
+<section id="model">
+  <h2><span class="n">1</span> Interaction model — pickers as defaults, never a step</h2>
+  <p>The product's value is <b>one tap → instant translation</b>. The single most important decision in this
+  design: the From / To pickers are <b>passive controls that live on the result surface and only matter
+  <em>after</em> a result already exists</b>. Capture (or clipboard / CLI) fires immediately against the
+  <b>remembered last-used pair</b> — no language is ever chosen up front, so the fast path keeps zero added
+  clicks (PRD&nbsp;S4, S5). The pickers are a <b>re-translate</b> affordance: change To, the same text
+  re-translates in place. The 100+ list is never in the way until you reach for it.</p>
+  <div class="grid2">
+    <div class="card in"><h4>✓ What stays one-tap</h4>
+      <ul>
+        <li>Hotkey → OCR → result, using last pair. No picker shown first.</li>
+        <li>First run defaults reproduce today's EN⇄ZH (see §4).</li>
+        <li>Clipboard / CLI / quick actions: same — translate first, adjust after.</li>
+      </ul>
+    </div>
+    <div class="card out"><h4>✗ What we deliberately avoid</h4>
+      <ul>
+        <li>No "pick a language" gate before the first translation.</li>
+        <li>No modal language sheet that blocks the result.</li>
+        <li>No always-expanded 100-row list crowding a 440px panel.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="note"><h4>Design principle</h4>
+    The result is shown <b>first</b>; the language bar sits above it as a quiet, tappable summary
+    (<code>From: Auto ▾</code> · <code>⇄</code> · <code>To: 中文 ▾</code>). Speed is the default; control is one tap away.</div>
+</section>
+
+<!-- ============================ 2 RESULT PANEL ============================ -->
+<section id="panel">
+  <h2><span class="n">2</span> Result-panel redesign</h2>
+  <p class="lead">Where the controls sit inside the existing <code>ResultPanel</code> (an <code>NSPanel</code>,
+  ~440pt wide). One new row — the <b>language bar</b> — is inserted between the header (badge / Copied / Save)
+  and the Translation caption. Nothing else moves. The engine badge stays exactly where it is.</p>
+  <div class="figwrap">
+    <svg viewBox="0 0 600 470" role="img" aria-label="Annotated result-panel wireframe with the new language bar">
+      <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b3df5"/></marker>
+      <style>.lbl{font:600 13px -apple-system,sans-serif;fill:#16151a}.sm{font:500 11px -apple-system,sans-serif;fill:#5d5b66}
+      .mono{font:600 12px ui-monospace,Menlo,monospace;fill:#16151a}.an{font:600 11px -apple-system,sans-serif;fill:#5b3df5}
+      .cl{stroke:#5b3df5;stroke-width:1.3;fill:none;marker-end:url(#a2)}</style></defs>
+      <!-- panel -->
+      <rect x="40" y="20" width="360" height="430" rx="12" fill="#fff" stroke="#cfcbd8" stroke-width="1.5"/>
+      <rect x="40" y="20" width="360" height="26" rx="12" fill="#f4f3f6"/>
+      <rect x="40" y="34" width="360" height="12" fill="#f4f3f6"/>
+      <text x="220" y="38" text-anchor="middle" class="sm">Translator Everywhere</text>
+      <!-- header -->
+      <rect x="58" y="58" width="32" height="18" rx="4" fill="#9b59c4"/><text x="74" y="71" text-anchor="middle" style="font:700 10px -apple-system;fill:#fff">AI</text>
+      <text x="100" y="71" class="sm" fill="#1f8a4c">Copied ✓</text>
+      <rect x="278" y="56" width="104" height="20" rx="6" fill="#f4f3f6" stroke="#e3e1db"/><text x="330" y="70" text-anchor="middle" class="sm">Save to Notebook ⌘S</text>
+      <!-- language bar -->
+      <rect x="54" y="86" width="332" height="38" rx="9" fill="#f3efff" stroke="#c9bdf7"/>
+      <rect x="62" y="94" width="120" height="22" rx="6" fill="#fff" stroke="#d9d6df"/><text x="70" y="109" class="mono">From: Auto ▾</text>
+      <rect x="190" y="94" width="24" height="22" rx="6" fill="#fff" stroke="#d9d6df"/><text x="202" y="110" text-anchor="middle" class="lbl">⇄</text>
+      <rect x="222" y="94" width="156" height="22" rx="6" fill="#fff" stroke="#5b3df5"/><text x="230" y="109" class="mono" fill="#5b3df5">To: 中文 ▾</text>
+      <!-- detected line -->
+      <text x="64" y="142" class="sm" style="font-style:italic">Detected: Japanese</text>
+      <!-- translation -->
+      <text x="58" y="166" class="sm">Translation</text>
+      <rect x="54" y="172" width="332" height="92" rx="8" fill="#fbfbfa" stroke="#eceaf4"/>
+      <text x="66" y="198" class="lbl" style="font-size:16px">你好，世界。</text>
+      <text x="66" y="220" class="lbl" style="font-size:16px">你好吗？</text>
+      <!-- recognized -->
+      <text x="58" y="290" class="sm">Recognized</text>
+      <rect x="54" y="296" width="332" height="78" rx="8" fill="#fbfbfa" stroke="#eceaf4"/>
+      <text x="66" y="322" class="sm">こんにちは、世界。</text>
+      <text x="66" y="342" class="sm">元気ですか？</text>
+
+      <!-- annotations -->
+      <text x="412" y="66" class="an">engine badge — unchanged</text>
+      <line x1="408" y1="62" x2="92" y2="64" class="cl" transform="rotate(0)"/>
+      <text x="412" y="100" class="an">NEW language bar:</text>
+      <text x="412" y="116" class="sm">From: Auto ▾ · ⇄ swap · To: ▾</text>
+      <text x="412" y="132" class="sm">tap a ▾ → searchable picker</text>
+      <text x="412" y="148" class="sm">change To → re-translate in place</text>
+      <line x1="408" y1="104" x2="388" y2="104" class="cl"/>
+      <text x="412" y="190" class="an">detected source (when From=Auto)</text>
+      <line x1="408" y1="186" x2="150" y2="146" class="cl"/>
+      <text x="412" y="240" class="sm">Translation / Recognized sections</text>
+      <text x="412" y="256" class="sm">keep today's layout &amp; ⌘S Save</text>
+    </svg>
+    <figcaption>Result panel — one inserted row (the language bar). Badge, Copied ✓, Save, Translation and Recognized sections are unchanged.</figcaption>
+  </div>
+  <h3>Layout rules (so a small panel stays uncrowded)</h3>
+  <ul>
+    <li><b>Single row.</b> From · ⇄ · To on one line. If width is tight, the From/To controls show the
+      <b>endonym or code</b> (中文, es) and full names live in the picker — they never wrap to two lines.</li>
+    <li><b>Detected line</b> appears only when <code>From = Auto</code> and a translation has run, as a dim italic
+      caption directly under the bar — never a third control.</li>
+    <li><b>Re-translate is in-place:</b> the panel keeps its position; only the Translation block updates, with a
+      brief inline spinner on the To control (no full reload, no flash).</li>
+    <li><b>Badge unchanged</b> — AI (purple) / FREE (blue) keep their meaning and position; the badge can gain a
+      small "via Google" note only in the pair-fallback state (§5).</li>
+  </ul>
+</section>
+
+<!-- ============================ 3 PICKER ============================ -->
+<section id="picker">
+  <h2><span class="n">3</span> The searchable picker — the make-or-break UX</h2>
+  <p class="lead">Tapping <code>From ▾</code> or <code>To ▾</code> opens a <b>popover anchored to that control</b>
+  (not a modal). A search field is auto-focused; the list shows <b>Recent</b> first, then the full A–Z catalog;
+  typing filters live across English name, endonym, and code. This is how 100+ languages stay usable (PRD&nbsp;S3).</p>
+  <div class="figwrap">
+    <svg viewBox="0 0 760 360" role="img" aria-label="Searchable picker anatomy and keyboard navigation">
+      <defs><style>.lbl{font:600 13px -apple-system,sans-serif;fill:#16151a}.sm{font:500 11px -apple-system,sans-serif;fill:#5d5b66}
+      .hd{font:800 10px -apple-system,sans-serif;fill:#5b3df5;letter-spacing:.07em}.an{font:600 11px -apple-system,sans-serif;fill:#5b3df5}</style></defs>
+      <!-- popover -->
+      <rect x="30" y="20" width="320" height="320" rx="12" fill="#fff" stroke="#5b3df5" stroke-width="1.6"/>
+      <!-- pointer -->
+      <path d="M120 20 l10 -12 l10 12 z" fill="#fff" stroke="#5b3df5" stroke-width="1.6"/>
+      <!-- search -->
+      <rect x="44" y="34" width="292" height="30" rx="8" fill="#f7f6f3" stroke="#d9d6df"/>
+      <text x="56" y="54" class="sm">🔍  sp|</text>
+      <text x="320" y="54" text-anchor="end" class="sm">✕</text>
+      <!-- recent -->
+      <text x="46" y="84" class="hd">RECENT &amp; LAST-USED</text>
+      <rect x="44" y="90" width="292" height="28" rx="7" fill="#efeaff"/>
+      <text x="56" y="108" class="lbl">中文 (Simplified)</text><text x="324" y="108" text-anchor="end" class="sm">zh-CN ↩</text>
+      <rect x="44" y="120" width="292" height="26" rx="7" fill="#fff"/>
+      <text x="56" y="138" class="lbl">English</text><text x="324" y="138" text-anchor="end" class="sm">en</text>
+      <!-- all -->
+      <text x="46" y="166" class="hd">ALL LANGUAGES</text>
+      <rect x="44" y="172" width="292" height="28" rx="7" fill="#f3efff" stroke="#c9bdf7"/>
+      <text x="56" y="190" class="lbl">Spanish · Español</text><text x="324" y="190" text-anchor="end" class="sm">es</text>
+      <text x="56" y="216" class="sm">Spanish (Latin America) · es-419</text>
+      <text x="56" y="238" class="sm">Pashto · پښتو · ps</text>
+      <text x="56" y="260" class="sm">Esperanto · eo</text>
+      <text x="56" y="282" class="sm">… filtered to matches of “sp” …</text>
+      <line x1="44" y1="300" x2="336" y2="300" stroke="#e3e1db"/>
+      <text x="56" y="322" class="sm">↑↓ move · ↩ choose · esc close</text>
+
+      <!-- annotations -->
+      <text x="380" y="46" class="an">1 · auto-focused search</text>
+      <text x="380" y="64" class="sm">filters name · endonym · code;</text>
+      <text x="380" y="80" class="sm">diacritic- &amp; case-insensitive</text>
+      <text x="380" y="110" class="an">2 · Recent / last-used pinned</text>
+      <text x="380" y="128" class="sm">your home + secondary + the</text>
+      <text x="380" y="144" class="sm">last few targets — the common case</text>
+      <text x="380" y="144" class="sm"> </text>
+      <text x="380" y="190" class="an">3 · first match auto-highlighted</text>
+      <text x="380" y="208" class="sm">↩ on an empty query keeps current</text>
+      <text x="380" y="236" class="an">4 · full keyboard model</text>
+      <text x="380" y="254" class="sm">type-to-filter, ↑↓ wraps, ↩ commits,</text>
+      <text x="380" y="270" class="sm">esc cancels (no change), ⇥ leaves</text>
+      <text x="380" y="298" class="an">5 · From picker only</text>
+      <text x="380" y="316" class="sm">adds a top "Auto-detect" row above Recent</text>
+    </svg>
+    <figcaption>Picker anatomy — search-first, Recent pinned, A–Z below; identical for From (with an extra "Auto-detect" row) and To.</figcaption>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <colgroup><col style="width:34%"><col style="width:66%"></colgroup>
+      <tr><th>Key</th><th>Behaviour</th></tr>
+      <tr><td><code>type</code></td><td>Filters live; the list collapses to matches, first match highlighted. Matches on English name, endonym, and BCP-47 code.</td></tr>
+      <tr><td><code>↑ / ↓</code></td><td>Move highlight through the filtered list (Recent + All), wrapping at the ends.</td></tr>
+      <tr><td><code>↩ Return</code></td><td>Selects the highlight, closes, and re-translates. On an empty query, keeps the current language.</td></tr>
+      <tr><td><code>esc</code></td><td>Closes with no change (panel and result untouched).</td></tr>
+      <tr><td><code>click</code></td><td>Same as Return for that row.</td></tr>
+    </table>
+  </div>
+  <p class="lead">Recent holds the user's home + secondary language and the last 3–5 chosen targets (most-recent
+  first), so the 100+ list is rarely scrolled. Native <code>NSPopover</code> + a filtered table view; no custom window.</p>
+</section>
+
+<!-- ============================ 4 DEFAULTS ============================ -->
+<section id="defaults">
+  <h2><span class="n">4</span> Defaults, memory &amp; the swap — preserving EN⇄ZH</h2>
+  <p>The subtle case: today "auto" is a <b>bidirectional flip</b> (Chinese→English, else→Chinese). A naïve fixed
+  <code>To: 中文</code> would translate captured Chinese into Chinese. To honour S5 exactly we keep a small
+  <b>same-language guard</b> tied to a <b>home / secondary</b> pair.</p>
+  <div class="figwrap">
+    <svg viewBox="0 0 820 250" role="img" aria-label="Default pair and same-language guard">
+      <defs><marker id="a4" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b3df5"/></marker>
+      <style>.lbl{font:600 13px -apple-system,sans-serif;fill:#16151a}.sm{font:500 11px -apple-system,sans-serif;fill:#5d5b66}
+      .fl{stroke:#5b3df5;stroke-width:1.8;fill:none;marker-end:url(#a4)}.hd{font:800 10px -apple-system;fill:#5b3df5;letter-spacing:.06em}</style></defs>
+      <text x="20" y="26" class="hd">DEFAULT PAIR (first run) = today's behaviour</text>
+      <rect x="20" y="38" width="150" height="46" rx="10" fill="#f3efff" stroke="#c9bdf7"/>
+      <text x="95" y="60" text-anchor="middle" class="lbl">From: Auto</text>
+      <text x="95" y="76" text-anchor="middle" class="sm">real detection</text>
+      <rect x="210" y="38" width="170" height="46" rx="10" fill="#fff" stroke="#d9d6df"/>
+      <text x="295" y="60" text-anchor="middle" class="lbl">To: home = 中文</text>
+      <text x="295" y="76" text-anchor="middle" class="sm">+ secondary = English</text>
+      <line x1="170" y1="61" x2="206" y2="61" class="fl"/>
+
+      <text x="20" y="124" class="hd">SAME-LANGUAGE GUARD  (only when From = Auto)</text>
+      <rect x="20" y="136" width="240" height="44" rx="10" fill="#fff" stroke="#d9d6df"/>
+      <text x="32" y="158" class="sm">detected source == To ?</text>
+      <text x="32" y="174" class="sm">e.g. capture Chinese, To=中文</text>
+      <rect x="300" y="118" width="220" height="36" rx="9" fill="#e6f4ec" stroke="#cfe9d8"/>
+      <text x="312" y="141" class="sm">no → translate into To (中文)</text>
+      <rect x="300" y="162" width="220" height="36" rx="9" fill="#fbeede" stroke="#ead9c4"/>
+      <text x="312" y="185" class="sm">yes → translate into secondary (English)</text>
+      <line x1="260" y1="150" x2="296" y2="136" class="fl"/>
+      <line x1="260" y1="166" x2="296" y2="180" class="fl"/>
+
+      <text x="560" y="124" class="hd">RESULT</text>
+      <rect x="560" y="136" width="240" height="60" rx="10" fill="#f7f6f3" stroke="#e3e1db"/>
+      <text x="572" y="160" class="sm">EN → 中文 ✓   中文 → EN ✓</text>
+      <text x="572" y="180" class="sm">JP / FR / any → 中文 ✓ (new)</text>
+    </svg>
+    <figcaption>Default = Auto → home(中文) with a secondary(English). The guard reproduces the EN⇄ZH flip while any other source still lands in 中文.</figcaption>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <colgroup><col style="width:26%"><col style="width:74%"></colgroup>
+      <tr><th>Behaviour</th><th>Rule</th></tr>
+      <tr><td><b>First-run default</b></td><td><code>From: Auto → To: 中文 (Simplified)</code>, secondary <code>English</code>. Reproduces today's experience for existing users with no setup (S4, S5).</td></tr>
+      <tr><td><b>Memory</b></td><td>The last-used From/To pair persists across launches in <code>SettingsStore</code> (UserDefaults) and is the pair every fresh capture/clipboard/CLI call uses. Picking a new To updates the memory.</td></tr>
+      <tr><td><b>Same-language guard</b></td><td>Only with <code>From: Auto</code>. If the detected source equals the To language, translate into the <b>secondary</b> instead — so EN⇄ZH stays a flip. With an explicit From, no guard (the user asked for that pair).</td></tr>
+      <tr><td><b>Swap ⇄</b></td><td>Exchanges From and To. When <code>From: Auto</code>, swap promotes the <b>detected</b> source into From (so <code>Auto(ja) ⇄ 中文</code> → <code>From: 中文 → To: Japanese</code>) and re-translates. Disabled until a detection exists.</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ 5 STATES ============================ -->
+<section id="states">
+  <h2><span class="n">5</span> All states</h2>
+  <p class="lead">The capture state machine is unchanged in shape; multi-language adds re-translate transitions
+  and three cross-cutting conditions (free fallback, uncertain detection, unsupported pair).</p>
+  <div class="figwrap">
+    <svg viewBox="0 0 900 470" role="img" aria-label="State diagram for capture, translate, re-translate and error states">
+      <defs><marker id="a5" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b3df5"/></marker>
+      <style>.s{fill:#fff;stroke:#5b3df5;stroke-width:1.6}.t{fill:#f4f3f6;stroke:#cfcbd8;stroke-width:1.4}
+      .e{fill:#fbe9e7;stroke:#b3261e;stroke-width:1.4}.ok{fill:#e6f4ec;stroke:#1f8a4c;stroke-width:1.6}
+      .lbl{font:600 12px -apple-system,sans-serif;fill:#16151a}.sm{font:500 10px -apple-system,sans-serif;fill:#5d5b66}
+      .fl{stroke:#5b3df5;stroke-width:1.6;fill:none;marker-end:url(#a5)}.cap{font:600 10px -apple-system;fill:#5d5b66}</style></defs>
+
+      <!-- idle -->
+      <rect x="20" y="40" width="110" height="44" rx="10" class="t"/><text x="75" y="67" text-anchor="middle" class="lbl">Idle</text>
+      <!-- capturing -->
+      <rect x="170" y="40" width="120" height="44" rx="10" class="s"/><text x="230" y="60" text-anchor="middle" class="lbl">Capturing</text><text x="230" y="76" text-anchor="middle" class="sm">region · OCR</text>
+      <!-- detecting/translating -->
+      <rect x="330" y="40" width="140" height="44" rx="10" class="s"/><text x="400" y="60" text-anchor="middle" class="lbl">Detect + Translate</text><text x="400" y="76" text-anchor="middle" class="sm">Auto · last pair</text>
+      <!-- success -->
+      <rect x="520" y="40" width="150" height="56" rx="12" class="ok"/><text x="595" y="62" text-anchor="middle" class="lbl">Success (panel)</text><text x="595" y="78" text-anchor="middle" class="sm">+ language bar</text><text x="595" y="90" text-anchor="middle" class="sm">+ detected line</text>
+
+      <line x1="130" y1="62" x2="166" y2="62" class="fl"/><text x="148" y="32" text-anchor="middle" class="cap">⌃⌥Y</text>
+      <line x1="290" y1="62" x2="326" y2="62" class="fl"/>
+      <line x1="470" y1="62" x2="516" y2="62" class="fl"/>
+
+      <!-- re-translate loop -->
+      <rect x="520" y="150" width="150" height="50" rx="11" class="s"/><text x="595" y="170" text-anchor="middle" class="lbl">Picking</text><text x="595" y="186" text-anchor="middle" class="sm">picker open / ⇄ swap</text>
+      <rect x="330" y="150" width="140" height="50" rx="11" class="s"/><text x="400" y="170" text-anchor="middle" class="lbl">Re-translating</text><text x="400" y="186" text-anchor="middle" class="sm">same text · new pair</text>
+      <line x1="585" y1="96" x2="585" y2="146" class="fl"/><text x="660" y="124" class="cap">tap To/From · swap</text>
+      <line x1="520" y1="175" x2="474" y2="175" class="fl"/>
+      <path d="M400 150 C400 120 470 110 520 86" class="fl"/><text x="430" y="118" class="cap">re-render</text>
+
+      <!-- empty / cancel / permission -->
+      <rect x="170" y="260" width="120" height="44" rx="10" class="t"/><text x="230" y="282" text-anchor="middle" class="lbl">Cancelled</text><text x="230" y="297" text-anchor="middle" class="sm">Esc → Idle</text>
+      <rect x="330" y="260" width="140" height="44" rx="10" class="e"/><text x="400" y="282" text-anchor="middle" class="lbl">No text found</text><text x="400" y="297" text-anchor="middle" class="sm">empty OCR</text>
+      <rect x="20" y="260" width="120" height="44" rx="10" class="e"/><text x="80" y="282" text-anchor="middle" class="lbl">Permission</text><text x="80" y="297" text-anchor="middle" class="sm">needed</text>
+      <line x1="230" y1="84" x2="230" y2="256" class="fl"/>
+      <line x1="370" y1="84" x2="395" y2="256" class="fl"/>
+      <line x1="180" y1="62" x2="140" y2="258" class="fl"/>
+
+      <!-- error -->
+      <rect x="520" y="260" width="150" height="44" rx="10" class="e"/><text x="595" y="282" text-anchor="middle" class="lbl">Translation failed</text><text x="595" y="297" text-anchor="middle" class="sm">network / API</text>
+      <line x1="430" y1="84" x2="540" y2="256" class="fl"/>
+
+      <!-- cross-cutting band -->
+      <text x="20" y="350" class="cap" style="font-weight:800;fill:#5b3df5">CROSS-CUTTING CONDITIONS (modify Success, not separate screens)</text>
+      <rect x="20" y="362" width="270" height="86" rx="10" class="t"/>
+      <text x="34" y="384" class="lbl">No OpenAI key</text>
+      <text x="34" y="402" class="sm">resolver silently falls to Google;</text>
+      <text x="34" y="418" class="sm">badge shows FREE — not an error.</text>
+      <text x="34" y="436" class="sm">All 100+ pairs still work.</text>
+      <rect x="312" y="362" width="270" height="86" rx="10" class="t"/>
+      <text x="326" y="384" class="lbl">Detection uncertain</text>
+      <text x="326" y="402" class="sm">very short / mixed input.</text>
+      <text x="326" y="418" class="sm">Detected line: “Detected: — ”</text>
+      <text x="326" y="436" class="sm">with a hint to set From manually.</text>
+      <rect x="604" y="362" width="276" height="86" rx="10" class="t"/>
+      <text x="618" y="384" class="lbl">Pair an engine can't serve</text>
+      <text x="618" y="402" class="sm">AI weak/unsupported language →</text>
+      <text x="618" y="418" class="sm">auto-fall to Google for that pair;</text>
+      <text x="618" y="436" class="sm">badge notes “via Google”.</text>
+    </svg>
+    <figcaption>State diagram — capture path (unchanged) plus the new Picking → Re-translating loop; the three conditions decorate the Success state rather than adding screens.</figcaption>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <colgroup><col style="width:26%"><col style="width:40%"><col style="width:34%"></colgroup>
+      <tr><th>State</th><th>What the user sees</th><th>Copy / behaviour</th></tr>
+      <tr><td><b>Idle</b></td><td>Menu-bar item only.</td><td>—</td></tr>
+      <tr><td><b>Loading / Re-translating</b></td><td>Small spinner on the To control; prior result stays visible.</td><td>No flash; result swaps when ready.</td></tr>
+      <tr><td><b>Success</b></td><td>Translation + language bar + detected line + badge.</td><td>"Copied ✓"; "Detected: Japanese".</td></tr>
+      <tr><td><b>Empty input</b></td><td>Message panel.</td><td>"No text found — Nothing recognizable was in the selection. Try again."</td></tr>
+      <tr><td><b>Error</b></td><td>Error panel (no language bar).</td><td>"Translation failed" + reason. Re-fire to retry.</td></tr>
+      <tr><td><b>No OpenAI key</b></td><td>Normal success, FREE badge.</td><td>No error — Google serves it. (Prefs is where a key is added.)</td></tr>
+      <tr><td><b>Detection uncertain</b></td><td>Success with a muted detected line.</td><td>"Detected: uncertain — set From if this looks wrong." From picker pre-highlights best guess.</td></tr>
+      <tr><td><b>Unsupported pair</b></td><td>Success with a "via Google" note on the badge.</td><td>AI couldn't serve the pair → silent fallback, never a dead end (PRD constraint).</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ 6 PREFERENCES ============================ -->
+<section id="prefs">
+  <h2><span class="n">6</span> Preferences — inline vs. settings</h2>
+  <p class="lead">Per-translation choice stays <b>inline on the panel</b>. Preferences only sets the <b>home pair</b>
+  — the default target and secondary used by the fast path and the same-language guard. One small new section in the
+  existing four-tab window (General · Engine · Account · About); the natural home is a <b>Languages</b> group on the
+  Engine tab (or a new "Languages" tab).</p>
+  <div class="figwrap">
+    <svg viewBox="0 0 600 250" role="img" aria-label="Preferences Languages section">
+      <defs><style>.lbl{font:600 13px -apple-system,sans-serif;fill:#16151a}.sm{font:500 11px -apple-system,sans-serif;fill:#5d5b66}
+      .mono{font:600 12px ui-monospace,Menlo,monospace;fill:#16151a}</style></defs>
+      <rect x="120" y="20" width="360" height="210" rx="12" fill="#fff" stroke="#cfcbd8" stroke-width="1.5"/>
+      <text x="140" y="48" class="lbl" style="font-size:14px">Languages</text>
+      <line x1="140" y1="58" x2="460" y2="58" stroke="#eceaf4"/>
+      <text x="140" y="84" class="sm">Default target</text>
+      <rect x="280" y="70" width="170" height="24" rx="6" fill="#f7f6f3" stroke="#d9d6df"/><text x="292" y="87" class="mono">中文 (Simplified) ▾</text>
+      <text x="140" y="124" class="sm">Secondary (for Auto flip)</text>
+      <rect x="280" y="110" width="170" height="24" rx="6" fill="#f7f6f3" stroke="#d9d6df"/><text x="292" y="127" class="mono">English ▾</text>
+      <text x="140" y="164" class="sm">Last used</text>
+      <text x="280" y="164" class="sm" style="font-style:italic">Auto → 中文 (read-only)</text>
+      <line x1="140" y1="184" x2="460" y2="184" stroke="#eceaf4"/>
+      <text x="140" y="208" class="sm">Per-translation From/To live on the result panel.</text>
+    </svg>
+    <figcaption>Preferences ▸ Languages — only the home pair (default target + secondary). Everything else is inline.</figcaption>
+  </div>
+  <p class="lead">Why so little in Prefs: the From/To pickers <em>are</em> the control surface. Duplicating them in
+  Preferences would split state. Prefs answers one question — "when I capture without choosing, where does it go?"</p>
+</section>
+
+<!-- ============================ 7 CLI ============================ -->
+<section id="cli">
+  <h2><span class="n">7</span> The <code>te</code> CLI — parity in spirit</h2>
+  <p class="lead">The CLI gains From/To via flags + env, mirroring the app's model: <code>auto</code> source by
+  default, a remembered/configured target, the same language codes, and the same same-language guard. Quick
+  actions read the configured target so they honour it too (PRD&nbsp;S7).</p>
+  <h3>Flags &amp; config</h3>
+  <div class="tablewrap">
+    <table>
+      <colgroup><col style="width:30%"><col style="width:40%"><col style="width:30%"></colgroup>
+      <tr><th>Flag</th><th>Meaning</th><th>Default</th></tr>
+      <tr><td><code>-f, --from &lt;code&gt;</code></td><td>Source language; <code>auto</code> = detect.</td><td><code>$TE_FROM</code> → <code>auto</code></td></tr>
+      <tr><td><code>-t, --to &lt;code&gt;</code></td><td>Target language (BCP-47, e.g. <code>fr</code>, <code>zh-CN</code>).</td><td><code>$TE_TO</code> → <code>zh-CN</code></td></tr>
+      <tr><td><code>-l, --languages [q]</code></td><td>List the catalog (code · name · endonym); optional filter <code>q</code>.</td><td>—</td></tr>
+      <tr><td><code>--detect</code></td><td>Print only the detected source of the input, then exit.</td><td>—</td></tr>
+    </table>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <colgroup><col style="width:30%"><col style="width:46%"><col style="width:24%"></colgroup>
+      <tr><th>Env / config</th><th>Meaning</th><th>Default</th></tr>
+      <tr><td><code>TE_FROM</code></td><td>Default source.</td><td><code>auto</code></td></tr>
+      <tr><td><code>TE_TO</code></td><td>Default target (the "home" language).</td><td><code>zh-CN</code></td></tr>
+      <tr><td><code>TE_SECONDARY</code></td><td>Used by the Auto same-language guard.</td><td><code>en</code></td></tr>
+    </table>
+  </div>
+  <p class="lead">Config is sourced like the existing key file — add <code>~/.te/config</code> (sourced the same way
+  as <code>~/.openai/keys.env</code>) exporting <code>TE_TO</code> / <code>TE_FROM</code> / <code>TE_SECONDARY</code>,
+  so terminal use and the quick actions share one default. Codes are the same BCP-47 strings the app uses (§9).</p>
+  <div class="term">
+<span class="c"># default: auto-detect → home (zh-CN), with EN⇄ZH guard preserved</span><br>
+$ te "Bonjour le monde"<br>
+<span class="d">detected: fr</span><br>
+<span class="g">你好，世界</span><br>
+<br>
+<span class="c"># explicit target; -f auto stays implicit</span><br>
+$ te -t fr "hello world"<br>
+<span class="g">bonjour le monde</span><br>
+<br>
+<span class="c"># explicit pair, free engine, piped input</span><br>
+$ echo "中文" | te -g -f zh-CN -t ja<br>
+<span class="g">中国語</span><br>
+<br>
+<span class="c"># discover codes</span><br>
+$ te -l span<br>
+<span class="p">es      Spanish            Español</span><br>
+<span class="p">es-419  Spanish (Latin Am) Español (Latinoamérica)</span>
+  </div>
+  <h3>Auto detection &amp; the three quick actions</h3>
+  <ul>
+    <li><b>Google engine:</b> already sends <code>sl=auto</code>; we now read the <b>detected source</b> from the
+      response and print it dimmed (<code>detected: ja</code>), and send the chosen <code>tl=&lt;to&gt;</code>.</li>
+    <li><b>AI engine:</b> the system prompt becomes parameterized — "Translate from <i>&lt;from|the detected
+      language&gt;</i> into <i>&lt;to-name&gt;</i>" — replacing the hard-coded EN/ZH prompt. <code>--detect</code>
+      asks the model only for the source label.</li>
+    <li><b>Same-language guard:</b> when <code>from=auto</code> and detected == <code>TE_TO</code>, target
+      <code>TE_SECONDARY</code> — the bash mirror of the app rule, so <code>te</code> on Chinese still gives English.</li>
+    <li><b>Quick actions:</b> "Translate with te (AI)", "(Google)", and "screen region" all call <code>te</code>
+      with no explicit <code>-t</code>, so they inherit <code>TE_TO</code> from <code>~/.te/config</code> — one place
+      to set the target for every surface. No per-workflow editing needed.</li>
+  </ul>
+</section>
+
+<!-- ============================ 8 FLOWS ============================ -->
+<section id="flows">
+  <h2><span class="n">8</span> Flows</h2>
+  <h3>Capture → pick → translate → save (the core loop)</h3>
+  <div class="figwrap">
+    <svg viewBox="0 0 880 360" role="img" aria-label="Sequence diagram of capture, detect, translate, re-pick and save">
+      <defs><marker id="a8" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b3df5"/></marker>
+      <style>.life{stroke:#cfcbd8;stroke-width:1.2;stroke-dasharray:3 3}.hd{font:700 12px -apple-system;fill:#16151a}
+      .msg{font:500 11px -apple-system,sans-serif;fill:#16151a}.sm{font:500 10px -apple-system;fill:#5d5b66}
+      .fl{stroke:#5b3df5;stroke-width:1.5;fill:none;marker-end:url(#a8)}.ret{stroke:#a7a3b3;stroke-width:1.3;fill:none;stroke-dasharray:4 3;marker-end:url(#a8)}</style></defs>
+      <!-- lifelines -->
+      <g text-anchor="middle">
+        <rect x="40" y="20" width="110" height="30" rx="7" fill="#f4f3f6" stroke="#cfcbd8"/><text x="95" y="40" class="hd">User</text>
+        <rect x="220" y="20" width="120" height="30" rx="7" fill="#f3efff" stroke="#c9bdf7"/><text x="280" y="40" class="hd">Coordinator</text>
+        <rect x="410" y="20" width="120" height="30" rx="7" fill="#f4f3f6" stroke="#cfcbd8"/><text x="470" y="40" class="hd">Engine</text>
+        <rect x="600" y="20" width="120" height="30" rx="7" fill="#f3efff" stroke="#c9bdf7"/><text x="660" y="40" class="hd">Result panel</text>
+        <rect x="770" y="20" width="90" height="30" rx="7" fill="#f4f3f6" stroke="#cfcbd8"/><text x="815" y="40" class="hd">Notebook</text>
+      </g>
+      <line x1="95" y1="50" x2="95" y2="345" class="life"/>
+      <line x1="280" y1="50" x2="280" y2="345" class="life"/>
+      <line x1="470" y1="50" x2="470" y2="345" class="life"/>
+      <line x1="660" y1="50" x2="660" y2="345" class="life"/>
+      <line x1="815" y1="50" x2="815" y2="345" class="life"/>
+      <!-- messages -->
+      <line x1="95" y1="74" x2="276" y2="74" class="fl"/><text x="180" y="68" text-anchor="middle" class="msg">⌃⌥Y capture (no language asked)</text>
+      <line x1="280" y1="100" x2="466" y2="100" class="fl"/><text x="375" y="94" text-anchor="middle" class="msg">translate(text, from=auto, to=last-used)</text>
+      <line x1="466" y1="126" x2="284" y2="126" class="ret"/><text x="375" y="120" text-anchor="middle" class="sm">translation + detected source</text>
+      <line x1="280" y1="152" x2="656" y2="152" class="fl"/><text x="470" y="146" text-anchor="middle" class="msg">showResult(+ language bar, detected line, badge)</text>
+      <line x1="656" y1="178" x2="99" y2="178" class="ret"/><text x="370" y="172" text-anchor="middle" class="sm">user reads result (already done — fast path ends here)</text>
+      <!-- optional re-pick -->
+      <rect x="86" y="196" width="650" height="64" rx="8" fill="none" stroke="#c9bdf7" stroke-dasharray="5 3"/>
+      <text x="96" y="210" class="sm" style="fill:#5b3df5;font-weight:700">opt · change To</text>
+      <line x1="95" y1="224" x2="656" y2="224" class="fl"/><text x="370" y="218" text-anchor="middle" class="msg">tap To ▾ → search → pick "French"</text>
+      <line x1="660" y1="248" x2="474" y2="248" class="fl"/><text x="565" y="242" text-anchor="middle" class="sm">re-translate(text, to=fr)</text>
+      <!-- save -->
+      <line x1="95" y1="292" x2="656" y2="292" class="fl"/><text x="370" y="286" text-anchor="middle" class="msg">⌘S Save to Notebook</text>
+      <line x1="660" y1="316" x2="811" y2="316" class="fl"/><text x="735" y="310" text-anchor="middle" class="sm">add(source, translation, pair)</text>
+      <line x1="811" y1="338" x2="664" y2="338" class="ret"/><text x="740" y="332" text-anchor="middle" class="sm">★ Saved</text>
+    </svg>
+    <figcaption>Core loop — the fast path ends at "user reads result"; picking a different To and saving are optional follow-ons that reuse the same engine call.</figcaption>
+  </div>
+  <h3>Picking a language (the micro-flow)</h3>
+  <div class="figwrap">
+    <svg viewBox="0 0 880 110" role="img" aria-label="Language picking flow">
+      <defs><marker id="a8b" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b3df5"/></marker>
+      <style>.bx{fill:#fff;stroke:#d9d6df;stroke-width:1.4}.bxp{fill:#f3efff;stroke:#c9bdf7;stroke-width:1.4}
+      .lbl{font:600 12px -apple-system,sans-serif;fill:#16151a}.sm{font:500 10px -apple-system;fill:#5d5b66}
+      .fl{stroke:#5b3df5;stroke-width:1.6;fill:none;marker-end:url(#a8b)}</style></defs>
+      <rect x="14" y="34" width="120" height="44" rx="10" class="bx"/><text x="74" y="56" text-anchor="middle" class="lbl">Tap To ▾</text><text x="74" y="71" text-anchor="middle" class="sm">popover opens</text>
+      <rect x="166" y="34" width="130" height="44" rx="10" class="bxp"/><text x="231" y="56" text-anchor="middle" class="lbl">Type to filter</text><text x="231" y="71" text-anchor="middle" class="sm">name·endonym·code</text>
+      <rect x="328" y="34" width="130" height="44" rx="10" class="bxp"/><text x="393" y="56" text-anchor="middle" class="lbl">↑↓ highlight</text><text x="393" y="71" text-anchor="middle" class="sm">Recent first</text>
+      <rect x="490" y="34" width="120" height="44" rx="10" class="bx"/><text x="550" y="56" text-anchor="middle" class="lbl">↩ select</text><text x="550" y="71" text-anchor="middle" class="sm">close popover</text>
+      <rect x="642" y="34" width="130" height="44" rx="10" class="bx"/><text x="707" y="56" text-anchor="middle" class="lbl">Re-translate</text><text x="707" y="71" text-anchor="middle" class="sm">+ remember pair</text>
+      <rect x="804" y="34" width="62" height="44" rx="10" fill="#e6f4ec" stroke="#cfe9d8"/><text x="835" y="60" text-anchor="middle" class="lbl">Done</text>
+      <line x1="134" y1="56" x2="162" y2="56" class="fl"/>
+      <line x1="296" y1="56" x2="324" y2="56" class="fl"/>
+      <line x1="458" y1="56" x2="486" y2="56" class="fl"/>
+      <line x1="610" y1="56" x2="638" y2="56" class="fl"/>
+      <line x1="772" y1="56" x2="800" y2="56" class="fl"/>
+      <text x="231" y="22" text-anchor="middle" class="sm">esc at any point → close, no change</text>
+    </svg>
+    <figcaption>Picking flow — fully keyboard-drivable; esc always cancels without re-translating.</figcaption>
+  </div>
+</section>
+
+<!-- ============================ 9 CATALOG ============================ -->
+<section id="catalog">
+  <h2><span class="n">9</span> Language catalog — one shape, two surfaces</h2>
+  <p class="lead">For the tech build: a single canonical catalog, mapped to both engines, shared <b>in spirit</b> by
+  app and CLI (PRD constraint — no literal code sharing). Recommendation: keep the data as one source file and
+  generate the bash list from it so they can't drift.</p>
+  <div class="tablewrap">
+    <table>
+      <colgroup><col style="width:24%"><col style="width:38%"><col style="width:38%"></colgroup>
+      <tr><th>Field</th><th>Purpose</th><th>Example</th></tr>
+      <tr><td><code>code</code></td><td>Canonical BCP-47 id; the value persisted &amp; passed around.</td><td><code>zh-CN</code>, <code>pt-BR</code>, <code>es</code></td></tr>
+      <tr><td><code>englishName</code></td><td>Picker label + search key.</td><td>Chinese (Simplified)</td></tr>
+      <tr><td><code>endonym</code></td><td>Native name shown + search key.</td><td>中文（简体）</td></tr>
+      <tr><td><code>googleCode</code></td><td>Value for Google's <code>tl=</code> (often == code).</td><td><code>zh-CN</code></td></tr>
+      <tr><td><code>aiName</code></td><td>Natural-language hint for the OpenAI prompt.</td><td>"Simplified Chinese"</td></tr>
+      <tr><td><code>aliases[]</code></td><td>Extra search terms (autonyms, common spellings).</td><td>["mandarin","zh","简体"]</td></tr>
+    </table>
+  </div>
+  <p class="lead">This generalizes today's <code>LanguageDirection.Target</code> (<code>macos/Sources/Translate/TranslationEngine.swift:81</code>):
+  the two-case enum becomes a <code>Language</code> value + a static catalog; <code>googleCode</code> already exists there and carries over directly.
+  <code>Auto</code> is represented as the absence of a From <code>Language</code> (a sentinel), detection fills in the real source.</p>
+</section>
+
+<!-- ============================ 10 OPEN ============================ -->
+<section id="open">
+  <h2><span class="n">10</span> Open questions for the PM</h2>
+  <div class="q"><span class="id">Q1</span><span><b>Same-language guard — confirm the model.</b> To keep EN⇄ZH a flip without breaking "any source → 中文", I propose a home <b>+</b> secondary pair with a guard (§4). Alternative: drop the guard and make Auto→中文 literal (simpler, but capturing Chinese with the default would give Chinese→Chinese). Recommend the guard.</span></div>
+  <div class="q"><span class="id">Q2</span><span><b>Home default = 中文 or follow system locale?</b> I default the home target to Simplified Chinese to match the current product and Erik's use. We could instead seed it from the macOS system language on first run. Recommend 中文 for zero-regression, switchable in Prefs.</span></div>
+  <div class="q"><span class="id">Q3</span><span><b>Picker placement in Preferences:</b> a "Languages" group on the existing <b>Engine</b> tab, or a new dedicated <b>Languages</b> tab? Recommend a group on Engine to avoid a five-tab window.</span></div>
+  <div class="q"><span class="id">Q4</span><span><b>Unsupported-pair behaviour:</b> silent fallback to Google with a "via Google" badge note (recommended, never a dead end) vs. an explicit "AI can't do this pair — use Free?" prompt. Recommend silent fallback.</span></div>
+</section>
+
+<footer>Translator Everywhere · Multi-Language Support · Design Document (Artifact 2 of 5) · next: Tech Document → Gate 2</footer>
+
+</div>
+</body>
+</html>
