@@ -40,18 +40,35 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     /// Notebook" button (⌘S) is offered; clicking it awaits the handler and, on
     /// success, swaps to a confirmed "★ Saved" state so the user can't
     /// double-save. Must be called on the main actor.
+    ///
+    /// The multi-language data path — `pair`, `detected`, `viaGoogleFallback`,
+    /// and `onRetranslate` — is accepted here so `CaptureCoordinator` can wire it
+    /// now; slice 7 adds the language bar + searchable picker that fully render
+    /// and drive it. This slice renders it minimally: a faint "via Google" note
+    /// on the badge row when an AI-preferred pair was routed to Google.
     @MainActor
     func showResult(
         translation: String,
         source: String,
         badge: String,
         copied: Bool,
-        onSave: (@MainActor () async -> Bool)? = nil
+        pair: LanguagePair? = nil,
+        detected: DetectedSource = .unavailable,
+        viaGoogleFallback: Bool = false,
+        onSave: (@MainActor () async -> Bool)? = nil,
+        onRetranslate: (@MainActor (LanguagePair) -> Void)? = nil
     ) {
+        // `pair` / `detected` / `onRetranslate` are reserved for slice 7's bar +
+        // picker; held in the signature so the data path is wired end-to-end now.
+        _ = pair
+        _ = detected
+        _ = onRetranslate
+
         let panel = panel ?? makePanel()
         self.panel = panel
         panel.contentView = makeResultContent(
-            translation: translation, source: source, badge: badge, copied: copied, onSave: onSave
+            translation: translation, source: source, badge: badge, copied: copied,
+            viaGoogleFallback: viaGoogleFallback, onSave: onSave
         )
         present(panel)
     }
@@ -118,6 +135,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     @MainActor
     private func makeResultContent(
         translation: String, source: String, badge: String, copied: Bool,
+        viaGoogleFallback: Bool,
         onSave: (@MainActor () async -> Bool)?
     ) -> NSView {
         // Drop any prior result's Save controller; `saveControl` re-sets it when
@@ -128,6 +146,11 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 8
+        // An AI-preferred pair routed to Google gets a faint "via Google" note
+        // beside the badge (TECH §4); slice 7 refines its placement in the bar.
+        if viaGoogleFallback {
+            header.addArrangedSubview(viaGoogleLabel())
+        }
         if copied {
             header.addArrangedSubview(copiedLabel())
         }
@@ -215,6 +238,18 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         let label = NSTextField(labelWithString: "Copied ✓")
         label.font = .systemFont(ofSize: 11, weight: .medium)
         label.textColor = .systemGreen
+        return label
+    }
+
+    /// A faint "via Google" note shown on the badge row when an AI-preferred pair
+    /// was served by Google (TECH §4). Minimal placement for now; slice 7's
+    /// language bar gives it a permanent home.
+    @MainActor
+    private func viaGoogleLabel() -> NSView {
+        let label = NSTextField(labelWithString: "via Google")
+        label.font = .systemFont(ofSize: 11, weight: .regular)
+        label.textColor = .secondaryLabelColor
+        label.toolTip = "The AI engine can’t serve this pair — translated with Google."
         return label
     }
 

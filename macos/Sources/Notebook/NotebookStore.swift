@@ -67,17 +67,29 @@ final class NotebookStore {
 
     // MARK: - Mutations
 
-    /// Inserts a new capture. Generates a fresh `clientUUID`, derives the
-    /// language pair from the source text, and marks the row dirty so a future
-    /// sync pushes it. Returns the inserted item.
+    /// Inserts a new capture. Generates a fresh `clientUUID`, stores the resolved
+    /// source/target language codes the orchestrator threaded in (`from`/`to`,
+    /// BCP-47), and marks the row dirty so a future sync pushes it. Returns the
+    /// inserted item.
+    ///
+    /// The interim source-text Han heuristic is gone — the real From/To now comes
+    /// from `PairResolver`'s guard via `CaptureCoordinator`. Historical rows keep
+    /// their previously-derived values untouched (no migration); export/sync read
+    /// these fields as opaque strings, so mixed old/new values are fine.
     @discardableResult
-    func add(source: String, translation: String, engine: EngineKind) throws -> VocabItem {
+    func add(
+        source: String,
+        translation: String,
+        from: String,
+        to: String,
+        engine: EngineKind
+    ) throws -> VocabItem {
         let now = Date()
         let item = VocabItem(
             sourceText: source,
             translation: translation,
-            srcLang: "auto",
-            tgtLang: Self.targetGoogleCode(for: source),
+            srcLang: from,
+            tgtLang: to,
             engine: engine.rawValue,
             createdAt: now,
             updatedAt: now,
@@ -87,48 +99,6 @@ final class NotebookStore {
         context.insert(item)
         try context.save()
         return item
-    }
-
-    // MARK: - Interim target derivation (slice 3)
-
-    /// Derives the stored `tgtLang` from the source text, preserving the legacy
-    /// two-language flip (mostly-Han → `en`, else `zh-CN`). This is the in-store
-    /// derivation TECH §3 slates the `PairResolver` guard to replace in slice 6;
-    /// kept self-contained here so the retired `LanguageDirection` leaves no
-    /// dangling reference and the stored value is byte-identical to before.
-    private static func targetGoogleCode(for text: String) -> String {
-        isMostlyChinese(text) ? "en" : "zh-CN"
-    }
-
-    /// True when Han characters are at least half the letters — the old
-    /// `LanguageDirection.isMostlyChinese`, robust to a stray ASCII word.
-    private static func isMostlyChinese(_ text: String) -> Bool {
-        var han = 0
-        var letters = 0
-        for scalar in text.unicodeScalars {
-            if isHan(scalar) {
-                han += 1
-                letters += 1
-            } else if CharacterSet.letters.contains(scalar) {
-                letters += 1
-            }
-        }
-        guard letters > 0 else { return false }
-        return han * 2 >= letters
-    }
-
-    /// CJK Unified Ideographs (incl. common extensions) — the `\p{Han}` script.
-    private static func isHan(_ scalar: Unicode.Scalar) -> Bool {
-        switch scalar.value {
-        case 0x3400...0x4DBF,   // Ext A
-             0x4E00...0x9FFF,   // Unified
-             0xF900...0xFAFF,   // Compatibility Ideographs
-             0x20000...0x2A6DF, // Ext B
-             0x2A700...0x2EBEF: // Ext C–F
-            return true
-        default:
-            return false
-        }
     }
 
     /// Soft-deletes an item: sets the tombstone, bumps `updatedAt`, and marks it

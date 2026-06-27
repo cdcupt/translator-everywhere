@@ -10,8 +10,8 @@ struct SummarizeTests {
 
     private func makeItems() throws -> [VocabItem] {
         let store = try NotebookStore(inMemory: true)
-        let a = try store.add(source: "train platform", translation: "月台", engine: .free)
-        let b = try store.add(source: "exit", translation: "出口", engine: .free)
+        let a = try store.add(source: "train platform", translation: "月台", from: "en", to: "zh-CN", engine: .free)
+        let b = try store.add(source: "exit", translation: "出口", from: "en", to: "zh-CN", engine: .free)
         return [a, b]
     }
 

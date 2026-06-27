@@ -10,6 +10,13 @@ enum DetectedSource: Sendable, Equatable {
     case identified(Language, confidence: Double?)
     case uncertain
     case unavailable
+
+    /// The detected language's canonical code when `.identified`, else `nil`.
+    /// Used to thread the source code into the notebook row (`srcLang`).
+    var languageCode: String? {
+        if case let .identified(language, _) = self { return language.code }
+        return nil
+    }
 }
 
 /// What the caller hands the engine boundary: the text plus the resolved pair.

@@ -80,7 +80,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OnboardingWindowController(settings: settings, permission: permission)
 
     /// The off-main capture state machine.
-    private lazy var coordinator = CaptureCoordinator(resultPanel: resultPanel, notebook: notebook)
+    private lazy var coordinator = CaptureCoordinator(
+        settings: settings, resultPanel: resultPanel, notebook: notebook
+    )
 
     /// The global hotkey owner. Fires the same path as the menu item.
     private lazy var hotkeyManager = HotkeyManager { [weak self] in
