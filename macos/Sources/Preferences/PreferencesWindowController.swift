@@ -52,6 +52,23 @@ final class PreferencesWindowController {
         // Toolbar-tab preferences are fixed-width; height adapts per tab.
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
+
+        // Force an initial layout + explicit content size so the first tab renders
+        // correctly on first open. Without this the hosting controller (sizingOptions
+        // cleared to avoid a first-show crash) never gives the TabView a proper layout
+        // pass, so the first tab shows wrong content until a tab switch. Notebook-
+        // WindowController avoids this with an explicit setContentSize; do the same
+        // here, but computed since the Preferences height varies per tab.
+        hosting.view.layoutSubtreeIfNeeded()
+        let fitting = hosting.view.fittingSize
+        if fitting.width > 0, fitting.height > 0 {
+            window.setContentSize(fitting)
+        } else {
+            // Fallback if the TabView can't report a usable fitting size: match
+            // PreferencesView's fixed width (460 + 20pt padding each side) and a
+            // height that comfortably fits the tallest tab.
+            window.setContentSize(NSSize(width: 500, height: 460))
+        }
         window.center()
         self.window = window
 
