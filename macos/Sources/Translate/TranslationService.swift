@@ -75,7 +75,11 @@ struct TranslationService: Translating {
             detected: detected, pair: pair, secondary: settings.secondaryLanguage
         )
         let request = TranslationRequest(text: text, from: pair.from, to: effectiveTo)
-        let resolved = resolver.resolve(for: pair)
+        // Resolve on the EFFECTIVE pair (post-guard target), not the pre-guard
+        // `pair.to`: a guard flip can change which engine should serve the request
+        // (a language whose AI route differs). Dormant today — every catalog
+        // language has an `aiName` — but correct.
+        let resolved = resolver.resolve(for: LanguagePair(from: pair.from, to: effectiveTo))
 
         do {
             let result = try await resolved.engine.translate(request)
@@ -83,7 +87,8 @@ struct TranslationService: Translating {
                 translation: result.translation,
                 detected: detected,
                 servedBy: result.servedBy,
-                viaGoogleFallback: resolved.viaGoogleFallback
+                viaGoogleFallback: resolved.viaGoogleFallback,
+                effectiveTo: effectiveTo
             )
         } catch {
             // Runtime AI→Google safety net (TECH §4): only an AI failure retries;
@@ -94,7 +99,8 @@ struct TranslationService: Translating {
                 translation: result.translation,
                 detected: detected,
                 servedBy: result.servedBy,
-                viaGoogleFallback: true
+                viaGoogleFallback: true,
+                effectiveTo: effectiveTo
             )
         }
     }

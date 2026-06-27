@@ -1,5 +1,26 @@
 import AppKit
 
+/// The result-presentation surface `CaptureCoordinator` depends on — the seam
+/// (mirroring `Translating`) that lets the present path be unit-tested with a spy:
+/// which `LanguagePair` the bar is handed, the threaded save codes, etc.
+/// `ResultPanel` is the production conformer.
+@MainActor
+protocol ResultPresenting: AnyObject {
+    func showResult(
+        translation: String,
+        source: String,
+        badge: String,
+        copied: Bool,
+        pair: LanguagePair?,
+        detected: DetectedSource,
+        viaGoogleFallback: Bool,
+        onSave: (@MainActor () async -> Bool)?,
+        onRetranslate: (@MainActor (LanguagePair) -> Void)?
+    )
+    func showError(title: String, message: String)
+    func show(title: String, body: String)
+}
+
 /// The translation result UI (TECH §8.1).
 ///
 /// An `NSPanel` subclass that *can become key* — an `LSUIElement` agent app has
@@ -8,7 +29,7 @@ import AppKit
 /// result: the translation large/primary, the recognized source dim/smaller, an
 /// engine badge (FREE/AI), and a "Copied ✓" affordance once the translation is
 /// on the pasteboard. Errors render as a distinct error state.
-final class ResultPanel: NSObject, NSWindowDelegate {
+final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
 
     /// A borderless utility panel that is allowed to become key/main despite the
     /// app having no Dock presence.
@@ -26,6 +47,17 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     }
 
     private var panel: KeyablePanel?
+
+    /// Non-secret preferences — injected so the panel shares the coordinator's
+    /// single `SettingsStore` instead of allocating a fresh one per default-pair
+    /// fallback / picker open (so Recent reflects reality and the panel stays
+    /// testable). Defaults to a real store for older call sites / tests.
+    private let settings: SettingsStore
+
+    init(settings: SettingsStore = SettingsStore()) {
+        self.settings = settings
+        super.init()
+    }
 
     /// Strong reference to the current result's Save-button controller, if any.
     /// An `NSButton.target` is non-owning, so without this the controller would
@@ -78,7 +110,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     ) {
         // Auto-detect (`from: nil`) to the home target is the safe default when a
         // caller omits the pair (older call sites / tests).
-        let pair = pair ?? LanguagePair(from: nil, to: SettingsStore().homeTarget)
+        let pair = pair ?? LanguagePair(from: nil, to: settings.homeTarget)
 
         let panel = panel ?? makePanel()
         self.panel = panel
@@ -240,7 +272,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         // target before presenting, so it is already pinned).
         let barController = LanguageBarController(
             pair: pair, detected: detected,
-            recentProvider: { SettingsStore().recentTargets }
+            recentProvider: { [settings] in settings.recentTargets }
         )
         barController.onPick = { [weak self] newPair in
             guard let self else { return }

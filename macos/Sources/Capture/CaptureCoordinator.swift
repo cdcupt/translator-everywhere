@@ -12,7 +12,10 @@ actor CaptureCoordinator {
     private let permission: PermissionService
     private let capturer: RegionCapturer
     private let ocr: OCRService
-    private let resultPanel: ResultPanel
+    /// The result surface, behind the `ResultPresenting` seam so the present path
+    /// (which pair the bar is handed, the threaded save codes) is unit-testable
+    /// with a spy. `ResultPanel` is the production conformer.
+    private let resultPanel: any ResultPresenting
     /// Non-secret preferences — the source of the active From/To pair
     /// (`lastUsedPair`), the secondary flip target, and the recent-targets list.
     private let settings: SettingsStore
@@ -42,7 +45,7 @@ actor CaptureCoordinator {
         ocr: OCRService = OCRService(),
         settings: SettingsStore = SettingsStore(),
         service: (any Translating)? = nil,
-        resultPanel: ResultPanel,
+        resultPanel: any ResultPresenting,
         notebook: NotebookStore? = nil
     ) {
         self.permission = permission
@@ -117,7 +120,9 @@ actor CaptureCoordinator {
     /// Guards the result with the generation token: a result from a superseded
     /// request is dropped silently (no UI update); a current success copies +
     /// presents and records the recent target; a current failure shows an error.
-    private func runTranslation(text: String, pair: LanguagePair) async {
+    /// Internal so the present composition (effective-target display + threaded
+    /// save codes) is unit-testable without driving capture/OCR.
+    func runTranslation(text: String, pair: LanguagePair) async {
         switch await translateLatest(text: text, pair: pair) {
         case .superseded:
             return
@@ -182,18 +187,23 @@ actor CaptureCoordinator {
     }
 
     /// Copies the translation, builds the opt-in Save + retranslate closures, and
-    /// presents the result. `srcLang`/`tgtLang` for the notebook row are the
-    /// orchestrator's effective codes: the source is the explicit From or the
-    /// detected language (`"auto"` when neither), the target is the guard's
-    /// `effectiveTo` (so a flipped Chinese→English capture stores `en`, not the
-    /// chosen To). Closures capture `self` weakly to avoid a panel→controller→
-    /// closure→coordinator retain cycle.
+    /// presents the result. The pair handed to the panel is the *effective* pair —
+    /// the original From with `result.effectiveTo` as To — so the bar shows the
+    /// real target (a flipped Chinese→English capture reads "To: English", not
+    /// "中文") and a ⇄ swap composes EN→ZH rather than a degenerate ZH→ZH. The
+    /// notebook `srcLang`/`tgtLang` use the same authoritative codes: the source is
+    /// the explicit From or the detected language (`"auto"` when neither), the
+    /// target is `result.effectiveTo`. The effective target is read straight from
+    /// the result (computed by the service before the translate await), never
+    /// recomputed here post-await, so a Preferences change between translate and
+    /// present can't make the displayed/stored target disagree with what was
+    /// actually translated (TOCTOU). Closures capture `self` weakly to avoid a
+    /// panel→controller→closure→coordinator retain cycle.
     private func present(result: TranslationResult, source: String, pair: LanguagePair) async {
         let copied = await copyToPasteboard(result.translation)
 
-        let effectiveTo = PairResolver.effectiveTo(
-            detected: result.detected, pair: pair, secondary: settings.secondaryLanguage
-        )
+        let effectiveTo = result.effectiveTo
+        let displayPair = LanguagePair(from: pair.from, to: effectiveTo)
         let fromCode = pair.from?.code ?? result.detected.languageCode ?? "auto"
         let toCode = effectiveTo.code
 
@@ -213,7 +223,7 @@ actor CaptureCoordinator {
         }
 
         await presentResult(
-            result: result, source: source, pair: pair,
+            result: result, source: source, pair: displayPair,
             copied: copied, onSave: onSave, onRetranslate: onRetranslate
         )
     }

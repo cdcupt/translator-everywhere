@@ -80,7 +80,8 @@ struct OpenAIEngine: TranslationEngine {
             // `.unavailable` here — which suppresses the guard upstream.
             detected: request.from.map { .identified($0, confidence: nil) } ?? .unavailable,
             servedBy: .ai,
-            viaGoogleFallback: false
+            viaGoogleFallback: false,
+            effectiveTo: request.to
         )
     }
 

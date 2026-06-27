@@ -78,6 +78,62 @@ struct CaptureCoordinatorSaveTests {
         #expect(!ok)
     }
 
+    // MARK: - Effective target threaded to the panel (the pre-merge HIGH bug)
+
+    /// The blocker: on the default config (home zh-CN, secondary en, last-used
+    /// Auto→zh-CN), a Chinese capture is translated to English (the guard flips
+    /// zh→en), but the coordinator used to hand the panel the *raw* requested pair
+    /// — so the bar showed "To: 中文" and a ⇄ swap composed a degenerate ZH→ZH.
+    /// This asserts the displayed target == the translated target == the notebook
+    /// tgtLang (English), and that a swap from the effective pair composes EN↔ZH.
+    @Test("a Chinese capture on the default config displays the effective target (English) and swaps EN↔ZH")
+    func chineseCaptureThreadsEffectiveTargetToPanel() async throws {
+        let zh = LanguageCatalog.language(forCode: "zh-CN")!
+        let en = LanguageCatalog.language(forCode: "en")!
+
+        // Default config: the requested pair is Auto→中文; the guard flipped to en.
+        let settings = makeSettings()
+        let requested = settings.lastUsedPair
+        #expect(requested.from == nil)
+        #expect(requested.to.code == "zh-CN")
+
+        let result = TranslationResult(
+            translation: "Hello", detected: .identified(zh, confidence: 0.99),
+            servedBy: .free, viaGoogleFallback: false, effectiveTo: en
+        )
+        let spy = SpyResultPanel()
+        let notebook = try NotebookStore(inMemory: true)
+        let coordinator = CaptureCoordinator(
+            settings: settings, service: StubTranslating(result: result),
+            resultPanel: spy, notebook: notebook
+        )
+
+        await coordinator.runTranslation(text: "你好", pair: requested)
+
+        // Displayed target == the translated target (English), NOT the pre-guard 中文.
+        let shown = try #require(spy.lastPair)
+        #expect(shown.to.code == "en")
+        #expect(shown.to.code == result.effectiveTo.code)
+        #expect(shown.from == nil)
+
+        // Notebook tgtLang == the translated target; detected source threaded as srcLang.
+        let onSave = try #require(spy.lastOnSave)
+        #expect(await onSave())
+        let row = try #require(try notebook.all().first)
+        #expect(row.tgtLang == "en")
+        #expect(row.srcLang == "zh-CN")
+
+        // A ⇄ swap from the effective pair composes EN→ZH (NOT a degenerate ZH→ZH).
+        let detected = try #require(spy.lastDetected)
+        let bar = LanguageBarController(pair: shown, detected: detected, recentProvider: { [] })
+        var swapped: LanguagePair?
+        bar.onPick = { swapped = $0 }
+        bar.languageBarDidTapSwap(LanguageBarView())
+        let swap = try #require(swapped)
+        #expect(swap.from?.code == "en")
+        #expect(swap.to.code == "zh-CN")
+    }
+
     // MARK: - Generation token (out-of-order result suppression)
 
     @Test("an older slow result is dropped when a newer request starts")
@@ -144,7 +200,8 @@ private actor GatedService: Translating {
             translation: translations[pair.to.code] ?? "?",
             detected: .unavailable,
             servedBy: .free,
-            viaGoogleFallback: false
+            viaGoogleFallback: false,
+            effectiveTo: pair.to
         )
     }
 
@@ -161,4 +218,43 @@ private actor GatedService: Translating {
         release?.resume()
         release = nil
     }
+}
+
+/// A `Translating` stub that returns a fixed result, so the coordinator's present
+/// composition (effective-target display + threaded save codes) can be asserted
+/// without the network.
+private struct StubTranslating: Translating {
+    let result: TranslationResult
+    func translate(text: String, pair: LanguagePair) async throws -> TranslationResult { result }
+}
+
+/// A `ResultPresenting` spy that records the pair/detection/save-hook handed to
+/// the panel, so the test can assert what the bar would render and what a Save
+/// would persist — without mounting AppKit.
+@MainActor
+private final class SpyResultPanel: ResultPresenting {
+    private(set) var lastTranslation: String?
+    private(set) var lastPair: LanguagePair?
+    private(set) var lastDetected: DetectedSource?
+    private(set) var lastOnSave: (@MainActor () async -> Bool)?
+
+    func showResult(
+        translation: String,
+        source: String,
+        badge: String,
+        copied: Bool,
+        pair: LanguagePair?,
+        detected: DetectedSource,
+        viaGoogleFallback: Bool,
+        onSave: (@MainActor () async -> Bool)?,
+        onRetranslate: (@MainActor (LanguagePair) -> Void)?
+    ) {
+        lastTranslation = translation
+        lastPair = pair
+        lastDetected = detected
+        lastOnSave = onSave
+    }
+
+    func showError(title: String, message: String) {}
+    func show(title: String, body: String) {}
 }

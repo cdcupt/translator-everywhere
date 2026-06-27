@@ -171,11 +171,14 @@ detect_googlecode() {
 }
 
 # Canonical detected-source code for `text`. Han script short-circuits to zh-CN
-# (no network — keeps the common EN<->ZH path key/jq-free); otherwise Google's
-# detected-source mapped back to a catalog code. Empty when detection fails.
+# ONLY when the target is Chinese (zh-*): that keeps the common EN<->ZH path
+# key/jq/network-free, but for a non-Chinese target Han text may be Japanese
+# Kanji (etc.), so fall through to real Google detection — otherwise the
+# same-language guard could never fire (e.g. TE_TO=ja, Kanji input → detected
+# zh-CN ≠ ja → no flip). Empty when detection fails.
 detect_canonical() {
   local text="$1" gc canon
-  if is_chinese "$text"; then printf 'zh-CN'; return; fi
+  if [[ "$TE_TO" == zh* ]] && is_chinese "$text"; then printf 'zh-CN'; return; fi
   gc="$(detect_googlecode "$text" 2>/dev/null || true)"
   [[ -n "$gc" ]] || return 0
   canon="$(googlecode_to_code "$gc" 2>/dev/null || true)"

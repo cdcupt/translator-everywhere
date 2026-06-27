@@ -44,7 +44,8 @@ struct GoogleEngine: TranslationEngine {
             servedBy: .free,
             // The engine never owns the "via Google" signal — the resolver does
             // (TECH §4); a self-contained Google call is always plain FREE.
-            viaGoogleFallback: false
+            viaGoogleFallback: false,
+            effectiveTo: request.to
         )
     }
 

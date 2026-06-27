@@ -43,17 +43,28 @@ struct TranslationResult: Sendable {
     /// Explicit, not inferred from `servedBy`: distinguishes a plain no-key FREE
     /// result from an AI-preferred pair that fell back to Google (TECH §4).
     let viaGoogleFallback: Bool
+    /// The actual target the translation was produced for, *after* the
+    /// same-language guard (`PairResolver.effectiveTo`). The result panel DISPLAYS
+    /// this — not the pre-guard `pair.to` — so the From/To bar shows the real
+    /// target and a ⇄ swap composes correctly (a flipped ZH→EN capture shows
+    /// "To: English", not "中文"), and the notebook records it as `tgtLang`.
+    /// Computed once by `TranslationService` before the translate await, so a
+    /// later Preferences change can't make the displayed/stored target disagree
+    /// with what was actually translated (TOCTOU).
+    let effectiveTo: Language
 
     init(
         translation: String,
         detected: DetectedSource,
         servedBy: EngineKind,
-        viaGoogleFallback: Bool
+        viaGoogleFallback: Bool,
+        effectiveTo: Language
     ) {
         self.translation = translation
         self.detected = detected
         self.servedBy = servedBy
         self.viaGoogleFallback = viaGoogleFallback
+        self.effectiveTo = effectiveTo
     }
 }
 
