@@ -12,8 +12,9 @@ enum EnginePreference: String, CaseIterable, Sendable {
 
 /// Non-secret preferences backed by `UserDefaults` (TECH §8.1).
 ///
-/// Holds `enginePreference` (slice 3) and the `didOnboard` first-run flag
-/// (slice 5). Launch-at-login is *not* mirrored here — `SMAppService` is the
+/// Holds `enginePreference`, the `didOnboard` first-run flag, and the
+/// language-pair selections (home target, secondary, last-used pair, recent
+/// targets). Launch-at-login is *not* mirrored here — `SMAppService` is the
 /// single source of truth for that (see `LaunchAtLogin`). Secrets (the OpenAI
 /// key) live in `KeychainStore`, never here.
 final class SettingsStore {
@@ -22,6 +23,21 @@ final class SettingsStore {
         static let enginePreference = "enginePreference"
         static let didOnboard = "didOnboard"
         static let lastSyncedAt = "sync.lastSyncedAt"
+        static let lastFromCode = "lastFromCode"
+        static let lastToCode = "lastToCode"
+        static let homeTargetCode = "homeTargetCode"
+        static let secondaryCode = "secondaryCode"
+        static let recentTargetCodes = "recentTargetCodes"
+    }
+
+    /// First-read defaults — chosen so an upgraded install reproduces today's
+    /// behavior exactly (Auto → 中文, secondary English) with zero migration.
+    private enum Default {
+        /// Sentinel persisted for `from == nil` (Auto-detect) in `lastFromCode`.
+        static let autoSentinel = "auto"
+        static let homeTargetCode = "zh-CN"
+        static let secondaryCode = "en"
+        static let recentTargetCap = 5
     }
 
     private let defaults: UserDefaults
@@ -68,5 +84,81 @@ final class SettingsStore {
                 defaults.removeObject(forKey: Key.lastSyncedAt)
             }
         }
+    }
+
+    // MARK: - Language pair (slice 5)
+
+    /// The home target language — the preferred default To. Defaults to
+    /// Simplified Chinese (`zh-CN`) when unset, and falls back to it if a stored
+    /// code no longer resolves (catalog change / removal).
+    var homeTarget: Language {
+        get { language(for: Key.homeTargetCode, defaultCode: Default.homeTargetCode) }
+        set { defaults.set(newValue.code, forKey: Key.homeTargetCode) }
+    }
+
+    /// The secondary language — the one-tap alternate target. Defaults to
+    /// English (`en`) when unset, and falls back to it for an unknown code.
+    var secondaryLanguage: Language {
+        get { language(for: Key.secondaryCode, defaultCode: Default.secondaryCode) }
+        set { defaults.set(newValue.code, forKey: Key.secondaryCode) }
+    }
+
+    /// The last-used From/To pair. `from` is optional: the `"auto"` sentinel is
+    /// persisted for `nil` (Auto-detect), any other value as the `Language`
+    /// code. First-read default reproduces today exactly — `from: nil` (Auto),
+    /// `to: 中文` (`zh-CN`) — so there is no migration step (S5 parity). A stored
+    /// `from` code that no longer resolves reads back as `nil` (Auto); a `to`
+    /// that no longer resolves falls back to the home-target default.
+    var lastUsedPair: LanguagePair {
+        get {
+            let from: Language?
+            if let raw = defaults.string(forKey: Key.lastFromCode),
+               raw != Default.autoSentinel {
+                // Known code → that Language; unknown/removed → nil (Auto), safe.
+                from = LanguageCatalog.language(forCode: raw)
+            } else {
+                // Unset or the explicit "auto" sentinel → Auto-detect.
+                from = nil
+            }
+            let to = language(for: Key.lastToCode, defaultCode: Default.homeTargetCode)
+            return LanguagePair(from: from, to: to)
+        }
+        set {
+            defaults.set(newValue.from?.code ?? Default.autoSentinel, forKey: Key.lastFromCode)
+            defaults.set(newValue.to.code, forKey: Key.lastToCode)
+        }
+    }
+
+    /// The most-recently-used target languages, most-recent-first, de-duped by
+    /// code and capped at five. Unknown/removed codes are dropped on read.
+    var recentTargets: [Language] {
+        (defaults.stringArray(forKey: Key.recentTargetCodes) ?? [])
+            .compactMap { LanguageCatalog.language(forCode: $0) }
+    }
+
+    /// Records `language` as the most-recent target: moves it to the front,
+    /// de-dupes by code, and trims to the five-item cap.
+    func recordRecentTarget(_ language: Language) {
+        var codes = defaults.stringArray(forKey: Key.recentTargetCodes) ?? []
+        codes.removeAll { $0 == language.code }
+        codes.insert(language.code, at: 0)
+        if codes.count > Default.recentTargetCap {
+            codes = Array(codes.prefix(Default.recentTargetCap))
+        }
+        defaults.set(codes, forKey: Key.recentTargetCodes)
+    }
+
+    // MARK: - Helpers
+
+    /// Resolves the `Language` stored at `key`, falling back to `defaultCode`
+    /// when the key is unset or holds a code the catalog no longer knows. The
+    /// fallback code is a canonical catalog member (`zh-CN` / `en`), so the
+    /// force-unwrap cannot fail.
+    private func language(for key: String, defaultCode: String) -> Language {
+        if let code = defaults.string(forKey: key),
+           let language = LanguageCatalog.language(forCode: code) {
+            return language
+        }
+        return LanguageCatalog.language(forCode: defaultCode)!
     }
 }

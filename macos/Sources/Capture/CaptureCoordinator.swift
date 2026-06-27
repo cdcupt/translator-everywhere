@@ -12,26 +12,47 @@ actor CaptureCoordinator {
     private let permission: PermissionService
     private let capturer: RegionCapturer
     private let ocr: OCRService
-    private let resultPanel: ResultPanel
-    private let resolver: EngineResolver
+    /// The result surface, behind the `ResultPresenting` seam so the present path
+    /// (which pair the bar is handed, the threaded save codes) is unit-testable
+    /// with a spy. `ResultPanel` is the production conformer.
+    private let resultPanel: any ResultPresenting
+    /// Non-secret preferences — the source of the active From/To pair
+    /// (`lastUsedPair`), the secondary flip target, and the recent-targets list.
+    private let settings: SettingsStore
+    /// The single orchestrator (detect → guard → resolve → translate → fallback).
+    /// An existential so the generation-token race can be unit-tested with a stub.
+    private let service: any Translating
     /// The notebook a capture can be saved to *on demand*. Saving is opt-in: the
     /// result panel offers a "Save to Notebook" button (⌘S) that calls `save`.
     /// Optional so the capture path still works if the store failed to open at
     /// launch (the panel just won't show the Save button).
     private let notebook: NotebookStore?
 
+    /// The last captured/entered source text, cached so `retranslate` can re-run
+    /// the pipeline on the same source when the user changes the To language.
+    /// `nil` until the first successful capture.
+    private var lastCapture: String?
+
+    /// Monotonic request token. `captureAndTranslate` / `retranslate` bump it and
+    /// capture the value; when a translation returns, a token mismatch means a
+    /// newer request started, so the stale result is dropped — no out-of-order UI
+    /// update on rapid To changes (TECH §5).
+    private var generation = 0
+
     init(
         permission: PermissionService = PermissionService(),
         capturer: RegionCapturer = RegionCapturer(),
         ocr: OCRService = OCRService(),
-        resolver: EngineResolver = EngineResolver(),
-        resultPanel: ResultPanel,
+        settings: SettingsStore = SettingsStore(),
+        service: (any Translating)? = nil,
+        resultPanel: any ResultPresenting,
         notebook: NotebookStore? = nil
     ) {
         self.permission = permission
         self.capturer = capturer
         self.ocr = ocr
-        self.resolver = resolver
+        self.settings = settings
+        self.service = service ?? TranslationService(settings: settings)
         self.resultPanel = resultPanel
         self.notebook = notebook
     }
@@ -77,61 +98,134 @@ actor CaptureCoordinator {
             return
         }
 
-        // 4. Translate via the resolved engine (OpenAI only when preferred AND a
-        //    key exists, else free Google). Direct to the provider, never our
-        //    server.
-        let engine = resolver.resolve()
-        let translation: String
-        do {
-            translation = try await engine.translate(trimmed)
-        } catch {
-            await presentError(title: "Translation failed", message: error.localizedDescription)
+        // Cache the source so a To-language change can re-run on it (`retranslate`).
+        lastCapture = trimmed
+
+        // 4. Translate via `TranslationService` (detect → guard → resolve →
+        //    translate → AI-fallback), reading the active pair from settings.
+        await runTranslation(text: trimmed, pair: settings.lastUsedPair)
+    }
+
+    /// Re-runs translation on the last captured text for a newly chosen `pair`
+    /// (the language bar's To/⇄ change — slice 7's picker calls this via the
+    /// `onRetranslate` closure). Persists the new pair, then drives the same
+    /// generation-guarded path as a capture. No-op until something is captured.
+    func retranslate(pair: LanguagePair) async {
+        guard let text = lastCapture else { return }
+        settings.lastUsedPair = pair
+        await runTranslation(text: text, pair: pair)
+    }
+
+    /// The shared translate → present path for both capture and retranslate.
+    /// Guards the result with the generation token: a result from a superseded
+    /// request is dropped silently (no UI update); a current success copies +
+    /// presents and records the recent target; a current failure shows an error.
+    /// Internal so the present composition (effective-target display + threaded
+    /// save codes) is unit-testable without driving capture/OCR.
+    func runTranslation(text: String, pair: LanguagePair) async {
+        switch await translateLatest(text: text, pair: pair) {
+        case .superseded:
             return
+        case let .failure(error):
+            await presentError(title: "Translation failed", message: error.localizedDescription)
+        case let .success(result):
+            settings.recordRecentTarget(pair.to)
+            await present(result: result, source: text, pair: pair)
         }
+    }
 
-        // 5. Copy the translation to the clipboard, then show the result panel
-        //    with the "Copied ✓" affordance. Saving to the notebook is opt-in:
-        //    nothing is written until the user clicks "Save to Notebook" (⌘S),
-        //    so the panel only gets a save handler when a store exists.
-        let copied = await copyToPasteboard(translation)
+    /// The outcome of a generation-guarded translate.
+    enum TranslateOutcome {
+        case success(TranslationResult)
+        case failure(Error)
+        /// A newer request started before this one's result returned — drop it.
+        case superseded
+    }
 
-        // `trimmed` (source) + `translation` + `engine.kind` are the vocabulary
-        // entry. Hand the panel a closure that persists exactly this capture when
-        // (and only when) the user chooses to. `nil` notebook → no Save button.
-        // Capture `self` weakly: the panel (owned by the coordinator) retains the
-        // Save controller, which retains this closure — a strong `self` here would
-        // be a retain cycle. If the coordinator is gone the save reports failure.
-        let onSave: (@MainActor () async -> Bool)? = notebook.map { _ in
-            { [weak self] in
-                guard let self else { return false }
-                return await self.save(source: trimmed, translation: translation, kind: engine.kind)
-            }
+    /// Bumps the generation token, runs the service on the actor, and reports
+    /// whether this call is still the newest when its result returns. Internal so
+    /// the generation-token race is unit-testable without driving capture/OCR/UI.
+    func translateLatest(text: String, pair: LanguagePair) async -> TranslateOutcome {
+        generation &+= 1
+        let token = generation
+        do {
+            let result = try await service.translate(text: text, pair: pair)
+            guard token == generation else { return .superseded }
+            return .success(result)
+        } catch {
+            guard token == generation else { return .superseded }
+            return .failure(error)
         }
-
-        await presentResult(translation: translation,
-                            source: trimmed,
-                            badge: engine.kind.badge,
-                            copied: copied,
-                            onSave: onSave)
     }
 
     /// Persists the capture to the notebook when the user opts in via the panel's
-    /// Save button. Returns whether the save succeeded so the panel only claims
-    /// "★ Saved" when it really did. Never throws to the caller — a notebook
-    /// write failure surfaces as an inline retry on the panel, not a crash. The
-    /// read of `notebook` stays on this actor; only the `@MainActor` store
-    /// mutation hops to the main actor.
-    func save(source: String, translation: String, kind: EngineKind) async -> Bool {
+    /// Save button. Threads the resolved From/To BCP-47 codes the orchestrator
+    /// derived into `srcLang`/`tgtLang`. Returns whether the save succeeded so the
+    /// panel only claims "★ Saved" when it really did. Never throws to the caller
+    /// — a notebook write failure surfaces as an inline retry on the panel, not a
+    /// crash. The read of `notebook` stays on this actor; only the `@MainActor`
+    /// store mutation hops to the main actor.
+    func save(
+        source: String,
+        translation: String,
+        from: String,
+        to: String,
+        kind: EngineKind
+    ) async -> Bool {
         guard let notebook else { return false }
         do {
             try await MainActor.run {
-                try notebook.add(source: source, translation: translation, engine: kind)
+                try notebook.add(
+                    source: source, translation: translation, from: from, to: to, engine: kind
+                )
             }
             return true
         } catch {
             NSLog("[TE] Notebook save failed: \(error.localizedDescription)")
             return false
         }
+    }
+
+    /// Copies the translation, builds the opt-in Save + retranslate closures, and
+    /// presents the result. The pair handed to the panel is the *effective* pair —
+    /// the original From with `result.effectiveTo` as To — so the bar shows the
+    /// real target (a flipped Chinese→English capture reads "To: English", not
+    /// "中文") and a ⇄ swap composes EN→ZH rather than a degenerate ZH→ZH. The
+    /// notebook `srcLang`/`tgtLang` use the same authoritative codes: the source is
+    /// the explicit From or the detected language (`"auto"` when neither), the
+    /// target is `result.effectiveTo`. The effective target is read straight from
+    /// the result (computed by the service before the translate await), never
+    /// recomputed here post-await, so a Preferences change between translate and
+    /// present can't make the displayed/stored target disagree with what was
+    /// actually translated (TOCTOU). Closures capture `self` weakly to avoid a
+    /// panel→controller→closure→coordinator retain cycle.
+    private func present(result: TranslationResult, source: String, pair: LanguagePair) async {
+        let copied = await copyToPasteboard(result.translation)
+
+        let effectiveTo = result.effectiveTo
+        let displayPair = LanguagePair(from: pair.from, to: effectiveTo)
+        let fromCode = pair.from?.code ?? result.detected.languageCode ?? "auto"
+        let toCode = effectiveTo.code
+
+        let onSave: (@MainActor () async -> Bool)? = notebook.map { _ in
+            { [weak self] in
+                guard let self else { return false }
+                return await self.save(
+                    source: source, translation: result.translation,
+                    from: fromCode, to: toCode, kind: result.servedBy
+                )
+            }
+        }
+
+        let onRetranslate: @MainActor (LanguagePair) -> Void = { [weak self] newPair in
+            guard let self else { return }
+            Task { await self.retranslate(pair: newPair) }
+        }
+
+        await presentResult(
+            result: result, source: source, pair: displayPair,
+            copied: copied, onSave: onSave, onRetranslate: onRetranslate
+        )
     }
 
     // MARK: - UI hops (main actor)
@@ -147,16 +241,28 @@ actor CaptureCoordinator {
 
     @MainActor
     private func presentResult(
-        translation: String,
+        result: TranslationResult,
         source: String,
-        badge: String,
+        pair: LanguagePair,
         copied: Bool,
-        onSave: (@MainActor () async -> Bool)?
+        onSave: (@MainActor () async -> Bool)?,
+        onRetranslate: @escaping @MainActor (LanguagePair) -> Void
     ) {
         // LSUIElement agents launch unfocused — grab focus before showing.
         NSApp.activate(ignoringOtherApps: true)
+        // Forwards the full multi-language data path (pair / detected / via-Google
+        // / retranslate). Slice 7 draws the language bar + picker that render it;
+        // this slice wires the data so the build stays green ahead of that UI.
         resultPanel.showResult(
-            translation: translation, source: source, badge: badge, copied: copied, onSave: onSave
+            translation: result.translation,
+            source: source,
+            badge: result.servedBy.badge,
+            copied: copied,
+            pair: pair,
+            detected: result.detected,
+            viaGoogleFallback: result.viaGoogleFallback,
+            onSave: onSave,
+            onRetranslate: onRetranslate
         )
     }
 

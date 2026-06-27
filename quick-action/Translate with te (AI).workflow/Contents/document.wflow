@@ -42,6 +42,8 @@
 				<dict>
 					<key>COMMAND_STRING</key>
 					<string>export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+# No -t: te uses your configured target (TE_TO, default zh-CN; see ~/.te/config),
+# and notes it in the popup title.
 "$HOME/.local/bin/te" --popup</string>
 					<key>CheckedForUserDefaultShell</key>
 					<true/>

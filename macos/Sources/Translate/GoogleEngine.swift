@@ -24,18 +24,29 @@ struct GoogleEngine: TranslationEngine {
         self.retryDelay = retryDelay
     }
 
-    func translate(_ text: String) async throws -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    func translate(_ request: TranslationRequest) async throws -> TranslationResult {
+        let trimmed = request.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw TranslationError.emptyInput }
 
-        let target = LanguageDirection.target(for: trimmed)
-        let request = try Self.makeRequest(text: trimmed, target: target)
+        // The resolved pair drives the call: explicit From → its Google code,
+        // Auto → "auto" (Google detects and reports the source in the response).
+        let sl = request.from?.googleCode ?? "auto"
+        let tl = request.to.googleCode
+        let urlRequest = try Self.makeRequest(text: trimmed, sourceCode: sl, targetCode: tl)
 
-        let data = try await fetchWithRetry(request)
-        guard let translated = Self.parse(data) else {
+        let data = try await fetchWithRetry(urlRequest)
+        guard let parsed = Self.parse(data) else {
             throw TranslationError.unexpectedResponse(engine: .free)
         }
-        return translated
+        return TranslationResult(
+            translation: parsed.translation,
+            detected: Self.detectedSource(from: parsed.detectedCode),
+            servedBy: .free,
+            // The engine never owns the "via Google" signal — the resolver does
+            // (TECH §4); a self-contained Google call is always plain FREE.
+            viaGoogleFallback: false,
+            effectiveTo: request.to
+        )
     }
 
     /// The free engine can't summarize, so — by design ("free is simpler") — it
@@ -48,12 +59,12 @@ struct GoogleEngine: TranslationEngine {
     // MARK: - Request
 
     /// Builds the GET request. Exposed (internal) so tests can assert the URL.
-    static func makeRequest(text: String, target: LanguageDirection.Target) throws -> URLRequest {
+    static func makeRequest(text: String, sourceCode: String, targetCode: String) throws -> URLRequest {
         var components = URLComponents(string: "https://translate.googleapis.com/translate_a/single")
         components?.queryItems = [
             URLQueryItem(name: "client", value: "gtx"),
-            URLQueryItem(name: "sl", value: "auto"),
-            URLQueryItem(name: "tl", value: target.googleCode),
+            URLQueryItem(name: "sl", value: sourceCode),
+            URLQueryItem(name: "tl", value: targetCode),
             URLQueryItem(name: "dt", value: "t"),
             URLQueryItem(name: "q", value: text),
         ]
@@ -85,11 +96,22 @@ struct GoogleEngine: TranslationEngine {
 
     // MARK: - Parsing
 
-    /// Parses Google's nested array response and joins the translated segments.
+    /// The two pieces a single Google call yields: the joined translation and the
+    /// detected source code (Google's `sl`, e.g. `iw`, `zh-CN`), `nil` when the
+    /// response carries no usable source.
+    struct ParsedResponse: Equatable {
+        let translation: String
+        let detectedCode: String?
+    }
+
+    /// Parses Google's nested array response into the joined translation plus the
+    /// detected source code.
     ///
-    /// Shape: `[[ ["译文","src",...], ["seg2","src2",...] ], ...]` — we join the
-    /// first element of each segment in `json[0]`. Exposed for unit tests.
-    static func parse(_ data: Data) -> String? {
+    /// Shape: `[[ ["译文","src",...], ... ], ..., "<detected>", ...]` — we join the
+    /// first element of each segment in `root[0]` and read the detected source
+    /// from `root[2]` (fallback `root[8][0][0]`). Returns `nil` only when there is
+    /// no translation. Exposed for unit tests.
+    static func parse(_ data: Data) -> ParsedResponse? {
         guard
             let root = try? JSONSerialization.jsonObject(with: data) as? [Any],
             let segments = root.first as? [Any]
@@ -100,7 +122,36 @@ struct GoogleEngine: TranslationEngine {
         let joined = segments
             .compactMap { ($0 as? [Any])?.first as? String }
             .joined()
+        guard !joined.isEmpty else { return nil }
 
-        return joined.isEmpty ? nil : joined
+        return ParsedResponse(translation: joined, detectedCode: detectedCode(in: root))
+    }
+
+    /// The detected source code: `root[2]` (a Google `sl` string), falling back
+    /// to `root[8][0][0]` if that shape shifts. `nil` when neither is present.
+    static func detectedCode(in root: [Any]) -> String? {
+        if root.count > 2, let code = root[2] as? String, !code.isEmpty {
+            return code
+        }
+        if root.count > 8,
+           let langId = root[8] as? [Any],
+           let first = langId.first as? [Any],
+           let code = first.first as? String,
+           !code.isEmpty {
+            return code
+        }
+        return nil
+    }
+
+    /// Maps a detected Google code back to a catalog `Language`. No code present
+    /// → `.uncertain` (locked default #3 — suppress the guard, never a wrong
+    /// flip); a code the catalog can't place → `.unavailable`. Confidence is not
+    /// surfaced here (the boundary carries `nil`).
+    static func detectedSource(from code: String?) -> DetectedSource {
+        guard let code, !code.isEmpty else { return .uncertain }
+        guard let language = LanguageCatalog.language(forGoogleCode: code) else {
+            return .unavailable
+        }
+        return .identified(language, confidence: nil)
     }
 }

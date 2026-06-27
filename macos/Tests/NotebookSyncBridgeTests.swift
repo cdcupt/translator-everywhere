@@ -15,7 +15,7 @@ struct NotebookSyncBridgeTests {
     @Test("a freshly added row appears in the dirty queue")
     func addedRowIsDirty() throws {
         let store = try makeStore()
-        let item = try store.add(source: "hello", translation: "你好", engine: .free)
+        let item = try store.add(source: "hello", translation: "你好", from: "auto", to: "zh-CN", engine: .free)
         let dirty = try store.dirtyRows()
         #expect(dirty.contains { $0.clientUUID == item.clientUUID })
     }
@@ -23,7 +23,7 @@ struct NotebookSyncBridgeTests {
     @Test("clearDirty drains the queue for unchanged pushed rows")
     func clearDirtyDrains() throws {
         let store = try makeStore()
-        let item = try store.add(source: "hi", translation: "嗨", engine: .free)
+        let item = try store.add(source: "hi", translation: "嗨", from: "auto", to: "zh-CN", engine: .free)
         // Push snapshot == live updatedAt → row is unchanged → de-queue it.
         try store.clearDirty([item.clientUUID: item.updatedAt])
         #expect(try store.dirtyRows().isEmpty)
@@ -32,7 +32,7 @@ struct NotebookSyncBridgeTests {
     @Test("clearDirty keeps a row edited DURING the in-flight push (no lost update)")
     func clearDirtyKeepsMidFlightEdit() throws {
         let store = try makeStore()
-        let item = try store.add(source: "hi", translation: "嗨", engine: .free)
+        let item = try store.add(source: "hi", translation: "嗨", from: "auto", to: "zh-CN", engine: .free)
 
         // 1. Sync snapshots the dirty row and pushes it (capture that updatedAt).
         let pushedUpdatedAt = item.updatedAt
@@ -71,7 +71,7 @@ struct NotebookSyncBridgeTests {
     @Test("mergePulled adopts a strictly-newer remote row, ignores older")
     func mergeLastWriteWins() throws {
         let store = try makeStore()
-        let item = try store.add(source: "orig", translation: "原", engine: .free)
+        let item = try store.add(source: "orig", translation: "原", from: "auto", to: "zh-CN", engine: .free)
         let id = item.clientUUID
         let base = item.updatedAt
 
@@ -92,7 +92,7 @@ struct NotebookSyncBridgeTests {
     @Test("a pulled tombstone hides the row from the notebook")
     func mergeTombstoneHides() throws {
         let store = try makeStore()
-        let item = try store.add(source: "bye", translation: "再见", engine: .free)
+        let item = try store.add(source: "bye", translation: "再见", from: "auto", to: "zh-CN", engine: .free)
         let id = item.clientUUID
         let tomb = VocabRow(clientUUID: id, sourceText: "bye", translation: "再见",
                             srcLang: "auto", tgtLang: "zh-CN", engine: "free", tag: nil,

@@ -15,11 +15,11 @@ struct NotebookStoreTests {
     @Test("add then all() returns the item newest-first")
     func addAndFetchNewestFirst() throws {
         let store = try makeStore()
-        let first = try store.add(source: "hello", translation: "你好", engine: .free)
+        let first = try store.add(source: "hello", translation: "你好", from: "en", to: "zh-CN", engine: .free)
         // Force a distinct createdAt ordering.
         first.createdAt = Date(timeIntervalSince1970: 1_000)
         try store.context.save()
-        let second = try store.add(source: "world", translation: "世界", engine: .ai)
+        let second = try store.add(source: "world", translation: "世界", from: "en", to: "zh-CN", engine: .ai)
         second.createdAt = Date(timeIntervalSince1970: 2_000)
         try store.context.save()
 
@@ -32,17 +32,30 @@ struct NotebookStoreTests {
     @Test("new rows are dirty and not tombstoned")
     func newRowFlags() throws {
         let store = try makeStore()
-        let item = try store.add(source: "a", translation: "b", engine: .free)
+        let item = try store.add(source: "a", translation: "b", from: "en", to: "zh-CN", engine: .free)
         #expect(item.isDirty == true)
         #expect(item.tombstoned == false)
         #expect(item.engine == "free")
     }
 
+    @Test("add threads the explicit from/to codes into srcLang/tgtLang")
+    func addThreadsLanguageCodes() throws {
+        let store = try makeStore()
+        // The orchestrator's resolved codes are stored verbatim — no in-store
+        // derivation (the interim Han heuristic is gone). A flipped Chinese→English
+        // capture stores from "zh-CN", to "en".
+        let item = try store.add(
+            source: "你好", translation: "Hello", from: "zh-CN", to: "en", engine: .ai
+        )
+        #expect(item.srcLang == "zh-CN")
+        #expect(item.tgtLang == "en")
+    }
+
     @Test("search filters by source or translation, case-insensitive")
     func searchFilter() throws {
         let store = try makeStore()
-        try store.add(source: "Train platform", translation: "月台", engine: .free)
-        try store.add(source: "Exit", translation: "出口", engine: .free)
+        try store.add(source: "Train platform", translation: "月台", from: "en", to: "zh-CN", engine: .free)
+        try store.add(source: "Exit", translation: "出口", from: "en", to: "zh-CN", engine: .free)
 
         #expect(try store.all(matching: "train").count == 1)
         #expect(try store.all(matching: "月台").count == 1)
@@ -54,7 +67,7 @@ struct NotebookStoreTests {
     @Test("softDelete sets tombstone + dirty, bumps updatedAt, hides from all()")
     func softDeleteHides() throws {
         let store = try makeStore()
-        let item = try store.add(source: "gone", translation: "走了", engine: .free)
+        let item = try store.add(source: "gone", translation: "走了", from: "en", to: "zh-CN", engine: .free)
         let before = item.updatedAt
 
         try store.softDelete(item)
@@ -69,7 +82,7 @@ struct NotebookStoreTests {
     @Test("clientUUID is unique and stable across re-fetch")
     func clientUUIDUniqueAndStable() throws {
         let store = try makeStore()
-        let a = try store.add(source: "x", translation: "y", engine: .free)
+        let a = try store.add(source: "x", translation: "y", from: "en", to: "zh-CN", engine: .free)
         let uuid = a.clientUUID
 
         let fetched = try store.all()
@@ -77,7 +90,7 @@ struct NotebookStoreTests {
         #expect(fetched.first?.clientUUID == uuid) // survives re-fetch
 
         // Distinct rows get distinct UUIDs.
-        let b = try store.add(source: "p", translation: "q", engine: .free)
+        let b = try store.add(source: "p", translation: "q", from: "en", to: "zh-CN", engine: .free)
         #expect(a.clientUUID != b.clientUUID)
     }
 

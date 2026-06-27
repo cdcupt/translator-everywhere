@@ -1,0 +1,22 @@
+# te CLI — happy path (Tester B capture, 2026-06-27)
+$ ./te -l | wc -l
+     134
+
+$ ./te -l span
+CODE      LANGUAGE                   NATIVE
+es        Spanish                    Español
+
+$ ./te --detect "bonjour le monde"
+French (fr)
+
+$ echo 你好 | ./te -g   # same-language guard -> English (keyless)
+Hello
+
+$ echo hello | ./te -g  # guard skipped (non-Han + zh-CN target) -> Chinese
+你好
+
+$ ./te -g -t es "good morning"
+buen día
+
+$ ./te -t fr "hello"   # AI engine
+bonjour

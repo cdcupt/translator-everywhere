@@ -1,0 +1,45 @@
+Translator Everywhere — te CLI beta session (Tester A, new-user happy-path)
+captured 2026-06-27 04:28:14 PDT · repo /Users/erik/codes/github.com/fanyi
+============================================================================
+
+$ ./te -l | wc -l        # catalog size (header + 133 langs)
+     134
+
+$ ./te -l span
+CODE      LANGUAGE                   NATIVE
+es        Spanish                    Español
+
+$ ./te -l mandarin       # alias search
+CODE      LANGUAGE                   NATIVE
+zh-CN     Chinese (Simplified)       简体中文
+
+$ ./te -g -t fr 'hello'
+Bonjour
+
+$ ./te -g -t es 'good morning'
+buen día
+
+$ ./te -g -t ja 'thank you very much'
+どうもありがとうございます
+
+$ echo 你好 | ./te -g    # same-language guard: zh target + zh input -> flips to EN
+Hello
+
+$ ./te -g 'hello world'  # default target zh-CN
+你好世界
+
+$ ./te --detect 'bonjour le monde'
+French (fr)
+
+$ ./te --detect '今天天气很好'
+Chinese (Simplified) (zh-CN)
+
+$ ./te -g -t zzz 'hello'  # unknown code -> clean error
+te: unknown target language: 'zzz' (try: te -l)
+
+$ ./te -t fr "I'll circle back on this next week"   # default AI engine
+Je reviendrai là-dessus la semaine prochaine.
+
+$ ./te -e -t es 'serendipity'   # AI explain note
+serendipia  
+— noun (feminine); refers to a fortunate discovery made by accident. Example: "La serendipia a menudo lleva a grandes innovaciones."

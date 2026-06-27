@@ -67,18 +67,29 @@ final class NotebookStore {
 
     // MARK: - Mutations
 
-    /// Inserts a new capture. Generates a fresh `clientUUID`, derives the
-    /// language pair from the source text, and marks the row dirty so a future
-    /// sync pushes it. Returns the inserted item.
+    /// Inserts a new capture. Generates a fresh `clientUUID`, stores the resolved
+    /// source/target language codes the orchestrator threaded in (`from`/`to`,
+    /// BCP-47), and marks the row dirty so a future sync pushes it. Returns the
+    /// inserted item.
+    ///
+    /// The interim source-text Han heuristic is gone — the real From/To now comes
+    /// from `PairResolver`'s guard via `CaptureCoordinator`. Historical rows keep
+    /// their previously-derived values untouched (no migration); export/sync read
+    /// these fields as opaque strings, so mixed old/new values are fine.
     @discardableResult
-    func add(source: String, translation: String, engine: EngineKind) throws -> VocabItem {
-        let target = LanguageDirection.target(for: source)
+    func add(
+        source: String,
+        translation: String,
+        from: String,
+        to: String,
+        engine: EngineKind
+    ) throws -> VocabItem {
         let now = Date()
         let item = VocabItem(
             sourceText: source,
             translation: translation,
-            srcLang: "auto",
-            tgtLang: target.googleCode,
+            srcLang: from,
+            tgtLang: to,
             engine: engine.rawValue,
             createdAt: now,
             updatedAt: now,

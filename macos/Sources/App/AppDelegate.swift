@@ -24,7 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
 
     /// The result UI (main-actor AppKit). Owned here for the app's lifetime.
-    private let resultPanel = ResultPanel()
+    /// Lazy so it shares the single `settings` store (declared below) — the same
+    /// one the coordinator uses — instead of allocating its own (keeps Recent and
+    /// the home-target fallback consistent with the live preferences).
+    private lazy var resultPanel = ResultPanel(settings: settings)
 
     /// The local vocabulary notebook (SwiftData). `nil` only if the store can't
     /// be opened — capture still works, the result panel just won't offer the
@@ -80,7 +83,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OnboardingWindowController(settings: settings, permission: permission)
 
     /// The off-main capture state machine.
-    private lazy var coordinator = CaptureCoordinator(resultPanel: resultPanel, notebook: notebook)
+    private lazy var coordinator = CaptureCoordinator(
+        settings: settings, resultPanel: resultPanel, notebook: notebook
+    )
 
     /// The global hotkey owner. Fires the same path as the menu item.
     private lazy var hotkeyManager = HotkeyManager { [weak self] in
