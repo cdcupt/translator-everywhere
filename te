@@ -1,38 +1,127 @@
 #!/usr/bin/env bash
-# te — terminal translator between English and Simplified Chinese.
+# te — terminal translator across 130+ languages (multi-language; EN<->ZH stays the default).
 # Two engines: AI (OpenAI, default — high quality) and Google Translate (free, no key).
 #
-#   te                 translate whatever is on the clipboard (auto EN<->ZH)
+#   te                 translate the clipboard into your target (auto-detect source)
 #   te <text...>       translate the given text
 #   echo x | te        translate piped stdin
+#   te -f en -t ja x   translate x from English to Japanese
+#   te -t fr <text>    translate into French (source auto-detected)
+#   te -l [query]      list / search the language catalog (codes + names)
+#   te --detect <text> print only the detected source language
 #   te -g <text>       use the free Google Translate engine instead of AI
 #   te -e <text>       (AI only) also show a short explanation / pinyin / usage note
 #   te -i              interactive REPL (one line at a time, blank line or Ctrl-D quits)
-#   te -c [image]      capture a screen region (or translate an image file): OCR + translate (AI engine, macOS)
-#   te --popup         read stdin, translate, show a macOS dialog + copy result (used by the Quick Actions)
+#   te -c [image]      capture a screen region (or translate an image file): OCR + translate (AI, macOS)
+#   te --popup         read stdin, translate, show a macOS dialog + copy result (Quick Actions)
 #
-# Config (env or ~/.openai/keys.env):
+# Languages:
+#   -f, --from <code>  source language code (default: $TE_FROM, else "auto")
+#   -t, --to   <code>  target language code (default: $TE_TO, else "zh-CN")
+#   Codes come from languages.tsv (shipped next to te); run `te -l` to browse them.
+#   Same-language guard: with an auto source, if the text is already in your target
+#   language the translation flips to the secondary ($TE_SECONDARY, default "en") —
+#   so the classic EN<->ZH two-way flow is preserved.
+#
+# Config (env or ~/.te/config — sourced if present):
+#   TE_FROM            default source code (default: auto)
+#   TE_TO              default target code (default: zh-CN)
+#   TE_SECONDARY       same-language fallback target (default: en)
 #   TE_ENGINE          openai | google   (default: openai)
-#   OPENAI_API_KEY     required for the AI engine
 #   TE_MODEL           model id (default: gpt-4o-mini)
+#   OPENAI_API_KEY     required for the AI engine (or ~/.openai/keys.env)
 #   TE_KEY_FILE        path to a file exporting OPENAI_API_KEY (default: ~/.openai/keys.env)
 set -euo pipefail
 
+die() { printf 'te: %s\n' "$1" >&2; exit 1; }
+
+# --- load translation prefs (~/.te/config) ----------------------------------
+# Sourced before defaults so the config can set TE_FROM/TE_TO/TE_SECONDARY (and
+# engine/model) without env vars. CLI flags, parsed later, still win.
+TE_CONFIG="${TE_CONFIG:-$HOME/.te/config}"
+if [[ -f "$TE_CONFIG" ]]; then
+  set -a; . "$TE_CONFIG"; set +a
+fi
+
 TE_ENGINE="${TE_ENGINE:-openai}"
 TE_MODEL="${TE_MODEL:-gpt-4o-mini}"
+TE_FROM="${TE_FROM:-auto}"
+TE_TO="${TE_TO:-zh-CN}"
+TE_SECONDARY="${TE_SECONDARY:-en}"
 TE_KEY_FILE="${TE_KEY_FILE:-$HOME/.openai/keys.env}"
 EXPLAIN=0
 POPUP=0
 INTERACTIVE=0
 CAPTURE=0
-
-die() { printf 'te: %s\n' "$1" >&2; exit 1; }
+LIST=0
+DETECT=0
 
 # Print the contiguous comment header (everything from line 2 until the first
 # non-comment line), stripping the leading "# ". Robust to header edits.
 usage() {
   awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"
   exit "${1:-0}"
+}
+
+# --- locate the shared language catalog -------------------------------------
+# `te` is run through a PATH symlink ($0 is the symlink), so follow it to the
+# real script and read languages.tsv sitting beside it.
+resolve_real() {
+  local src="$1" target
+  while [[ -L "$src" ]]; do
+    target="$(readlink "$src")"
+    if [[ "$target" == /* ]]; then src="$target"; else src="$(cd "$(dirname "$src")" && pwd)/$target"; fi
+  done
+  printf '%s' "$src"
+}
+SCRIPT_REAL="$(resolve_real "${BASH_SOURCE[0]:-$0}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL")" && pwd)"
+LANG_TSV="$SCRIPT_DIR/languages.tsv"
+
+require_tsv() {
+  [[ -f "$LANG_TSV" ]] || die "language catalog not found (expected languages.tsv next to te at $LANG_TSV)"
+}
+
+# Print column `col` (1=code 2=englishName 3=endonym 4=googleCode 5=aiName) for
+# the row whose code == `$1`. Exit 1 (no output) when the code is unknown.
+lookup_lang() {
+  awk -F'\t' -v code="$1" -v col="$2" \
+    'NR>1 && $1==code { print $col; f=1; exit } END { if(!f) exit 1 }' "$LANG_TSV"
+}
+validate_code()   { lookup_lang "$1" 1 >/dev/null 2>&1; }
+googlecode_for()  { lookup_lang "$1" 4; }
+name_for()        { lookup_lang "$1" 2; }
+endonym_for()     { lookup_lang "$1" 3; }
+ainame_for()      { lookup_lang "$1" 5; }
+
+# Map a Google detected-source code (column 4, e.g. iw/jw/zh-CN) back to the
+# canonical code (column 1). No output (exit 1) when nothing matches.
+googlecode_to_code() {
+  awk -F'\t' -v gc="$1" \
+    'NR>1 && $4==gc { print $1; f=1; exit } END { if(!f) exit 1 }' "$LANG_TSV"
+}
+
+# List / search the catalog: code, English name, native name. An empty query
+# lists everything; otherwise case-insensitive substring over code/names/aliases.
+list_languages() {
+  local q="${1:-}"
+  printf '%-9s %-26s %s\n' "CODE" "LANGUAGE" "NATIVE"
+  awk -F'\t' -v q="$q" '
+    NR==1 { next }
+    {
+      hay = tolower($1 " " $2 " " $3 " " $6)
+      if (q == "" || index(hay, tolower(q))) printf "%-9s %-26s %s\n", $1, $2, $3
+    }
+  ' "$LANG_TSV"
+}
+
+# Validate the resolved language codes; a bad secondary silently falls back to en.
+validate_langs() {
+  if [[ "$TE_FROM" != "auto" ]]; then
+    validate_code "$TE_FROM" || die "unknown source language: '$TE_FROM' (try: te -l)"
+  fi
+  validate_code "$TE_TO" || die "unknown target language: '$TE_TO' (try: te -l)"
+  validate_code "$TE_SECONDARY" || TE_SECONDARY="en"
 }
 
 # --- load API key (AI engine only) ------------------------------------------
@@ -43,32 +132,20 @@ load_key() {
   [[ -n "${OPENAI_API_KEY:-}" ]] || die "OPENAI_API_KEY not set (looked in $TE_KEY_FILE) — or use -g for free Google"
 }
 
-# --- detect Chinese so we know the target language --------------------------
+# --- detect Chinese (cheap Han-script test; no network) ---------------------
 is_chinese() {
   printf '%s' "$1" | perl -CSD -0777 -ne 'exit(/\p{Han}/ ? 0 : 1)' 2>/dev/null
 }
 
-# --- dispatch to the chosen engine ------------------------------------------
-translate() {
-  local text="$1"
-  [[ -n "${text//[[:space:]]/}" ]] || die "nothing to translate"
-  if [[ "$TE_ENGINE" == "google" ]]; then
-    google_translate "$text"
-  else
-    openai_translate "$text"
-  fi
-}
-
-# --- free Google Translate engine (no key) ----------------------------------
-google_translate() {
-  local text="$1" tl resp out attempt
-  if is_chinese "$text"; then tl="en"; else tl="zh-CN"; fi
+# --- raw Google Translate call (returns the JSON body, or non-zero) ----------
+google_call() {
+  local text="$1" tl="$2" sl="$3" resp attempt
   resp=""
   for attempt in 1 2 3; do
     if resp=$(curl -sS --max-time 30 --retry 2 --retry-connrefused -G \
       "https://translate.googleapis.com/translate_a/single" \
       --data-urlencode "client=gtx" \
-      --data-urlencode "sl=auto" \
+      --data-urlencode "sl=$sl" \
       --data-urlencode "tl=$tl" \
       --data-urlencode "dt=t" \
       --data-urlencode "q=$text" 2>/dev/null); then
@@ -77,7 +154,50 @@ google_translate() {
     resp=""
     sleep 1
   done
-  [[ -n "$resp" ]] || die "network error calling Google Translate (no response after retries)"
+  [[ -n "$resp" ]] || return 1
+  printf '%s' "$resp"
+}
+
+# Detected source as a Google code (the response's .[2] field), or empty.
+detect_googlecode() {
+  local resp; resp="$(google_call "$1" "en" "auto")" || return 1
+  jq -r '.[2] // empty' <<<"$resp"
+}
+
+# Canonical detected-source code for `text`. Han script short-circuits to zh-CN
+# (no network — keeps the common EN<->ZH path key/jq-free); otherwise Google's
+# detected-source mapped back to a catalog code. Empty when detection fails.
+detect_canonical() {
+  local text="$1" gc canon
+  if is_chinese "$text"; then printf 'zh-CN'; return; fi
+  gc="$(detect_googlecode "$text" 2>/dev/null || true)"
+  [[ -n "$gc" ]] || return 0
+  canon="$(googlecode_to_code "$gc" 2>/dev/null || true)"
+  printf '%s' "${canon:-$gc}"
+}
+
+# --- same-language guard: resolve the effective target for `text` ------------
+# Mirrors the app's PairResolver: only an auto source with a distinct secondary
+# can flip, and only when the detected source equals the target. Detection is
+# skipped whenever it can't change the answer (non-Han text + a zh-CN target can
+# never be Chinese), so the default config stays network-free for that path.
+resolve_target() {
+  local text="$1" to_code="$TE_TO" detected
+  if [[ "$TE_FROM" == "auto" && "$TE_SECONDARY" != "$TE_TO" ]]; then
+    if is_chinese "$text" || [[ "$TE_TO" != "zh-CN" ]]; then
+      detected="$(detect_canonical "$text")"
+      [[ -n "$detected" && "$detected" == "$TE_TO" ]] && to_code="$TE_SECONDARY"
+    fi
+  fi
+  printf '%s' "$to_code"
+}
+
+# --- free Google Translate engine (no key) ----------------------------------
+google_translate() {
+  local text="$1" to_code="$2" tl sl resp out
+  tl="$(googlecode_for "$to_code")"; tl="${tl:-$to_code}"
+  if [[ "$TE_FROM" == "auto" ]]; then sl="auto"; else sl="$(googlecode_for "$TE_FROM")"; sl="${sl:-$TE_FROM}"; fi
+  resp="$(google_call "$text" "$tl" "$sl")" || die "network error calling Google Translate (no response after retries)"
   out=$(jq -r '[.[0][]?[0] // empty] | join("")' <<<"$resp" 2>/dev/null)
   [[ -n "$out" ]] || die "Google Translate returned nothing (unexpected response)"
   printf '%s\n' "$out"
@@ -111,17 +231,24 @@ openai_chat() {
   printf '%s\n' "$out"
 }
 
-# --- AI engine (OpenAI); prints the translation (and optional note) ---------
+# --- AI engine (OpenAI); translates `text` into `to_code` -------------------
 openai_translate() {
-  local text="$1" sys body
+  local text="$1" to_code="$2" sys body target_name source_clause from_name
+  target_name="$(ainame_for "$to_code")"
+  target_name="${target_name:-$(name_for "$to_code")}"
+  target_name="${target_name:-$to_code}"
+  if [[ "$TE_FROM" == "auto" ]]; then
+    source_clause="Detect the input language."
+  else
+    from_name="$(ainame_for "$TE_FROM")"; from_name="${from_name:-$(name_for "$TE_FROM")}"; from_name="${from_name:-$TE_FROM}"
+    source_clause="The input is in $from_name."
+  fi
 
-  sys="You are a precise translator between English and Simplified Chinese. \
-Detect the input language: if it is mainly English, translate into natural Simplified Chinese; \
-if it is mainly Chinese, translate into natural, idiomatic English. \
-Preserve meaning, tone and any technical terms. Do not add quotes or commentary."
+  sys="You are a precise translator. $source_clause Translate the input into natural, \
+idiomatic $target_name. Preserve meaning, tone and any technical terms. Do not add quotes or commentary."
   if [[ "$EXPLAIN" == 1 ]]; then
     sys+=" After the translation, add a line starting with '— ' giving a brief note: \
-for a single word or short term include part of speech and (for Chinese) pinyin and one short usage example; \
+for a single word or short term include part of speech and (where relevant) romanization and one short usage example; \
 for a sentence, note any nuance worth knowing. Keep the note to one or two short lines."
   else
     sys+=" Output ONLY the translation, nothing else."
@@ -137,7 +264,9 @@ for a sentence, note any nuance worth knowing. Keep the note to one or two short
 
 # --- AI vision engine (OpenAI): OCR + translate the text in an image --------
 openai_translate_image() {
-  local img="$1" small b64 body sys
+  local img="$1" small b64 body sys target_name secondary_name
+  target_name="$(ainame_for "$TE_TO")"; target_name="${target_name:-$(name_for "$TE_TO")}"; target_name="${target_name:-$TE_TO}"
+  secondary_name="$(ainame_for "$TE_SECONDARY")"; secondary_name="${secondary_name:-$(name_for "$TE_SECONDARY")}"; secondary_name="${secondary_name:-$TE_SECONDARY}"
   # Downscale a copy (sips is built into macOS) so the base64 payload stays
   # reasonable; OCR stays accurate at ~1600px on the long edge.
   small="${TMPDIR:-/tmp}/te_img_$$.png"
@@ -147,8 +276,8 @@ openai_translate_image() {
   base64 < "$img" | tr -d '\n' > "$b64"
 
   sys="You are an OCR and translation tool. Read all text visible in the image, \
-in natural reading order. If the text is mainly English, translate it into natural Simplified Chinese; \
-if it is mainly Chinese, translate into natural, idiomatic English. \
+in natural reading order, then translate it into natural, idiomatic $target_name. \
+If the text is already in $target_name, translate it into $secondary_name instead. \
 Preserve meaning, tone and any technical terms. Output ONLY the translation — no original text, no commentary."
 
   body="${TMPDIR:-/tmp}/te_body_$$.json"
@@ -160,6 +289,24 @@ Preserve meaning, tone and any technical terms. Output ONLY the translation — 
                                       {type:"image_url",image_url:{url:("data:image/png;base64,"+$b64)}}]}]}' > "$body"
   openai_chat "$body"
   rm -f "$small" "$b64" "$body" 2>/dev/null || true
+}
+
+# --- translate dispatch ------------------------------------------------------
+# translate_to: translate with an already-resolved target (no guard re-run).
+translate_to() {
+  local text="$1" to_code="$2"
+  [[ -n "${text//[[:space:]]/}" ]] || die "nothing to translate"
+  if [[ "$TE_ENGINE" == "google" ]]; then
+    google_translate "$text" "$to_code"
+  else
+    openai_translate "$text" "$to_code"
+  fi
+}
+# translate: apply the same-language guard, then translate.
+translate() {
+  local text="$1"
+  [[ -n "${text//[[:space:]]/}" ]] || die "nothing to translate"
+  translate_to "$text" "$(resolve_target "$text")"
 }
 
 # --- pretty terminal output -------------------------------------------------
@@ -221,6 +368,10 @@ while [[ $# -gt 0 ]]; do
     -g|--google) TE_ENGINE="google"; shift ;;
     -a|--ai|--openai) TE_ENGINE="openai"; shift ;;
     --engine) TE_ENGINE="${2:?--engine needs openai|google}"; shift 2 ;;
+    -f|--from) TE_FROM="${2:?-f needs a language code}"; shift 2 ;;
+    -t|--to) TE_TO="${2:?-t needs a language code}"; shift 2 ;;
+    -l|--languages) LIST=1; shift ;;
+    --detect) DETECT=1; shift ;;
     -i|--interactive) INTERACTIVE=1; shift ;;
     -c|--capture) CAPTURE=1; shift ;;
     --popup) POPUP=1; shift ;;
@@ -232,6 +383,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# The catalog drives every mode now — fail early and clearly if it's missing.
+require_tsv
+
+# --- list / search the catalog (no engine, no key) --------------------------
+if [[ "$LIST" == 1 ]]; then
+  list_languages "${args[*]:-}"
+  exit 0
+fi
+
 # Screen capture uses the AI vision engine (OCR + translate in one call).
 [[ "$CAPTURE" == 1 ]] && TE_ENGINE="openai"
 
@@ -242,6 +402,25 @@ esac
 # Explanation notes are an AI-only capability.
 [[ "$TE_ENGINE" == "google" ]] && EXPLAIN=0
 
+validate_langs
+
+# --- detect-only mode: print the source language and stop -------------------
+if [[ "$DETECT" == 1 ]]; then
+  if [[ ${#args[@]} -gt 0 ]]; then
+    dtext="${args[*]}"
+  elif [[ ! -t 0 ]]; then
+    dtext="$(cat)"
+  else
+    dtext="$(pbpaste 2>/dev/null || true)"
+  fi
+  [[ -n "${dtext//[[:space:]]/}" ]] || die "nothing to detect — pass text, pipe stdin, or copy to the clipboard"
+  code="$(detect_canonical "$dtext")"
+  [[ -n "$code" ]] || die "could not detect the source language (network/jq unavailable?)"
+  dname="$(name_for "$code" 2>/dev/null || true)"
+  if [[ -n "$dname" ]]; then printf '%s (%s)\n' "$dname" "$code"; else printf '%s\n' "$code"; fi
+  exit 0
+fi
+
 # The OpenAI key is only needed for the AI engine (Google and its key-free path
 # never touch it). Load it lazily, and only then.
 if [[ "$TE_ENGINE" == "openai" ]]; then load_key; fi
@@ -250,6 +429,7 @@ if [[ "$TE_ENGINE" == "openai" ]]; then load_key; fi
 if [[ "$CAPTURE" == 1 ]]; then
   errf="${TMPDIR:-/tmp}/te_err_$$.txt"; rc=0
   out="$(capture_translate "${args[0]:-}" 2>"$errf")" || rc=$?
+  cap_to="$(endonym_for "$TE_TO" 2>/dev/null || true)"; cap_to="${cap_to:-$TE_TO}"
   if [[ "$rc" -eq 2 ]]; then            # user cancelled the capture — quiet exit
     rm -f "$errf" 2>/dev/null || true
     exit 0
@@ -257,18 +437,18 @@ if [[ "$CAPTURE" == 1 ]]; then
   if [[ "$rc" -ne 0 ]]; then            # real error — surface it, don't fake success
     err_msg="$(cat "$errf" 2>/dev/null)"; rm -f "$errf" 2>/dev/null || true
     err_msg="${err_msg:-te: capture failed}"
-    if [[ "$POPUP" == 1 ]]; then show_popup "$err_msg" "翻译 · 截图 (错误)"; fi
+    if [[ "$POPUP" == 1 ]]; then show_popup "$err_msg" "翻译 · 截图 → $cap_to (错误)"; fi
     printf '%s\n' "$err_msg" >&2
     exit 1
   fi
   rm -f "$errf" 2>/dev/null || true
   if [[ -z "${out//[[:space:]]/}" ]]; then   # capture worked but no text recognised
-    if [[ "$POPUP" == 1 ]]; then show_popup "未识别到文字" "翻译 · 截图"; fi
+    if [[ "$POPUP" == 1 ]]; then show_popup "未识别到文字" "翻译 · 截图 → $cap_to"; fi
     exit 0
   fi
   if [[ "$POPUP" == 1 ]]; then
     printf '%s' "$out" | pbcopy 2>/dev/null || true
-    show_popup "$out" "翻译 · 截图"
+    show_popup "$out" "翻译 · 截图 → $cap_to"
   else
     print_result "" "$out"
   fi
@@ -278,9 +458,11 @@ fi
 # --- popup mode (macOS Quick Action): stdin -> dialog + clipboard -----------
 if [[ "$POPUP" == 1 ]]; then
   text="$(cat)"
-  out="$(translate "$text")"
+  eff_to="$(resolve_target "$text")"
+  out="$(translate_to "$text" "$eff_to")"
   printf '%s' "$out" | pbcopy 2>/dev/null || true
-  if [[ "$TE_ENGINE" == "google" ]]; then popup_title="翻译 · Google"; else popup_title="翻译 · AI"; fi
+  to_disp="$(endonym_for "$eff_to" 2>/dev/null || true)"; to_disp="${to_disp:-$eff_to}"
+  if [[ "$TE_ENGINE" == "google" ]]; then popup_title="翻译 · Google → $to_disp"; else popup_title="翻译 · AI → $to_disp"; fi
   show_popup "$out" "$popup_title"
   exit 0
 fi
