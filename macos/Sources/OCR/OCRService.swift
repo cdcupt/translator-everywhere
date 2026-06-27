@@ -31,9 +31,31 @@ struct OCRService {
     /// Without this, Vision's tiny per-glyph `y` jitter scrambles a single line.
     static let sameLineTolerance: CGFloat = 0.01
 
+    /// The recognition backend. Injected so the capture→OCR→translate flow is
+    /// unit-testable without driving real Vision (which needs a rendered image),
+    /// mirroring `RegionCapturer`'s `init(runCapture:)` test seam.
+    private let recognizer: (URL) async throws -> String
+
+    /// Default initializer runs on-device Vision OCR.
+    init() {
+        self.recognizer = { url in try await Self.recognizeWithVision(in: url) }
+    }
+
+    /// Test seam: inject a recognizer that returns fixed text without Vision.
+    init(recognize: @escaping (URL) async throws -> String) {
+        self.recognizer = recognize
+    }
+
     /// Recognizes text in the image at `imageURL` and returns it joined into one
     /// string in reading order. Returns an empty string when nothing is found.
     func recognizeText(in imageURL: URL) async throws -> String {
+        try await recognizer(imageURL)
+    }
+
+    /// The real on-device path: decode the PNG and run Vision, joining the result
+    /// into reading order. `static` so the default initializer's closure needn't
+    /// capture `self`.
+    private static func recognizeWithVision(in imageURL: URL) async throws -> String {
         guard let imageSource = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
               let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil)
         else {
@@ -41,12 +63,12 @@ struct OCRService {
         }
 
         let observations = try await recognize(cgImage: cgImage)
-        return Self.joinedText(from: observations)
+        return joinedText(from: observations)
     }
 
     /// Runs the Vision request on a decoded image. Split out so the request
     /// configuration is in one place.
-    private func recognize(cgImage: CGImage) async throws -> [VNRecognizedTextObservation] {
+    private static func recognize(cgImage: CGImage) async throws -> [VNRecognizedTextObservation] {
         try await withCheckedThrowingContinuation { continuation in
             let request = VNRecognizeTextRequest { request, error in
                 if let error {

@@ -17,6 +17,12 @@ protocol ResultPresenting: AnyObject {
         onSave: (@MainActor () async -> Bool)?,
         onRetranslate: (@MainActor (LanguagePair) -> Void)?
     )
+    /// Shows the panel *immediately* in a loading state the moment a region is
+    /// captured, before OCR/translation run — so the user sees the app working
+    /// instead of dead air. `source` is the recognized text once OCR lands (`nil`
+    /// on the first call, right after capture). The real result later supersedes
+    /// this in place via `showResult`.
+    func showTranslating(source: String?)
     func showError(title: String, message: String)
     func show(title: String, body: String)
 }
@@ -84,6 +90,21 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     /// can fire it after showing in-place "translating…" feedback.
     private var currentOnRetranslate: (@MainActor (LanguagePair) -> Void)?
 
+    /// True while the instant loading body (spinner + "Translating…") is mounted,
+    /// from the moment a region is captured until the result/error supersedes it.
+    /// Distinguishes "loading body up" from "result body up" so `showResult` knows
+    /// to rebuild the result body in place (filling the loading state) rather than
+    /// taking the retranslate in-place `updateResult` path.
+    private var isShowingLoading = false
+
+    /// The loading body's indeterminate spinner, held so it can be stopped when the
+    /// result/error lands. Weak: the view hierarchy owns it.
+    private weak var loadingSpinner: NSProgressIndicator?
+
+    /// The loading body's Recognized text view, held so the recognized text can be
+    /// filled *in place* (no rebuild) when OCR completes while still "Translating…".
+    private weak var loadingSourceTextView: NSTextView?
+
     /// Shows a successful translation: `translation` is primary/large, `source`
     /// is the dim recognized text, `badge` labels the engine, and `copied`
     /// reveals the "Copied ✓" affordance. When `onSave` is non-nil a "Save to
@@ -116,7 +137,9 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         self.panel = panel
 
         // A live result body → update in place (keep the bar + picker + scrollers).
-        if translationTextView != nil {
+        // Not while loading: the loading body has no bar to update, so it must be
+        // rebuilt into a full result body below.
+        if translationTextView != nil, !isShowingLoading {
             updateResult(
                 translation: translation, source: source, badge: badge, copied: copied,
                 pair: pair, detected: detected, viaGoogleFallback: viaGoogleFallback,
@@ -126,12 +149,49 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
             return
         }
 
+        // Build the full result body. When a loading body is already up, keep the
+        // panel exactly where it is (no recenter) and stop the spinner — the result
+        // fills the loading state in place with no jump. A truly fresh present
+        // (no loading) centers.
+        let recenter = !isShowingLoading
+        tearDownLoading()
         currentOnRetranslate = onRetranslate
         panel.contentView = makeResultContent(
             translation: translation, source: source, badge: badge, copied: copied,
             pair: pair, detected: detected, viaGoogleFallback: viaGoogleFallback,
             onSave: onSave
         )
+        present(panel, recenter: recenter)
+    }
+
+    /// Shows the panel *immediately* in a loading state (TECH §8.1 / DESIGN §1):
+    /// a spinning indeterminate `NSProgressIndicator` beside "Translating…" in the
+    /// Translation slot, with the Recognized section already in place (empty until
+    /// OCR lands). Called the instant a region is captured (`source: nil`), then
+    /// again once OCR succeeds (`source:` = recognized text) to fill the Recognized
+    /// section *in place* — no rebuild, no flicker. The real result later replaces
+    /// this body via `showResult`, which keeps the panel where it is (no recenter),
+    /// so the result fills in with no jump. Must be called on the main actor.
+    @MainActor
+    func showTranslating(source: String?) {
+        let panel = panel ?? makePanel()
+        self.panel = panel
+
+        // Already loading → refresh the recognized text in place. `nil` (a fresh
+        // capture, before OCR) must CLEAR it — otherwise actor reentrancy at the
+        // OCR/translate await could leave the *previous* capture's recognized text
+        // visible under "Translating…".
+        if isShowingLoading {
+            loadingSourceTextView?.string = source ?? ""
+            present(panel, recenter: false)
+            return
+        }
+
+        // Fresh loading body: drop any stale result/loading refs, then mount it and
+        // center the panel — the result will fill this in place without recentering.
+        dropResultBody()
+        isShowingLoading = true
+        panel.contentView = makeLoadingContent(source: source)
         present(panel, recenter: true)
     }
 
@@ -215,7 +275,9 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     }
 
     /// Forgets the live result body so the next `showResult` rebuilds it fresh
-    /// (called when a message/error replaces a result, or on close).
+    /// (called when a message/error replaces a result, or on close). Also tears
+    /// down any loading affordance, so a message/error/new-capture cleanly stops a
+    /// running spinner.
     @MainActor
     private func dropResultBody() {
         saveButtonController = nil
@@ -224,6 +286,17 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         sourceTextView = nil
         headerStack = nil
         currentOnRetranslate = nil
+        tearDownLoading()
+    }
+
+    /// Stops the loading spinner and forgets the loading body's refs, so the result
+    /// (or error) that supersedes it leaves no animating indicator behind.
+    @MainActor
+    private func tearDownLoading() {
+        loadingSpinner?.stopAnimation(nil)
+        loadingSpinner = nil
+        loadingSourceTextView = nil
+        isShowingLoading = false
     }
 
     // MARK: - Construction
@@ -304,6 +377,48 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         stack.setCustomSpacing(14, after: translationView)
         stack.setCustomSpacing(2, after: sourceCaption)
         return wrap(stack, stretching: [barController.view, translationView, sourceView])
+    }
+
+    /// The instant loading body shown the moment a region is captured: a spinning
+    /// indeterminate indicator beside "Translating…" occupies the Translation slot,
+    /// and the Recognized section is mounted up front (empty until OCR lands) so
+    /// filling it in place doesn't shift the layout. Deliberately omits the language
+    /// bar/badge (the effective pair + engine aren't known until translation
+    /// returns); the real result body — built fresh by `makeResultContent` — adds
+    /// them when it supersedes this in place.
+    @MainActor
+    private func makeLoadingContent(source: String?) -> NSView {
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isIndeterminate = true
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.startAnimation(nil)
+        loadingSpinner = spinner
+
+        let translatingLabel = NSTextField(labelWithString: "Translating…")
+        translatingLabel.font = .systemFont(ofSize: 18)
+        translatingLabel.textColor = .tertiaryLabelColor
+
+        let translatingRow = NSStackView(views: [spinner, translatingLabel])
+        translatingRow.orientation = .horizontal
+        translatingRow.alignment = .centerY
+        translatingRow.spacing = 8
+
+        let translationCaption = sectionCaption("Translation")
+        let sourceCaption = sectionCaption("Recognized")
+        let sourceView = scrollableText(
+            source ?? "", fontSize: 14, dim: true, minHeight: Layout.minSectionHeight
+        )
+        loadingSourceTextView = sourceView.documentView as? NSTextView
+
+        let stack = verticalStack([
+            translationCaption, translatingRow, sourceCaption, sourceView,
+        ])
+        stack.setCustomSpacing(2, after: translationCaption)
+        stack.setCustomSpacing(14, after: translatingRow)
+        stack.setCustomSpacing(2, after: sourceCaption)
+        return wrap(stack, stretching: [sourceView])
     }
 
     /// (Re)populates the header row: engine badge, an optional faint "via Google"
