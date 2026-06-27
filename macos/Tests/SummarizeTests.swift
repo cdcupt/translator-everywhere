@@ -79,4 +79,18 @@ struct SummarizeTests {
             _ = try await engine.summarize([])
         }
     }
+
+    @Test("studyPrompt pairs the coaching instruction with the numbered captures")
+    func studyPromptHandoff() throws {
+        let items = try makeItems()
+        let prompt = StudyListFormatter.studyPrompt(items)
+
+        // Carries the coaching instruction so any pasted-into AI knows the task…
+        #expect(prompt.contains("study coach"))
+        #expect(prompt.contains("study list"))
+        // …and the numbered captures, reusing the same formatting as the AI path.
+        #expect(prompt.contains(StudyListFormatter.promptLines(items)))
+        #expect(prompt.contains("1. train platform => 月台"))
+        #expect(prompt.contains("2. exit => 出口"))
+    }
 }

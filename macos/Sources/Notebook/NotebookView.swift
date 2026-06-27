@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 /// The Vocabulary Notebook window body (DESIGN §2c).
 ///
@@ -24,11 +25,19 @@ struct NotebookView: View {
     @State private var pendingDelete: [VocabItem] = []
     @State private var showDeleteConfirm = false
 
+    /// Transient confirmation toast (e.g. after copying the study prompt).
+    @State private var toast: String?
+    /// Distinguishes successive toasts so an older auto-dismiss can't clear a
+    /// newer message.
+    @State private var toastToken = 0
+
     var body: some View {
         VStack(spacing: 0) {
             content
         }
         .frame(minWidth: 720, minHeight: 420)
+        .overlay(alignment: .bottom) { toastOverlay }
+        .animation(.easeInOut(duration: 0.2), value: toast)
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search captures…")
         .onChange(of: searchText) { _, _ in reload() }
         .toolbar { toolbarContent }
@@ -64,6 +73,21 @@ struct NotebookView: View {
         } else {
             table
             footer
+        }
+    }
+
+    /// Transient confirmation capsule shown after a copy/hand-off action.
+    @ViewBuilder
+    private var toastOverlay: some View {
+        if let toast {
+            Text(toast)
+                .font(.callout)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.thinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(.quaternary))
+                .padding(.bottom, 52)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
 
@@ -136,6 +160,15 @@ struct NotebookView: View {
             } label: {
                 Label("Export", systemImage: "square.and.arrow.up")
             }
+            .disabled(items.isEmpty)
+
+            Menu {
+                Button("Copy study prompt") { copyStudyPrompt() }
+                Button("Open ChatGPT") { openInChatGPT() }
+            } label: {
+                Label("Ask your AI", systemImage: "sparkles")
+            }
+            .help("Copy a ready-to-paste study prompt for your own AI (ChatGPT, Claude, …)")
             .disabled(items.isEmpty)
 
             Button {
@@ -221,6 +254,46 @@ struct NotebookView: View {
                     errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                     isSummarizing = false
                 }
+            }
+        }
+    }
+
+    // MARK: - Hand off to the user's own AI
+
+    /// Writes a ready-to-paste study prompt for the chosen captures onto the
+    /// pasteboard. Returns `false` (and shows nothing) when there's nothing to
+    /// act on. Selection wins; otherwise everything — same rule as Export.
+    @discardableResult
+    private func copyPromptToPasteboard() -> Bool {
+        let chosen = selectedItems.isEmpty ? items : selectedItems
+        guard !chosen.isEmpty else { return false }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(StudyListFormatter.studyPrompt(chosen), forType: .string)
+        return true
+    }
+
+    private func copyStudyPrompt() {
+        guard copyPromptToPasteboard() else { return }
+        showToast("Prompt copied — paste it into your AI")
+    }
+
+    private func openInChatGPT() {
+        guard copyPromptToPasteboard() else { return }
+        if let url = URL(string: "https://chatgpt.com/") {
+            NSWorkspace.shared.open(url)
+        }
+        showToast("Prompt copied — paste it into ChatGPT")
+    }
+
+    private func showToast(_ message: String) {
+        toastToken += 1
+        let token = toastToken
+        toast = message
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            await MainActor.run {
+                if toastToken == token { toast = nil }
             }
         }
     }

@@ -31,5 +31,22 @@ enum StudyListFormatter {
         .joined(separator: "\n")
     }
 
+    /// A self-contained prompt the user can paste into *their own* AI assistant
+    /// (ChatGPT, Claude, any agent) to get a study summary on their own account.
+    /// It pairs the same coaching instruction the in-app AI engine uses with the
+    /// numbered captures, as one ready-to-paste block — the hand-off counterpart
+    /// to `summarize`, so the output matches regardless of which AI runs it.
+    static func studyPrompt(_ items: [VocabItem]) -> String {
+        """
+        You are a language study coach. Below is a list of vocabulary I saved \
+        while reading, each formatted as "source => translation". Produce a \
+        concise, well-structured Markdown study list: group the items by theme \
+        with a short heading per group, and for each item add one natural example \
+        sentence using it. Keep it tight and practical.
+
+        \(promptLines(items))
+        """
+    }
+
     static let emptyMessage = "No captures to summarize yet."
 }
