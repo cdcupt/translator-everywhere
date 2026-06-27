@@ -35,6 +35,10 @@ set -euo pipefail
 
 die() { printf 'te: %s\n' "$1" >&2; exit 1; }
 
+# Guard a flag that needs a value: clean `die` instead of a raw `${2:?}` bash
+# error when the value is missing or empty. $1=flag, $2=value, $3=what's needed.
+require_arg() { [[ -n "${2:-}" ]] || die "$1 needs $3"; }
+
 # --- load translation prefs (~/.te/config) ----------------------------------
 # Sourced before defaults so the config can set TE_FROM/TE_TO/TE_SECONDARY (and
 # engine/model) without env vars. CLI flags, parsed later, still win.
@@ -104,15 +108,17 @@ googlecode_to_code() {
 # List / search the catalog: code, English name, native name. An empty query
 # lists everything; otherwise case-insensitive substring over code/names/aliases.
 list_languages() {
-  local q="${1:-}"
-  printf '%-9s %-26s %s\n' "CODE" "LANGUAGE" "NATIVE"
-  awk -F'\t' -v q="$q" '
+  local q="${1:-}" rows
+  rows="$(awk -F'\t' -v q="$q" '
     NR==1 { next }
     {
       hay = tolower($1 " " $2 " " $3 " " $6)
       if (q == "" || index(hay, tolower(q))) printf "%-9s %-26s %s\n", $1, $2, $3
     }
-  ' "$LANG_TSV"
+  ' "$LANG_TSV")"
+  [[ -n "$rows" ]] || die "no languages match \"$q\""
+  printf '%-9s %-26s %s\n' "CODE" "LANGUAGE" "NATIVE"
+  printf '%s\n' "$rows"
 }
 
 # Validate the resolved language codes; a bad secondary silently falls back to en.
@@ -367,15 +373,15 @@ while [[ $# -gt 0 ]]; do
     -e|--explain) EXPLAIN=1; shift ;;
     -g|--google) TE_ENGINE="google"; shift ;;
     -a|--ai|--openai) TE_ENGINE="openai"; shift ;;
-    --engine) TE_ENGINE="${2:?--engine needs openai|google}"; shift 2 ;;
-    -f|--from) TE_FROM="${2:?-f needs a language code}"; shift 2 ;;
-    -t|--to) TE_TO="${2:?-t needs a language code}"; shift 2 ;;
+    --engine) require_arg "--engine" "${2:-}" "openai|google"; TE_ENGINE="$2"; shift 2 ;;
+    -f|--from) require_arg "$1" "${2:-}" "a language code"; TE_FROM="$2"; shift 2 ;;
+    -t|--to) require_arg "$1" "${2:-}" "a language code"; TE_TO="$2"; shift 2 ;;
     -l|--languages) LIST=1; shift ;;
     --detect) DETECT=1; shift ;;
     -i|--interactive) INTERACTIVE=1; shift ;;
     -c|--capture) CAPTURE=1; shift ;;
     --popup) POPUP=1; shift ;;
-    -m|--model) TE_MODEL="${2:?-m needs a model}"; shift 2 ;;
+    -m|--model) require_arg "$1" "${2:-}" "a model"; TE_MODEL="$2"; shift 2 ;;
     -h|--help) usage 0 ;;
     --) shift; args+=("$@"); break ;;
     -*) die "unknown option: $1 (try -h)" ;;
@@ -472,7 +478,12 @@ if [[ "$INTERACTIVE" == 1 ]]; then
   printf 'te interactive — type text, blank line or Ctrl-D to quit\n' >&2
   while IFS= read -r -p "› " line || [[ -n "${line:-}" ]]; do
     [[ -z "${line//[[:space:]]/}" ]] && break
-    print_result "" "$(translate "$line")"
+    # Assign first so a failed translate (die) is observed, not masked by the
+    # surrounding print_result. On failure, keep the REPL alive (error already
+    # went to stderr) instead of printing an empty result.
+    if line_out="$(translate "$line")"; then
+      print_result "" "$line_out"
+    fi
   done
   exit 0
 fi
@@ -489,4 +500,8 @@ else
   [[ -n "${text//[[:space:]]/}" ]] || die "clipboard is empty — copy some text, or run: te <text>"
 fi
 
-print_result "$src" "$(translate "$text")"
+# Assign first: a command substitution passed directly as an argument swallows
+# the inner `die`'s non-zero exit (print_result still returns 0). Binding it to a
+# variable lets `set -e` propagate a real translate/empty-input failure.
+out="$(translate "$text")"
+print_result "$src" "$out"
