@@ -177,9 +177,12 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         let panel = panel ?? makePanel()
         self.panel = panel
 
-        // Already loading → just refresh the recognized text in place (OCR landed).
+        // Already loading → refresh the recognized text in place. `nil` (a fresh
+        // capture, before OCR) must CLEAR it — otherwise actor reentrancy at the
+        // OCR/translate await could leave the *previous* capture's recognized text
+        // visible under "Translating…".
         if isShowingLoading {
-            if let source { loadingSourceTextView?.string = source }
+            loadingSourceTextView?.string = source ?? ""
             present(panel, recenter: false)
             return
         }

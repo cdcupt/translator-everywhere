@@ -143,8 +143,8 @@ struct CaptureCoordinatorSaveTests {
     /// recognized text reaching the panel after OCR, and the real result last.
     @Test("a capture shows the loading panel before the result, filling recognized text then translation")
     func captureShowsLoadingBeforeResult() async throws {
-        let en = LanguageCatalog.language(forCode: "en")!
-        let zh = LanguageCatalog.language(forCode: "zh-CN")!
+        let en = try #require(LanguageCatalog.language(forCode: "en"))
+        let zh = try #require(LanguageCatalog.language(forCode: "zh-CN"))
         let result = TranslationResult(
             translation: "出口", detected: .identified(en, confidence: 0.99),
             servedBy: .free, viaGoogleFallback: false, effectiveTo: zh
