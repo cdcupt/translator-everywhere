@@ -13,14 +13,27 @@ struct OpenAIEngine: TranslationEngine {
     /// Default model — overridable for a future Preferences toggle (slice 5).
     static let defaultModel = "gpt-4o-mini"
 
-    /// Translator system prompt, lifted verbatim from the `te` script.
-    static let systemPrompt = """
-    You are a precise translator between English and Simplified Chinese. \
-    Detect the input language: if it is mainly English, translate into natural Simplified Chinese; \
-    if it is mainly Chinese, translate into natural, idiomatic English. \
-    Preserve meaning, tone and any technical terms. Do not add quotes or commentary. \
-    Output ONLY the translation, nothing else.
-    """
+    /// Builds the translator system prompt for the requested pair, parameterized
+    /// from the catalog's `aiName` (TECH §3). With an explicit From it names both
+    /// languages; with Auto (`from == nil`) it asks the model to detect the source
+    /// and translate into the target. Mirrors `te`'s instruction style (preserve
+    /// meaning/tone, output only the translation). `aiName` is `nil` only for
+    /// AI-incapable pairs the resolver routes to Google up front, so the
+    /// `englishName` fallback is purely defensive.
+    static func systemPrompt(from: Language?, to: Language) -> String {
+        let target = to.aiName ?? to.englishName
+        let lead: String
+        if let from {
+            let source = from.aiName ?? from.englishName
+            lead = "You are a precise translator. Translate the input from \(source) "
+                + "into natural, idiomatic \(target)."
+        } else {
+            lead = "You are a precise translator. Detect the input language and "
+                + "translate it into natural, idiomatic \(target)."
+        }
+        return lead + " Preserve meaning, tone and any technical terms. "
+            + "Do not add quotes or commentary. Output ONLY the translation, nothing else."
+    }
 
     /// Study-list system prompt for `summarize`. Asks for theme grouping and a
     /// short example sentence per item — the richer output DESIGN §2c promises
@@ -53,13 +66,22 @@ struct OpenAIEngine: TranslationEngine {
         self.retryDelay = retryDelay
     }
 
-    func translate(_ text: String) async throws -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    func translate(_ request: TranslationRequest) async throws -> TranslationResult {
+        let trimmed = request.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw TranslationError.emptyInput }
 
-        let request = try makeRequest(text: trimmed)
-        let data = try await fetchWithRetry(request)
-        return try Self.parse(data)
+        let urlRequest = try makeRequest(for: request, text: trimmed)
+        let data = try await fetchWithRetry(urlRequest)
+        let content = try Self.parse(data)
+        return TranslationResult(
+            translation: content,
+            // With an explicit From we echo it; with Auto, the AI path's real
+            // source detection is slice 6's job (orchestration), so detection is
+            // `.unavailable` here — which suppresses the guard upstream.
+            detected: request.from.map { .identified($0, confidence: nil) } ?? .unavailable,
+            servedBy: .ai,
+            viaGoogleFallback: false
+        )
     }
 
     /// Produces a real study-list summary: groups the captures by theme and adds
@@ -79,10 +101,11 @@ struct OpenAIEngine: TranslationEngine {
 
     // MARK: - Request
 
-    /// Builds the translate POST request with the translator system prompt.
-    /// Internal so tests can assert the body + headers.
-    func makeRequest(text: String) throws -> URLRequest {
-        try makeChatRequest(system: Self.systemPrompt, user: text, temperature: 0.2)
+    /// Builds the translate POST request with the pair-parameterized translator
+    /// prompt. Internal so tests can assert the body + headers.
+    func makeRequest(for request: TranslationRequest, text: String) throws -> URLRequest {
+        let system = Self.systemPrompt(from: request.from, to: request.to)
+        return try makeChatRequest(system: system, user: text, temperature: 0.2)
     }
 
     /// Shared chat-completions request builder for translate + summarize.

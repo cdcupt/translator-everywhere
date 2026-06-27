@@ -79,15 +79,16 @@ actor CaptureCoordinator {
 
         // 4. Translate via the resolved engine (OpenAI only when preferred AND a
         //    key exists, else free Google). Direct to the provider, never our
-        //    server.
+        //    server. The interim guard wiring preserves today's EN⇄ZH flip.
         let engine = resolver.resolve()
-        let translation: String
+        let result: TranslationResult
         do {
-            translation = try await engine.translate(trimmed)
+            result = try await translateWithGuard(trimmed, using: engine)
         } catch {
             await presentError(title: "Translation failed", message: error.localizedDescription)
             return
         }
+        let translation = result.translation
 
         // 5. Copy the translation to the clipboard, then show the result panel
         //    with the "Copied ✓" affordance. Saving to the notebook is opt-in:
@@ -110,10 +111,49 @@ actor CaptureCoordinator {
 
         await presentResult(translation: translation,
                             source: trimmed,
-                            badge: engine.kind.badge,
+                            badge: result.servedBy.badge,
                             copied: copied,
                             onSave: onSave)
     }
+
+    /// Interim translate + same-language guard wiring (slice 3). Translates into
+    /// the seeded home target (中文); if Auto-detection reports the source already
+    /// IS that target, it re-fires to the secondary (English) — reproducing the
+    /// old two-language EN⇄ZH flip end-to-end. The guard is suppressed on
+    /// uncertain/unavailable detection (e.g. the AI path before slice 6), so a
+    /// wrong flip is impossible. **Slice 6's `TranslationService` replaces this**
+    /// with real From/To resolution from `SettingsStore`. Internal so the EN→中文
+    /// / 中文→EN regression is unit-testable without driving capture/OCR.
+    func translateWithGuard(
+        _ text: String,
+        using engine: any TranslationEngine
+    ) async throws -> TranslationResult {
+        let home = Self.homeTarget
+        let pair = LanguagePair(from: nil, to: home)
+        let first = try await engine.translate(TranslationRequest(text: text, from: nil, to: home))
+
+        let effective = PairResolver.effectiveTo(
+            detected: first.detected, pair: pair, secondary: Self.secondaryLanguage
+        )
+        // No collision — the first (home-target) translation already stands.
+        guard effective.code != home.code else { return first }
+
+        // Guard fired (detected source == home, e.g. Chinese input) — re-fire to
+        // the secondary so Chinese still flips to English, as it does today.
+        return try await engine.translate(TranslationRequest(text: text, from: nil, to: effective))
+    }
+
+    /// The seeded home target — 中文 (TECH §3). Catalog fallback is defensive.
+    private static let homeTarget: Language =
+        LanguageCatalog.language(forCode: "zh-CN")
+        ?? Language(code: "zh-CN", englishName: "Chinese (Simplified)", endonym: "简体中文",
+                    googleCode: "zh-CN", aiName: "Simplified Chinese", aliases: [])
+
+    /// The seeded secondary — English, the flip target for the home collision.
+    private static let secondaryLanguage: Language =
+        LanguageCatalog.language(forCode: "en")
+        ?? Language(code: "en", englishName: "English", endonym: "English",
+                    googleCode: "en", aiName: "English", aliases: [])
 
     /// Persists the capture to the notebook when the user opts in via the panel's
     /// Save button. Returns whether the save succeeded so the panel only claims

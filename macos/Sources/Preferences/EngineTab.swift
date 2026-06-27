@@ -25,6 +25,13 @@ struct EngineTab: View {
     /// Sample text for the live Test call.
     private static let testSample = "Hello"
 
+    /// Target for the live Test call — any valid pair proves the key works; 中文
+    /// is the seeded home target. Catalog fallback is purely defensive.
+    private static let testTarget: Language =
+        LanguageCatalog.language(forCode: "zh-CN")
+        ?? Language(code: "zh-CN", englishName: "Chinese (Simplified)", endonym: "简体中文",
+                    googleCode: "zh-CN", aiName: "Simplified Chinese", aliases: [])
+
     init(settings: SettingsStore, keychain: KeychainStore) {
         self.settings = settings
         self.keychain = keychain
@@ -107,7 +114,8 @@ struct EngineTab: View {
         Task {
             let engine = OpenAIEngine(apiKey: key)
             do {
-                _ = try await engine.translate(Self.testSample)
+                let request = TranslationRequest(text: Self.testSample, from: nil, to: Self.testTarget)
+                _ = try await engine.translate(request)
                 await MainActor.run { testState = .ok }
             } catch {
                 await MainActor.run {
