@@ -82,6 +82,11 @@ actor CaptureCoordinator {
         // The PNG is transient — discard it whatever happens next.
         defer { try? FileManager.default.removeItem(at: imageURL) }
 
+        // Show the panel instantly in a loading state — OCR + the (now
+        // network-bound) translation that follow no longer leave the user staring
+        // at nothing. The recognized text, then the translation, fill this in place.
+        await presentTranslating(source: nil)
+
         // 3. On-device OCR.
         let recognized: String
         do {
@@ -100,6 +105,10 @@ actor CaptureCoordinator {
 
         // Cache the source so a To-language change can re-run on it (`retranslate`).
         lastCapture = trimmed
+
+        // OCR landed — surface the recognized text immediately (still "Translating…")
+        // so the user sees what was read while the translation is in flight.
+        await presentTranslating(source: trimmed)
 
         // 4. Translate via `TranslationService` (detect → guard → resolve →
         //    translate → AI-fallback), reading the active pair from settings.
@@ -264,6 +273,17 @@ actor CaptureCoordinator {
             onSave: onSave,
             onRetranslate: onRetranslate
         )
+    }
+
+    /// Shows (or refreshes) the instant loading panel. The first call (`source:
+    /// nil`, right after capture) makes the panel appear and grabs focus; the
+    /// second (`source:` = recognized text, after OCR) fills the Recognized section
+    /// in place. The real result later supersedes this via `presentResult`.
+    @MainActor
+    private func presentTranslating(source: String?) {
+        // LSUIElement agents launch unfocused — grab focus before showing.
+        NSApp.activate(ignoringOtherApps: true)
+        resultPanel.showTranslating(source: source)
     }
 
     @MainActor

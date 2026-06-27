@@ -13,15 +13,29 @@ struct PermissionService {
     static let screenCaptureSettingsURL =
         "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
 
+    /// The grant check. Injected so the capture flow is unit-testable without the
+    /// real (un-mockable) `CGPreflightScreenCaptureAccess()`.
+    private let grantedCheck: () -> Bool
+
+    /// Default initializer reads the live system grant.
+    init() {
+        self.grantedCheck = { CGPreflightScreenCaptureAccess() }
+    }
+
+    /// Test seam: inject a fixed grant state.
+    init(isGranted: Bool) {
+        self.grantedCheck = { isGranted }
+    }
+
     /// Non-prompting check the coordinator calls *before* capturing.
     /// Returns `true` only when screen-recording access is already granted.
     var isGranted: Bool {
-        CGPreflightScreenCaptureAccess()
+        grantedCheck()
     }
 
     /// Same as `isGranted`; kept for call-site readability.
     func hasScreenCaptureAccess() -> Bool {
-        CGPreflightScreenCaptureAccess()
+        grantedCheck()
     }
 
     /// Prompts for screen-recording access. The system shows its own dialog the

@@ -134,6 +134,56 @@ struct CaptureCoordinatorSaveTests {
         #expect(swap.to.code == "zh-CN")
     }
 
+    // MARK: - Instant loading panel (UX: no dead air before the result)
+
+    /// The UX fix: a capture must show the panel *immediately* in a loading state,
+    /// before OCR + the (now network-bound) translation run, then fill it in place.
+    /// Drives the full `captureAndTranslate` with injected permission/capturer/OCR
+    /// seams and asserts the ordering: `showTranslating(source: nil)` first, the
+    /// recognized text reaching the panel after OCR, and the real result last.
+    @Test("a capture shows the loading panel before the result, filling recognized text then translation")
+    func captureShowsLoadingBeforeResult() async throws {
+        let en = LanguageCatalog.language(forCode: "en")!
+        let zh = LanguageCatalog.language(forCode: "zh-CN")!
+        let result = TranslationResult(
+            translation: "出口", detected: .identified(en, confidence: 0.99),
+            servedBy: .free, viaGoogleFallback: false, effectiveTo: zh
+        )
+
+        let spy = SpyResultPanel()
+        // A capturer that "completes" by writing a file to the destination, so
+        // `captureRegion` returns a non-nil URL (cancel = no file).
+        let capturer = RegionCapturer { url in try Data().write(to: url) }
+        // An OCR seam that returns fixed recognized text without driving Vision.
+        let ocr = OCRService(recognize: { _ in "Exit" })
+        let coordinator = CaptureCoordinator(
+            permission: PermissionService(isGranted: true),
+            capturer: capturer,
+            ocr: ocr,
+            settings: makeSettings(),
+            service: StubTranslating(result: result),
+            resultPanel: spy,
+            notebook: nil
+        )
+
+        await coordinator.captureAndTranslate()
+
+        // The instant loading state (no source yet) is the very first thing shown.
+        #expect(spy.events.first == .translating(source: nil))
+        // After OCR the recognized text reaches the panel, still in the loading state.
+        #expect(spy.events.contains(.translating(source: "Exit")))
+        // The real result is the last thing shown — it supersedes the loading state.
+        #expect(spy.events.last == .result(translation: "出口"))
+        #expect(spy.lastTranslation == "出口")
+
+        // Ordering: loading (nil) → recognized (source) → result, strictly.
+        let loadingIdx = try #require(spy.events.firstIndex(of: .translating(source: nil)))
+        let recognizedIdx = try #require(spy.events.firstIndex(of: .translating(source: "Exit")))
+        let resultIdx = try #require(spy.events.firstIndex(of: .result(translation: "出口")))
+        #expect(loadingIdx < recognizedIdx)
+        #expect(recognizedIdx < resultIdx)
+    }
+
     // MARK: - Generation token (out-of-order result suppression)
 
     @Test("an older slow result is dropped when a newer request starts")
@@ -230,13 +280,24 @@ private struct StubTranslating: Translating {
 
 /// A `ResultPresenting` spy that records the pair/detection/save-hook handed to
 /// the panel, so the test can assert what the bar would render and what a Save
-/// would persist — without mounting AppKit.
+/// would persist — without mounting AppKit. Also records an ordered event log so
+/// the capture flow's loading-before-result sequence can be asserted.
 @MainActor
 private final class SpyResultPanel: ResultPresenting {
     private(set) var lastTranslation: String?
     private(set) var lastPair: LanguagePair?
     private(set) var lastDetected: DetectedSource?
     private(set) var lastOnSave: (@MainActor () async -> Bool)?
+
+    /// The presentation calls in order, so a test can assert that the instant
+    /// loading state is shown before the result fills it in.
+    enum Event: Equatable {
+        case translating(source: String?)
+        case result(translation: String)
+        case error
+        case message
+    }
+    private(set) var events: [Event] = []
 
     func showResult(
         translation: String,
@@ -253,8 +314,13 @@ private final class SpyResultPanel: ResultPresenting {
         lastPair = pair
         lastDetected = detected
         lastOnSave = onSave
+        events.append(.result(translation: translation))
     }
 
-    func showError(title: String, message: String) {}
-    func show(title: String, body: String) {}
+    func showTranslating(source: String?) {
+        events.append(.translating(source: source))
+    }
+
+    func showError(title: String, message: String) { events.append(.error) }
+    func show(title: String, body: String) { events.append(.message) }
 }
