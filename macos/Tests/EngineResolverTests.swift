@@ -59,4 +59,68 @@ struct EngineResolverTests {
         defaults.removePersistentDomain(forName: suite)
         #expect(SettingsStore(defaults: defaults).enginePreference == .free)
     }
+
+    // MARK: - resolve(for:) — a-priori per-target routing (slice 4)
+
+    /// An AI-capable target (every v1 language has `aiName`).
+    private var aiCapableTarget: Language {
+        LanguageCatalog.language(forCode: "zh-CN")!
+    }
+
+    /// A synthetic, AI-incapable target — `aiName == nil`, exercising the branch
+    /// that v1's real catalog never hits.
+    private var aiIncapableTarget: Language {
+        Language(
+            code: "xx",
+            englishName: "Test",
+            endonym: "Test",
+            googleCode: "xx",
+            aiName: nil,
+            aliases: []
+        )
+    }
+
+    @Test(".openai + key + AI-capable target → OpenAI, not via Google")
+    func resolveForOpenAICapable() {
+        let resolver = EngineResolver(
+            settings: makeSettings(.openai),
+            openAIKey: { "sk-real-key" }
+        )
+        let resolved = resolver.resolve(for: LanguagePair(from: nil, to: aiCapableTarget))
+        #expect(resolved.engine.kind == .ai)
+        #expect(resolved.viaGoogleFallback == false)
+    }
+
+    @Test(".openai + key + AI-incapable target → Google, via Google")
+    func resolveForOpenAIIncapable() {
+        let resolver = EngineResolver(
+            settings: makeSettings(.openai),
+            openAIKey: { "sk-real-key" }
+        )
+        let resolved = resolver.resolve(for: LanguagePair(from: nil, to: aiIncapableTarget))
+        #expect(resolved.engine.kind == .free)
+        #expect(resolved.viaGoogleFallback == true)
+    }
+
+    @Test(".free preference → Google, ordinary FREE (not a fallback)")
+    func resolveForFree() {
+        let resolver = EngineResolver(
+            settings: makeSettings(.free),
+            openAIKey: { "sk-present" } // present, but preference is .free
+        )
+        let resolved = resolver.resolve(for: LanguagePair(from: nil, to: aiCapableTarget))
+        #expect(resolved.engine.kind == .free)
+        #expect(resolved.viaGoogleFallback == false)
+    }
+
+    @Test(".openai + no key → Google, ordinary FREE (not a fallback)")
+    func resolveForOpenAINoKey() {
+        let resolver = EngineResolver(
+            settings: makeSettings(.openai),
+            openAIKey: { nil }
+        )
+        let resolved = resolver.resolve(for: LanguagePair(from: nil, to: aiCapableTarget))
+        #expect(resolved.engine.kind == .free)
+        #expect(resolved.viaGoogleFallback == false)
+    }
 }

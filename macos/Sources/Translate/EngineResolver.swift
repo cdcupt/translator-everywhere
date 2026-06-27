@@ -39,6 +39,10 @@ struct EngineResolver {
     }
 
     /// The engine for the current preference + key state.
+    ///
+    /// Pair-agnostic: still used by `summarize` (which is always AI-or-Google by
+    /// preference, never per-target-capability). For per-target translation use
+    /// `resolve(for:)`.
     func resolve() -> any TranslationEngine {
         if settings.enginePreference == .openai,
            let key = openAIKey()?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -46,5 +50,42 @@ struct EngineResolver {
             return OpenAIEngine(apiKey: key, session: session)
         }
         return GoogleEngine(session: session)
+    }
+
+    /// The a-priori routing decision for a concrete `pair` (TECH §4).
+    ///
+    /// Three branches:
+    /// - AI preferred, key present, target is AI-capable (`to.aiName != nil`) →
+    ///   `OpenAIEngine`, `viaGoogleFallback == false`.
+    /// - AI preferred, key present, target *not* AI-capable (`to.aiName == nil`)
+    ///   → `GoogleEngine`, `viaGoogleFallback == true`. The AI engine was
+    ///   available but can't serve this target, so the request is routed to
+    ///   Google; this drives the "via Google" badge.
+    /// - Otherwise (no key, or preference is `.free`) → `GoogleEngine`,
+    ///   `viaGoogleFallback == false` — an ordinary FREE result, not a fallback.
+    ///
+    /// This is the *a-priori* decision only. The runtime AI-error → Google safety
+    /// net (catch an OpenAI translate failure, retry on Google, set
+    /// `viaGoogleFallback`) is **deferred to `TranslationService`** (slice 6),
+    /// where the translate call is orchestrated.
+    func resolve(for pair: LanguagePair) -> ResolvedEngine {
+        if settings.enginePreference == .openai,
+           let key = openAIKey()?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !key.isEmpty {
+            if pair.to.aiName != nil {
+                return ResolvedEngine(
+                    engine: OpenAIEngine(apiKey: key, session: session),
+                    viaGoogleFallback: false
+                )
+            }
+            return ResolvedEngine(
+                engine: GoogleEngine(session: session),
+                viaGoogleFallback: true
+            )
+        }
+        return ResolvedEngine(
+            engine: GoogleEngine(session: session),
+            viaGoogleFallback: false
+        )
     }
 }
