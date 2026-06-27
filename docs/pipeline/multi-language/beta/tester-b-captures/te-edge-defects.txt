@@ -1,0 +1,24 @@
+# te CLI — edge/error/defect (Tester B capture, 2026-06-27)
+## DEFECT: failure on the one-shot path is reported on stderr but EXITS 0
+$ printf '' | ./te -g ; echo "exit=$?"   # empty input
+te: nothing to translate
+
+exit=0
+
+$ ./te -g -t es "$(python3 -c "print('a'*20000,end='')")" >/dev/null; echo exit=$?   # Google returns nothing
+exit=0 (stderr: te: Google Translate returned nothing (unexpected response))
+
+## CONTRAST: pre-translate validation exits 1 correctly
+$ ./te -g -t zzz "hi"; echo exit=$?
+te: unknown target language: 'zzz' (try: te -l)
+exit=1
+
+## POLISH: missing flag value leaks an internal bash message (not a clean 'te:' die)
+$ ./te -g -t
+./te: line 372: 2: -t needs a language code
+exit=1
+
+## SECURITY OK: awk-injection in a language code is rejected, not executed
+$ ./te -g -t 'zh-CN") || system("echo HACKED" #' hi
+te: unknown target language: 'zh-CN") || system("echo HACKED" #' (try: te -l)
+exit=1

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beta Report — Translator Everywhere Multi-Language</title>
+<style>
+  :root{
+    --bg:#f7f6f3;--surface:#fff;--ink:#16151a;--muted:#5d5b66;--line:#e3e1db;
+    --accent:#5b3df5;--accent-soft:#efeaff;
+    --pass:#1f8a4c;--passbg:#e6f4ec;--block:#a8580a;--blockbg:#fbeede;--fail:#c0362c;--failbg:#fbe9e7;
+    --shadow:0 1px 2px rgba(20,18,30,.05),0 8px 24px rgba(20,18,30,.06);--radius:14px;
+  }
+  *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;padding:clamp(16px,4vw,48px)}
+  .wrap{max-width:940px;margin:0 auto}
+  .kicker{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:5px 11px;border-radius:999px}
+  h1{font-size:clamp(25px,5vw,38px);line-height:1.12;margin:.5em 0 .15em;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:clamp(15px,2.4vw,18px);max-width:62ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .pill{font-size:12.5px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
+  .pill b{color:var(--ink)}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:clamp(18px,3.5vw,30px);margin:18px 0}
+  h2{font-size:clamp(19px,3vw,24px);margin:0 0 4px;display:flex;align-items:center;gap:10px;letter-spacing:-.01em}
+  h2 .n{font-size:13px;font-weight:700;color:#fff;background:var(--accent);min-width:26px;height:26px;padding:0 6px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center}
+  h3{font-size:15px;margin:18px 0 6px}
+  p{margin:.5em 0}.lead{color:var(--muted)}
+  .figwrap{overflow-x:auto;margin:14px 0 6px;border:1px solid var(--line);border-radius:12px;background:#fbfbfa;padding:14px}
+  svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0;table-layout:fixed}
+  th,td{text-align:left;padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere;word-break:break-word}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  td.id{font:700 12px ui-monospace,Menlo,monospace;width:46px}
+  .v{display:inline-block;font-size:11px;font-weight:800;border-radius:6px;padding:2px 7px;white-space:nowrap}
+  .v-pass{color:var(--pass);background:var(--passbg)}
+  .v-block{color:var(--block);background:var(--blockbg)}
+  .v-fail{color:var(--fail);background:var(--failbg)}
+  code{background:#efeef0;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font:12.5px/1.4 ui-monospace,Menlo,monospace}
+  ul,ol{margin:.4em 0;padding-left:1.2em}li{margin:.3em 0}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:640px){.cards{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:12px;padding:15px;background:#fcfcfb}
+  .card h4{margin:0 0 6px;font-size:14px}
+  .ship{color:var(--pass);font-weight:800}
+  .checklist li{margin:.5em 0}
+  .checklist b{color:var(--accent)}
+  footer{color:var(--muted);font-size:13px;text-align:center;margin:24px 0 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker">Beta Report · Gate 3 surface</span>
+  <h1>Multi-Language — Beta Panel Report</h1>
+  <p class="sub">Three independent testers (2 lenses + 1 feature-coverage) exercised the built app + the <code>te</code> CLI. Result: <span class="ship">both lenses SHIP, coverage all PASS / BLOCKED-needs-device, zero FAIL.</span></p>
+  <div class="meta">
+    <span class="pill">Branch <b>feat/multi-language</b></span>
+    <span class="pill">Build <b>9 slices · 149 tests green</b></span>
+    <span class="pill">CLI <b>live-verified</b></span>
+    <span class="pill">GUI <b>code+test-verified · needs on-device</b></span>
+  </div>
+</header>
+
+<!-- AT A GLANCE -->
+<section>
+  <h2><span class="n">★</span> At a glance</h2>
+  <div class="figwrap">
+    <svg viewBox="0 0 900 120" role="img" aria-label="Coverage summary: 15 PASS, 17 BLOCKED-needs-device, 0 FAIL">
+      <style>.t{font:700 13px -apple-system,sans-serif;fill:#16151a}.s{font:500 11px -apple-system,sans-serif;fill:#5d5b66}.big{font:800 26px -apple-system,sans-serif}</style>
+      <rect x="10" y="20" width="210" height="80" rx="12" fill="#e6f4ec" stroke="#cfe9d8"/>
+      <text x="115" y="58" text-anchor="middle" class="big" fill="#1f8a4c">15</text>
+      <text x="115" y="80" text-anchor="middle" class="s">PASS — CLI + notebook + cross-cutting, live-verified</text>
+      <rect x="235" y="20" width="210" height="80" rx="12" fill="#fbeede" stroke="#ead9c4"/>
+      <text x="340" y="58" text-anchor="middle" class="big" fill="#a8580a">17</text>
+      <text x="340" y="80" text-anchor="middle" class="s">BLOCKED — GUI, needs your on-device click-through</text>
+      <rect x="460" y="20" width="180" height="80" rx="12" fill="#fbe9e7" stroke="#f2cfc9"/>
+      <text x="550" y="58" text-anchor="middle" class="big" fill="#c0362c">0</text>
+      <text x="550" y="80" text-anchor="middle" class="s">FAIL</text>
+      <rect x="655" y="20" width="235" height="80" rx="12" fill="#eef0ff" stroke="#cdd2ff"/>
+      <text x="772" y="50" text-anchor="middle" class="t" fill="#5b3df5">Both lenses: SHIP</text>
+      <text x="772" y="72" text-anchor="middle" class="s">4 CLI defects found → fixed</text>
+      <text x="772" y="88" text-anchor="middle" class="s">(commit 68eee63)</text>
+    </svg>
+  </div>
+  <p class="lead">The headless reality: a menu-bar app's capture flow + From/To picker can't be driven by an automated tester (needs screen-recording permission + real UI events). So every GUI feature is verified at the code + unit-test level and its <em>live-interaction</em> verdict is <b>BLOCKED — needs on-device</b>; those become your click-checklist at the bottom.</p>
+</section>
+
+<!-- COVERAGE MATRIX -->
+<section>
+  <h2><span class="n">1</span> Feature Coverage Matrix</h2>
+  <p class="lead">Every user-facing feature (FEATURES.md spine). PASS = live-verified. BLOCKED = code+test-verified, awaiting your on-device click.</p>
+  <h3>macOS app — translation core</h3>
+  <table>
+    <tr><th>ID</th><th>Feature</th><th>Verdict</th></tr>
+    <tr><td class="id">A1</td><td>Auto source detection (Google-backed, both engines)</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A2</td><td>From picker has an "Auto-detect" row</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A3</td><td>To picker selects the target</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A4</td><td>Searchable 133-language catalog (name/endonym/code/aliases)</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A5</td><td>Recent &amp; last-used pinned in picker</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A6</td><td>Swap ⇄ promotes detected source into From</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A7</td><td>Re-translate in place, generation-token guarded</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A8</td><td>"Detected: &lt;lang&gt;" line when From=Auto</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A9</td><td>Engine badge FREE / AI</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A10</td><td>"via Google" note on AI→Google fallback</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A11</td><td>Same-language guard (preserves EN⇄ZH)</td><td><span class="v v-block">BLOCKED</span> <span class="v v-pass">CLI&nbsp;✓</span></td></tr>
+    <tr><td class="id">A12</td><td>Last-used pair remembered; first-run Auto→中文</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">A13</td><td>EN⇄ZH no regression</td><td><span class="v v-block">BLOCKED</span> <span class="v v-pass">CLI&nbsp;✓</span></td></tr>
+  </table>
+  <h3>Preferences ▸ Languages tab</h3>
+  <table>
+    <tr><th>ID</th><th>Feature</th><th>Verdict</th></tr>
+    <tr><td class="id">B1</td><td>Home target picker (default 中文)</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">B2</td><td>Secondary picker (default English) + home==secondary warning</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">B3</td><td>Read-only "Last used: From → To" line</td><td><span class="v v-block">BLOCKED</span></td></tr>
+    <tr><td class="id">B4</td><td>Languages tab registered in Preferences</td><td><span class="v v-block">BLOCKED</span></td></tr>
+  </table>
+  <h3>Notebook + CLI + cross-cutting — live-verified</h3>
+  <table>
+    <tr><th>ID</th><th>Feature</th><th>Verdict</th></tr>
+    <tr><td class="id">C1</td><td>New notebook rows carry real from/to BCP-47 (S6)</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">C2</td><td>Existing rows untouched; export/sync tolerate mixed</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">C3</td><td>Notebook Summarize / study list unchanged</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">C4</td><td>"Ask your AI" hand-off unchanged</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">D1</td><td><code>te -t &lt;code&gt;</code> into any target (both engines)</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">D2</td><td><code>te -f</code> explicit source / default auto</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">D3</td><td><code>te -l [query]</code> list/search catalog</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">D4</td><td><code>te --detect</code> (phrases; single loanword = Google quirk)</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">D5</td><td><code>~/.te/config</code> TE_FROM/TE_TO/TE_SECONDARY; flags override</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">D6</td><td>Guard: <code>echo 你好 | te</code> → English (both engines)</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">D7</td><td>Quick actions inherit TE_TO + popup title</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">D8</td><td><code>te</code> resolves <code>languages.tsv</code> via symlink (no drift)</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">E1</td><td>Single source of truth — drift-guard in sync (local)</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">E2</td><td>Privacy: translation direct to engine, not the server</td><td><span class="v v-pass">PASS</span></td></tr>
+    <tr><td class="id">E3</td><td>Ships clean — 149 tests / 23 suites green (S8)</td><td><span class="v v-pass">PASS</span></td></tr>
+  </table>
+</section>
+
+<!-- FIXES -->
+<section>
+  <h2><span class="n">2</span> Defects found → fixed this round</h2>
+  <p class="lead">All in the <code>te</code> CLI; fixed under commit <code>68eee63</code>, regressions re-verified (guard + translations intact). Low-risk CLI polish — verified by re-running each repro (no GUI behavior touched).</p>
+  <ul>
+    <li><b>[HIGH] One-shot/REPL exited 0 on failure.</b> A <code>die</code> inside <code>$(translate …)</code> only killed the subshell, so <code>set -e</code> never saw it. Now bound to a variable first → failures propagate. <code>printf '' | te -g</code> → exit <b>1</b>.</li>
+    <li><b>[low] Missing flag value</b> leaked a raw bash error → now a clean <code>te: -t needs a language code</code> (exit 1).</li>
+    <li><b>[low] <code>te -l &lt;no-match&gt;</code></b> printed a lonely header → now <code>te: no languages match "…"</code>.</li>
+  </ul>
+</section>
+
+<!-- LENSES -->
+<section>
+  <h2><span class="n">3</span> Lens testers</h2>
+  <div class="cards">
+    <div class="card">
+      <h4>Tester A — new-user / happy-path / polish &nbsp;<span class="ship">SHIP</span></h4>
+      <p>"The <code>te</code> CLI feels finished and obvious. <code>te -h</code> is a clean man-page header; <code>te -l</code> lists 133 languages and search is forgiving (<code>span</code>, <code>mandarin</code>, <code>中文</code> all hit). Translating into arbitrary targets just works and reads idiomatically on both engines." Remaining items are minor polish (now fixed) + the on-device GUI pass.</p>
+    </div>
+    <div class="card">
+      <h4>Tester B — abuse / edge / error / data-integrity &nbsp;<span class="ship">SHIP</span></h4>
+      <p>"Multi-language is correct on both surfaces. The keyless guard works exactly as specified: <code>echo 你好 | te -g</code>→Hello, while <code>echo hello | te -g</code>→你好 (guard correctly skipped)." Found the HIGH exit-code defect (now fixed). Notes the app detects over the network before every translate (no offline Han short-circuit like the CLI) — the accepted-latency tradeoff.</p>
+    </div>
+  </div>
+</section>
+
+<!-- NOTES -->
+<section>
+  <h2><span class="n">4</span> Notes for you (not blocking)</h2>
+  <ul>
+    <li><b>Catalog drift-guard isn't in CI.</b> <code>scripts/check-language-catalog.sh</code> works locally, but wiring it into CI touches <code>.github/workflows/**</code> (a protected path) — I left it for your explicit OK. Say the word and I'll add a drift-check workflow.</li>
+    <li><b>App Auto-detect always does a network round-trip</b> (the CLI has an offline Han fast-path; the app doesn't). This is the accepted-latency tradeoff from Gate 2 — easy fast-follow if you want an offline short-circuit.</li>
+    <li><b><code>--detect</code> on a single loanword</b> (e.g. "bonjour") mis-IDs via Google's free endpoint — a data quirk, not our bug; phrases detect correctly.</li>
+    <li><b>Doc note:</b> the checklist called Languages the "5th" Preferences tab; it's actually the 3rd (General · Engine · Languages · Account · About). Tab is present + wired; cosmetic wording only.</li>
+  </ul>
+</section>
+
+<!-- ON-DEVICE CHECKLIST -->
+<section>
+  <h2><span class="n">5</span> Your on-device GUI checklist</h2>
+  <p class="lead">The dev build is running. These are the BLOCKED rows — exercise them on the live app (a tester can't, but you can):</p>
+  <ol class="checklist">
+    <li><b>Capture + detect (A1/A8):</b> press the capture hotkey (default <code>⌃⌥Y</code>) over some foreign text → the panel shows <b>From: Auto</b> with a "Detected: &lt;lang&gt;" sub-line.</li>
+    <li><b>To picker + re-translate (A3/A4/A7):</b> tap <b>To: ▾</b>, type <code>span</code> → pick Spanish → it re-translates in place (no flicker).</li>
+    <li><b>From / Auto row (A2):</b> tap <b>From: Auto ▾</b> → an "Auto-detect" row sits pinned at the very top.</li>
+    <li><b>Recent (A5):</b> open the To picker again → a "Recent &amp; last-used" section is pinned above all languages.</li>
+    <li><b>Swap (A6):</b> tap <b>⇄</b> → the detected source moves into From, the old To swaps over.</li>
+    <li><b>Badges (A9/A10):</b> see the FREE/AI badge; switch Preferences ▸ Engine to OpenAI and translate → a faint "via Google" note appears if AI can't serve.</li>
+    <li><b>EN⇄ZH (A11/A13):</b> with home = 中文, capture Chinese → flips to English; capture English → goes to 中文.</li>
+    <li><b>Persistence (A12):</b> set a non-default pair, quit + relaunch → it's restored.</li>
+    <li><b>Preferences ▸ Languages (B1–B4):</b> open it (3rd tab) → change Home + Secondary → check the read-only "Last used" line reflects your last capture.</li>
+    <li><b>Notebook (spot-check C1):</b> save a translation, open the Notebook → the row's Languages column shows the real From → To.</li>
+  </ol>
+</section>
+
+<footer>Translator Everywhere · Multi-Language · Beta Report · both lenses SHIP · 0 FAIL · GUI pending your on-device pass → Gate 3</footer>
+
+</div>
+</body>
+</html>
