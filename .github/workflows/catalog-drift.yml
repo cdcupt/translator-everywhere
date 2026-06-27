@@ -1,0 +1,34 @@
+name: catalog-drift
+
+# Drift guard: languages.tsv is the single source of truth that generates
+# macos/Sources/Translate/LanguageCatalog+Generated.swift. This job regenerates
+# the Swift file and fails if the committed copy is out of sync, so the TSV and
+# the generated catalog can never silently diverge.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "languages.tsv"
+      - "scripts/gen-language-catalog.swift"
+      - "scripts/check-language-catalog.sh"
+      - "macos/Sources/Translate/LanguageCatalog+Generated.swift"
+  pull_request:
+    paths:
+      - "languages.tsv"
+      - "scripts/gen-language-catalog.swift"
+      - "scripts/check-language-catalog.sh"
+      - "macos/Sources/Translate/LanguageCatalog+Generated.swift"
+
+jobs:
+  check:
+    # macos-latest ships a Swift toolchain; the generator is a plain `swift`
+    # script (no Xcode project / build needed).
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Check catalog is in sync
+        run: bash scripts/check-language-catalog.sh
