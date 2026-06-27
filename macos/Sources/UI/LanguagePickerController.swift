@@ -105,6 +105,17 @@ final class LanguagePickerController: NSObject {
         popover.behavior = .transient
     }
 
+    // MARK: - Test seam
+
+    /// Seeds the picker's model exactly as `present(...)` + typing would (mode +
+    /// recents + query) **without** showing the transient popover, so the table's
+    /// datasource/delegate output can be asserted headlessly. The visual popover
+    /// is validated on-device.
+    func seedForTesting(mode: LanguagePickerModel.Mode, recent: [Language], query: String = "") {
+        model = LanguagePickerModel(mode: mode, recent: recent)
+        model.setQuery(query)
+    }
+
     // MARK: - Selection
 
     private func applyHighlight() {

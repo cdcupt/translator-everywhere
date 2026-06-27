@@ -280,7 +280,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     /// subviews + Save controller first so it is safe to call on an in-place
     /// update as well as a fresh build.
     @MainActor
-    private func populateHeader(
+    func populateHeader(
         _ header: NSStackView, badge: String, copied: Bool,
         viaGoogleFallback: Bool, onSave: (@MainActor () async -> Bool)?
     ) {
@@ -322,6 +322,13 @@ final class ResultPanel: NSObject, NSWindowDelegate {
 
     // MARK: - View helpers
 
+    /// The badge tint for an engine label: purple for the AI engine, blue for the
+    /// always-on FREE engine. Pure so the FREE-vs-AI rendering is unit-testable
+    /// without mounting the panel.
+    static func badgeColor(for badge: String) -> NSColor {
+        badge == "AI" ? .systemPurple : .systemBlue
+    }
+
     @MainActor
     private func badgeView(_ text: String) -> NSView {
         let label = NSTextField(labelWithString: text)
@@ -333,8 +340,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         let container = NSView()
         container.wantsLayer = true
         container.layer?.cornerRadius = 4
-        container.layer?.backgroundColor = (text == "AI"
-            ? NSColor.systemPurple : NSColor.systemBlue).cgColor
+        container.layer?.backgroundColor = Self.badgeColor(for: text).cgColor
         container.addSubview(label)
         container.translatesAutoresizingMaskIntoConstraints = false
 

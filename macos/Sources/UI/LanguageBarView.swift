@@ -28,7 +28,9 @@ final class LanguageBarView: NSView {
     let fromButton = NSButton()
     let swapButton = NSButton()
     let toButton = NSButton()
-    private let detectedLabel = NSTextField(labelWithString: "")
+    /// The secondary "Detected: …" line. Internal (like the buttons) so the
+    /// controller/view tests can assert its visibility + text headlessly.
+    let detectedLabel = NSTextField(labelWithString: "")
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)

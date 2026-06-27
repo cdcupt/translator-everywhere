@@ -71,7 +71,9 @@ final class LanguageBarController: NSObject, LanguageBarViewDelegate {
 
     // MARK: - Pick handling
 
-    private func applyFrom(_ choice: LanguageChoice) {
+    /// Applies a From-picker choice. The picker callback (and the controller/view
+    /// tests) call this directly; it commits the resulting pair via `commit`.
+    func applyFrom(_ choice: LanguageChoice) {
         switch choice {
         case .auto:
             commit(LanguagePair(from: nil, to: pair.to))
@@ -80,7 +82,8 @@ final class LanguageBarController: NSObject, LanguageBarViewDelegate {
         }
     }
 
-    private func applyTo(_ choice: LanguageChoice) {
+    /// Applies a To-picker choice (see `applyFrom`).
+    func applyTo(_ choice: LanguageChoice) {
         guard case let .language(language) = choice else { return }
         commit(LanguagePair(from: pair.from, to: language))
     }

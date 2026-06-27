@@ -30,9 +30,7 @@ struct LanguagesTab: View {
             Section {
                 languageMenu("Home target", selection: $homeCode)
                     .onChange(of: homeCode) { _, code in
-                        if let language = LanguageCatalog.language(forCode: code) {
-                            settings.homeTarget = language
-                        }
+                        LanguagesTabModel.apply(homeCode: code, to: settings)
                     }
                 Text("Your preferred target. Captures translate here unless you "
                      + "pick another language on the result bar.")
@@ -43,16 +41,14 @@ struct LanguagesTab: View {
             Section {
                 languageMenu("Secondary", selection: $secondaryCode)
                     .onChange(of: secondaryCode) { _, code in
-                        if let language = LanguageCatalog.language(forCode: code) {
-                            settings.secondaryLanguage = language
-                        }
+                        LanguagesTabModel.apply(secondaryCode: code, to: settings)
                     }
                 Text("The one-tap alternate. When you capture text that's already "
                      + "in your home language, the translation flips to your "
                      + "secondary instead — so a two-language workflow stays two-way.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if homeCode == secondaryCode {
+                if LanguagesTabModel.warnsHomeEqualsSecondary(home: homeCode, secondary: secondaryCode) {
                     Label("Home and secondary match — the auto-flip stays off "
                           + "until they differ.", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
@@ -87,5 +83,25 @@ enum LanguagesTabModel {
     static func lastUsedSummary(_ pair: LanguagePair) -> String {
         let from = pair.from?.endonym ?? "Auto"
         return "\(from) → \(pair.to.endonym)"
+    }
+
+    /// Writes a chosen home-target `code` through to the store, ignoring a code
+    /// the catalog can't resolve (mirrors the tab's `onChange(of: homeCode)`).
+    static func apply(homeCode code: String, to settings: SettingsStore) {
+        guard let language = LanguageCatalog.language(forCode: code) else { return }
+        settings.homeTarget = language
+    }
+
+    /// Writes a chosen secondary `code` through to the store (see `apply(homeCode:)`).
+    static func apply(secondaryCode code: String, to settings: SettingsStore) {
+        guard let language = LanguageCatalog.language(forCode: code) else { return }
+        settings.secondaryLanguage = language
+    }
+
+    /// True when home and secondary resolve to the same code, so the tab shows the
+    /// "auto-flip stays off" warning — the same-language guard needs a *distinct*
+    /// secondary to flip to.
+    static func warnsHomeEqualsSecondary(home: String, secondary: String) -> Bool {
+        home == secondary
     }
 }
