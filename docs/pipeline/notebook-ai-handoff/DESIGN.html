@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design — Notebook "Ask your AI" Hand-off (ChatGPT interaction flow)</title>
+<style>
+  :root{
+    --bg:#f7f6f3; --surface:#ffffff; --ink:#16151a; --muted:#5d5b66;
+    --line:#e3e1db; --accent:#5b3df5; --accent-soft:#efeaff;
+    --ok:#1f8a4c; --okbg:#e6f4ec; --warn:#a8580a; --warnbg:#fbeede;
+    --teal:#0c7d83; --tealbg:#e2f3f3;
+    --shadow:0 1px 2px rgba(20,18,30,.05),0 8px 24px rgba(20,18,30,.06);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    padding:clamp(16px,4vw,48px);}
+  .wrap{max-width:920px;margin:0 auto}
+  .kicker{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:5px 11px;border-radius:999px}
+  h1{font-size:clamp(25px,5vw,38px);line-height:1.12;margin:.5em 0 .15em;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:clamp(15px,2.4vw,18px);max-width:62ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .pill{font-size:12.5px;font-weight:600;color:var(--muted);background:var(--surface);
+    border:1px solid var(--line);border-radius:999px;padding:5px 11px}
+  .pill b{color:var(--ink)}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:clamp(18px,3.5vw,30px);margin:18px 0}
+  h2{font-size:clamp(19px,3vw,24px);margin:0 0 4px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  h2 .n{font-size:13px;font-weight:700;color:#fff;background:var(--accent);width:26px;height:26px;
+    border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  h3{font-size:15px;margin:20px 0 8px}
+  p{margin:.5em 0}.lead{color:var(--muted)}
+  .figwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0 6px;
+    border:1px solid var(--line);border-radius:12px;background:#fbfbfa;padding:14px}
+  svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  figcaption{font-size:13px;color:var(--muted);text-align:center;margin-top:8px}
+  ul{margin:.4em 0;padding-left:1.2em}li{margin:.3em 0}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0;table-layout:fixed}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;
+    overflow-wrap:anywhere;word-break:break-word}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  code{background:#efeef0;border:1px solid var(--line);border-radius:5px;padding:1px 5px;
+    font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .callout{display:flex;gap:12px;border-radius:12px;padding:14px 16px;margin:14px 0;
+    border:1px solid var(--tealbg);background:var(--tealbg)}
+  .callout .ic{font-size:20px;line-height:1.2}
+  .callout b{color:var(--teal)}
+  .tag{display:inline-block;font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 7px}
+  .t-ok{color:var(--ok);background:var(--okbg)}.t-warn{color:var(--warn);background:var(--warnbg)}
+  footer{color:var(--muted);font-size:13px;text-align:center;margin:24px 0 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker">Design · Notebook "Ask your AI" hand-off</span>
+  <h1>How you interact with ChatGPT</h1>
+  <p class="sub">The notebook hands your saved vocabulary to <em>your own</em> ChatGPT and you paste it in —
+  there's no account login. This document traces that interaction flow end to end.</p>
+  <div class="meta">
+    <span class="pill">Feature <b>shipped — PR&nbsp;#27 on main</b></span>
+    <span class="pill">Surface <b>macOS app · Vocabulary Notebook</b></span>
+    <span class="pill">Type <b>export hand-off (client-side)</b></span>
+  </div>
+</header>
+
+<!-- ★ AT A GLANCE -->
+<section id="glance">
+  <h2><span class="n">★</span> At a glance</h2>
+  <p class="lead">Five beats: your vocab → one tap → the clipboard → your ChatGPT → a study summary you read in ChatGPT.</p>
+  <div class="figwrap">
+    <svg viewBox="0 0 920 150" role="img" aria-label="Master flow: notebook to Ask your AI to clipboard to ChatGPT to summary">
+      <defs>
+        <marker id="a1" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b3df5"/></marker>
+        <style>.b{fill:#fff;stroke:#d9d6df;stroke-width:1.4}.l{font:600 12px -apple-system,sans-serif;fill:#16151a}.s{font:500 10.5px -apple-system,sans-serif;fill:#5d5b66}.f{stroke:#5b3df5;stroke-width:2;fill:none;marker-end:url(#a1)}</style>
+      </defs>
+      <rect x="10"  y="34" width="150" height="62" rx="11" class="b"/>
+      <text x="85" y="60" text-anchor="middle" class="l">Notebook</text>
+      <text x="85" y="78" text-anchor="middle" class="s">your saved vocab</text>
+
+      <rect x="196" y="34" width="150" height="62" rx="11" class="b" style="fill:#f3efff;stroke:#c9bdf7"/>
+      <text x="271" y="60" text-anchor="middle" class="l">Ask your AI ▾</text>
+      <text x="271" y="78" text-anchor="middle" class="s">Copy · Open ChatGPT</text>
+
+      <rect x="382" y="34" width="150" height="62" rx="11" class="b"/>
+      <text x="457" y="60" text-anchor="middle" class="l">Clipboard</text>
+      <text x="457" y="78" text-anchor="middle" class="s">prompt + vocab</text>
+
+      <rect x="568" y="34" width="160" height="62" rx="11" class="b" style="fill:#e2f3f3;stroke:#bfe3e3"/>
+      <text x="648" y="56" text-anchor="middle" class="l">Your ChatGPT</text>
+      <text x="648" y="74" text-anchor="middle" class="s">paste into your</text>
+      <text x="648" y="87" text-anchor="middle" class="s">translator GPT</text>
+
+      <rect x="764" y="34" width="146" height="62" rx="11" class="b" style="fill:#e6f4ec;stroke:#cfe9d8"/>
+      <text x="837" y="60" text-anchor="middle" class="l">Summary</text>
+      <text x="837" y="78" text-anchor="middle" class="s">read in ChatGPT</text>
+
+      <line x1="160" y1="65" x2="192" y2="65" class="f"/>
+      <line x1="346" y1="65" x2="378" y2="65" class="f"/>
+      <line x1="532" y1="65" x2="564" y2="65" class="f"/>
+      <line x1="728" y1="65" x2="760" y2="65" class="f"/>
+      <text x="460" y="126" text-anchor="middle" class="s">The app hands your vocab to ChatGPT; you paste; ChatGPT summarizes on your own account &amp; Plus plan.</text>
+    </svg>
+    <figcaption>Master flow — the app's job ends at the clipboard; the summary itself happens inside your ChatGPT.</figcaption>
+  </div>
+</section>
+
+<!-- 1 SEQUENCE -->
+<section id="sequence">
+  <h2><span class="n">1</span> The interaction, step by step</h2>
+  <p class="lead">Who does what, in order. Four actors: <b>you</b>, the <b>app</b>, the macOS <b>clipboard</b>,
+  and <b>ChatGPT</b> (your translator GPT). Nothing crosses to ChatGPT except what you paste.</p>
+  <div class="figwrap">
+    <svg viewBox="0 0 920 470" role="img" aria-label="Sequence diagram of the ChatGPT hand-off">
+      <defs>
+        <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b3df5"/></marker>
+        <marker id="art" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#0c7d83"/></marker>
+        <style>
+          .lane{font:700 12px -apple-system,sans-serif;fill:#16151a}
+          .ll{stroke:#d9d6df;stroke-width:1.4;stroke-dasharray:3 4}
+          .hd{fill:#fff;stroke:#d9d6df;stroke-width:1.4}
+          .msg{font:500 11.5px -apple-system,sans-serif;fill:#2a2833}
+          .arr{stroke:#5b3df5;stroke-width:1.8;fill:none;marker-end:url(#ar)}
+          .arrt{stroke:#0c7d83;stroke-width:1.8;fill:none;marker-end:url(#art);stroke-dasharray:5 4}
+          .num{font:700 10px ui-monospace,Menlo,monospace;fill:#fff}
+        </style>
+      </defs>
+      <!-- lane headers + lifelines -->
+      <g>
+        <rect x="40"  y="20" width="120" height="34" rx="9" class="hd"/><text x="100" y="42" text-anchor="middle" class="lane">You</text>
+        <line x1="100" y1="54" x2="100" y2="450" class="ll"/>
+        <rect x="270" y="20" width="170" height="34" rx="9" class="hd" style="fill:#f3efff;stroke:#c9bdf7"/><text x="355" y="42" text-anchor="middle" class="lane">Translator Everywhere</text>
+        <line x1="355" y1="54" x2="355" y2="450" class="ll"/>
+        <rect x="520" y="20" width="120" height="34" rx="9" class="hd"/><text x="580" y="42" text-anchor="middle" class="lane">Clipboard</text>
+        <line x1="580" y1="54" x2="580" y2="450" class="ll"/>
+        <rect x="730" y="20" width="150" height="34" rx="9" class="hd" style="fill:#e2f3f3;stroke:#bfe3e3"/><text x="805" y="42" text-anchor="middle" class="lane">Your ChatGPT</text>
+        <line x1="805" y1="54" x2="805" y2="450" class="ll"/>
+      </g>
+
+      <!-- 1: You -> App open notebook -->
+      <circle cx="100" cy="92" r="9" fill="#5b3df5"/><text x="100" y="96" text-anchor="middle" class="num">1</text>
+      <line x1="100" y1="92" x2="351" y2="92" class="arr"/>
+      <text x="110" y="84" class="msg">Open Notebook · (optionally select rows)</text>
+
+      <!-- 2: You -> App click ask your AI -->
+      <circle cx="100" cy="138" r="9" fill="#5b3df5"/><text x="100" y="142" text-anchor="middle" class="num">2</text>
+      <line x1="100" y1="138" x2="351" y2="138" class="arr"/>
+      <text x="110" y="130" class="msg">Click “Ask your AI ▾” → Copy study prompt / Open ChatGPT</text>
+
+      <!-- 3: App -> Clipboard write -->
+      <circle cx="355" cy="184" r="9" fill="#5b3df5"/><text x="355" y="188" text-anchor="middle" class="num">3</text>
+      <line x1="355" y1="184" x2="576" y2="184" class="arr"/>
+      <text x="365" y="176" class="msg">Build &amp; write: study-prompt + your chosen vocab</text>
+
+      <!-- 4: App -> You toast -->
+      <circle cx="355" cy="230" r="9" fill="#5b3df5"/><text x="355" y="234" text-anchor="middle" class="num">4</text>
+      <line x1="355" y1="230" x2="104" y2="230" class="arr"/>
+      <text x="110" y="222" class="msg">Toast: “Prompt copied — paste it into your AI ✓”</text>
+
+      <!-- 5: App -> ChatGPT open (only Open ChatGPT) -->
+      <circle cx="355" cy="278" r="9" fill="#0c7d83"/><text x="355" y="282" text-anchor="middle" class="num">5</text>
+      <line x1="355" y1="278" x2="801" y2="278" class="arrt"/>
+      <text x="365" y="270" class="msg" style="fill:#0c7d83">Only “Open ChatGPT”: launches chatgpt.com (a default chat)</text>
+
+      <!-- 6: You -> ChatGPT paste -->
+      <circle cx="100" cy="330" r="9" fill="#5b3df5"/><text x="100" y="334" text-anchor="middle" class="num">6</text>
+      <line x1="100" y1="330" x2="801" y2="330" class="arr"/>
+      <text x="110" y="322" class="msg">⌘V into your translator GPT · send</text>
+
+      <!-- 7: ChatGPT -> You summary -->
+      <circle cx="805" cy="392" r="9" fill="#0c7d83"/><text x="805" y="396" text-anchor="middle" class="num">7</text>
+      <line x1="805" y1="392" x2="104" y2="392" class="arrt"/>
+      <text x="150" y="384" class="msg" style="fill:#0c7d83">Study-list summary — produced on YOUR account &amp; Plus plan</text>
+
+      <text x="100" y="440" text-anchor="middle" class="msg" style="fill:#8a8893">— you —</text>
+      <text x="580" y="440" text-anchor="middle" class="msg" style="fill:#8a8893">— the bridge —</text>
+    </svg>
+    <figcaption>Solid purple = the app + you. Dashed teal = your ChatGPT. The app never touches steps 6–7 — that's all in ChatGPT, on your account.</figcaption>
+  </div>
+</section>
+
+<!-- 2 TWO ACTIONS -->
+<section id="actions">
+  <h2><span class="n">2</span> The two buttons — and the custom-GPT nuance</h2>
+  <div class="figwrap">
+    <svg viewBox="0 0 920 250" role="img" aria-label="Decision: Copy study prompt vs Open ChatGPT">
+      <defs>
+        <marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b3df5"/></marker>
+        <style>.bx{fill:#fff;stroke:#d9d6df;stroke-width:1.4}.t{font:600 12px -apple-system,sans-serif;fill:#16151a}.d{font:500 11px -apple-system,sans-serif;fill:#5d5b66}.fl{stroke:#5b3df5;stroke-width:1.8;fill:none;marker-end:url(#a2)}</style>
+      </defs>
+      <rect x="360" y="18" width="200" height="44" rx="11" class="bx" style="fill:#f3efff;stroke:#c9bdf7"/>
+      <text x="460" y="45" text-anchor="middle" class="t">“Ask your AI ▾”</text>
+
+      <!-- left: copy -->
+      <rect x="40" y="104" width="380" height="56" rx="11" class="bx"/>
+      <text x="56" y="127" class="t">Copy study prompt  <tspan class="d">· universal</tspan></text>
+      <text x="56" y="146" class="d">→ clipboard. Paste into ChatGPT, Claude — anything.</text>
+      <line x1="430" y1="62" x2="240" y2="100" class="fl"/>
+
+      <!-- right: open chatgpt -->
+      <rect x="500" y="104" width="380" height="56" rx="11" class="bx" style="fill:#e2f3f3;stroke:#bfe3e3"/>
+      <text x="516" y="127" class="t">Open ChatGPT  <tspan class="d">· convenience</tspan></text>
+      <text x="516" y="146" class="d">→ copies + opens chatgpt.com (a default chat).</text>
+      <line x1="490" y1="62" x2="680" y2="100" class="fl"/>
+
+      <!-- custom gpt note -->
+      <rect x="40" y="186" width="840" height="48" rx="11" class="bx" style="fill:#fbeede;stroke:#ead9c4"/>
+      <text x="56" y="208" class="t" style="fill:#a8580a">To use YOUR custom translator GPT</text>
+      <text x="56" y="226" class="d">No link can force-open a third party's custom GPT prefilled — so use <tspan style="font-weight:700">Copy study prompt</tspan>, open your pinned translator GPT, and paste. (We can wire “Open ChatGPT” to your GPT's URL if you want.)</text>
+    </svg>
+    <figcaption>Both copy the same prompt. "Open ChatGPT" just saves a step — but lands in a default chat, so the faithful path to your custom GPT is copy-then-paste.</figcaption>
+  </div>
+</section>
+
+<!-- 3 BOUNDARY -->
+<section id="boundary">
+  <h2><span class="n">3</span> The honest boundary</h2>
+  <div class="callout">
+    <span class="ic">🔒</span>
+    <div>
+      <b>The app never signs into ChatGPT.</b> There is no official way for any app to drive your ChatGPT
+      account, your custom GPT, or your Plus plan. The entire "connection" is your <b>clipboard + a link</b> —
+      the app prepares the prompt; <em>you</em> carry it across; ChatGPT does the work on your account.
+      The summary therefore lives <b>in ChatGPT</b>, not back in the app.
+    </div>
+  </div>
+  <p class="lead">If you'd rather the summary appear <b>inside the app</b>, that's a separate path — paste an
+  OpenAI <b>API key</b> once and the app summarizes itself. It's a replica of your GPT, billed to a separate
+  API account (not your ChatGPT Plus). That path is on the backlog; this document covers the shipped hand-off.</p>
+</section>
+
+<!-- 4 STATES -->
+<section id="states">
+  <h2><span class="n">4</span> States &amp; rules</h2>
+  <table>
+    <tr><th>Condition</th><th>Behavior</th></tr>
+    <tr><td>Notebook empty</td><td><span class="tag t-warn">disabled</span> The "Ask your AI ▾" menu is greyed out — same rule as Export. Save a translation first.</td></tr>
+    <tr><td>Rows selected</td><td>Acts on the <b>selection</b>. With nothing selected, it uses <b>all</b> captures.</td></tr>
+    <tr><td>After Copy / Open</td><td>A transient toast confirms (<code>Prompt copied — paste it into your AI</code>), auto-dismissing after ~2s. Token-guarded so a quick second tap can't clear the newer message early.</td></tr>
+    <tr><td>Prompt content</td><td>The same coaching instruction the in-app AI summary uses + the numbered captures (<code>StudyListFormatter.studyPrompt</code>), so any AI produces a comparable study list.</td></tr>
+  </table>
+</section>
+
+<footer>Translator Everywhere · Notebook "Ask your AI" hand-off · interaction-flow design · shipped PR #27</footer>
+
+</div>
+</body>
+</html>
