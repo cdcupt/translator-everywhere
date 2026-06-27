@@ -34,6 +34,24 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     /// one released) the next time a result or message is presented.
     private var saveButtonController: SaveButtonController?
 
+    /// Strong reference to the live result's language-bar controller (From/To bar
+    /// + searchable picker). Held like `saveButtonController` because the bar's
+    /// `NSButton` targets are non-owning; replaced (and the old one released) the
+    /// next time a *fresh* result body is built, and dropped on a message/error.
+    private var languageBarController: LanguageBarController?
+
+    /// References into the live result body, used to update it in place on a
+    /// retranslate instead of rebuilding the whole panel (the bar — and any open
+    /// picker — survives). Weak: the view hierarchy owns them, so swapping in a
+    /// message/error content view auto-nils these.
+    private weak var translationTextView: NSTextView?
+    private weak var sourceTextView: NSTextView?
+    private weak var headerStack: NSStackView?
+
+    /// The current result's retranslate hook, captured so the bar's pick handler
+    /// can fire it after showing in-place "translating…" feedback.
+    private var currentOnRetranslate: (@MainActor (LanguagePair) -> Void)?
+
     /// Shows a successful translation: `translation` is primary/large, `source`
     /// is the dim recognized text, `badge` labels the engine, and `copied`
     /// reveals the "Copied ✓" affordance. When `onSave` is non-nil a "Save to
@@ -41,11 +59,11 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     /// success, swaps to a confirmed "★ Saved" state so the user can't
     /// double-save. Must be called on the main actor.
     ///
-    /// The multi-language data path — `pair`, `detected`, `viaGoogleFallback`,
-    /// and `onRetranslate` — is accepted here so `CaptureCoordinator` can wire it
-    /// now; slice 7 adds the language bar + searchable picker that fully render
-    /// and drive it. This slice renders it minimally: a faint "via Google" note
-    /// on the badge row when an AI-preferred pair was routed to Google.
+    /// Renders the multi-language From/To language bar (slice 7) from `pair` +
+    /// `detected`, with a faint "via Google" note when an AI-preferred pair was
+    /// routed to Google. When the panel already shows a result (a retranslate),
+    /// the body is updated *in place* via `updateResult` so the bar/picker and the
+    /// scroll views are not torn down; otherwise a fresh result body is built.
     @MainActor
     func showResult(
         translation: String,
@@ -58,19 +76,73 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         onSave: (@MainActor () async -> Bool)? = nil,
         onRetranslate: (@MainActor (LanguagePair) -> Void)? = nil
     ) {
-        // `pair` / `detected` / `onRetranslate` are reserved for slice 7's bar +
-        // picker; held in the signature so the data path is wired end-to-end now.
-        _ = pair
-        _ = detected
-        _ = onRetranslate
+        // Auto-detect (`from: nil`) to the home target is the safe default when a
+        // caller omits the pair (older call sites / tests).
+        let pair = pair ?? LanguagePair(from: nil, to: SettingsStore().homeTarget)
 
         let panel = panel ?? makePanel()
         self.panel = panel
+
+        // A live result body → update in place (keep the bar + picker + scrollers).
+        if translationTextView != nil {
+            updateResult(
+                translation: translation, source: source, badge: badge, copied: copied,
+                pair: pair, detected: detected, viaGoogleFallback: viaGoogleFallback,
+                onSave: onSave, onRetranslate: onRetranslate
+            )
+            present(panel, recenter: false)
+            return
+        }
+
+        currentOnRetranslate = onRetranslate
         panel.contentView = makeResultContent(
             translation: translation, source: source, badge: badge, copied: copied,
-            viaGoogleFallback: viaGoogleFallback, onSave: onSave
+            pair: pair, detected: detected, viaGoogleFallback: viaGoogleFallback,
+            onSave: onSave
         )
-        present(panel)
+        present(panel, recenter: true)
+    }
+
+    /// Updates the already-mounted result body in place: swaps the translation /
+    /// recognized text, rebuilds the lightweight header (badge / via / copied /
+    /// save), and re-renders the language bar — without rebuilding the panel or
+    /// re-creating the bar (so an open picker survives). Public so the retranslate
+    /// completion path funnels through it; `showResult` calls it when a body
+    /// already exists.
+    @MainActor
+    func updateResult(
+        translation: String,
+        source: String,
+        badge: String,
+        copied: Bool,
+        pair: LanguagePair,
+        detected: DetectedSource,
+        viaGoogleFallback: Bool,
+        onSave: (@MainActor () async -> Bool)?,
+        onRetranslate: (@MainActor (LanguagePair) -> Void)?
+    ) {
+        currentOnRetranslate = onRetranslate
+        if let headerStack {
+            populateHeader(headerStack, badge: badge, copied: copied,
+                           viaGoogleFallback: viaGoogleFallback, onSave: onSave)
+        }
+        if let translationTextView {
+            translationTextView.string = translation
+            translationTextView.textColor = .labelColor
+        }
+        sourceTextView?.string = source
+        languageBarController?.update(pair: pair, detected: detected)
+    }
+
+    /// In-place "translating…" feedback for the gap between a language pick and
+    /// the new result: dims the translation region without rebuilding the panel.
+    /// Replaced by the real translation when `updateResult` lands (or by a fresh
+    /// build on completion).
+    @MainActor
+    func setRetranslating() {
+        guard let translationTextView else { return }
+        translationTextView.string = "Translating…"
+        translationTextView.textColor = .tertiaryLabelColor
     }
 
     /// Shows an error state — a title and message, no copy affordance.
@@ -79,7 +151,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         let panel = panel ?? makePanel()
         self.panel = panel
         panel.contentView = makeMessageContent(title: title, body: message, isError: true)
-        present(panel)
+        present(panel, recenter: true)
     }
 
     /// Back-compat informational message (permission/no-text/etc.).
@@ -88,7 +160,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         let panel = panel ?? makePanel()
         self.panel = panel
         panel.contentView = makeMessageContent(title: title, body: body, isError: false)
-        present(panel)
+        present(panel, recenter: true)
     }
 
     /// Tears down the panel.
@@ -96,15 +168,30 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     func close() {
         panel?.close()
         panel = nil
-        saveButtonController = nil
+        dropResultBody()
     }
 
     // MARK: - Presentation
 
+    /// Orders the panel front, centering it only on a fresh presentation. An
+    /// in-place update (retranslate) keeps the panel where it is — recentering it
+    /// mid-interaction would be jarring.
     @MainActor
-    private func present(_ panel: KeyablePanel) {
-        panel.center()
+    private func present(_ panel: KeyablePanel, recenter: Bool) {
+        if recenter { panel.center() }
         panel.makeKeyAndOrderFront(nil)
+    }
+
+    /// Forgets the live result body so the next `showResult` rebuilds it fresh
+    /// (called when a message/error replaces a result, or on close).
+    @MainActor
+    private func dropResultBody() {
+        saveButtonController = nil
+        languageBarController = nil
+        translationTextView = nil
+        sourceTextView = nil
+        headerStack = nil
+        currentOnRetranslate = nil
     }
 
     // MARK: - Construction
@@ -112,7 +199,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     @MainActor
     private func makePanel() -> KeyablePanel {
         let panel = KeyablePanel(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 360),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 420),
             styleMask: [.titled, .closable, .utilityWindow, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -124,30 +211,86 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         return panel
     }
 
-    /// Result layout: badge + "Copied ✓" header row, then two clearly-labeled,
-    /// legible sections — a "Translation" caption over the primary translation and
-    /// a "Recognized" caption over the OCR original. The recognized text is shown
-    /// at a readable size (not the old faint micro-caption) so the user can compare
-    /// it against the translation and tell whether a bad result came from OCR or
-    /// from the engine. Both scroll views hold a real minimum height so neither
-    /// section can collapse. When `onSave` is provided the header gains a
-    /// "Save to Notebook" button (⌘S) that confirms or reports failure in place.
+    /// Result layout: badge + "Copied ✓" header row, the From/To language bar,
+    /// then two clearly-labeled, legible sections — a "Translation" caption over
+    /// the primary translation and a "Recognized" caption over the OCR original.
+    /// The recognized text is shown at a readable size so the user can compare it
+    /// against the translation and tell whether a bad result came from OCR or the
+    /// engine. Both scroll views hold a real minimum height so neither section can
+    /// collapse. When `onSave` is provided the header gains a "Save to Notebook"
+    /// button (⌘S). Builds the body once and stores references so a retranslate
+    /// can refresh it in place (`updateResult`).
     @MainActor
     private func makeResultContent(
         translation: String, source: String, badge: String, copied: Bool,
-        viaGoogleFallback: Bool,
+        pair: LanguagePair, detected: DetectedSource, viaGoogleFallback: Bool,
         onSave: (@MainActor () async -> Bool)?
     ) -> NSView {
-        // Drop any prior result's Save controller; `saveControl` re-sets it when
-        // this result is savable.
-        saveButtonController = nil
-
-        let header = NSStackView(views: [badgeView(badge)])
+        let header = NSStackView()
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 8
-        // An AI-preferred pair routed to Google gets a faint "via Google" note
-        // beside the badge (TECH §4); slice 7 refines its placement in the bar.
+        populateHeader(header, badge: badge, copied: copied,
+                       viaGoogleFallback: viaGoogleFallback, onSave: onSave)
+        headerStack = header
+
+        // The From/To bar + searchable picker. A pick shows in-place "translating…"
+        // feedback, then fires the result's retranslate hook. Recents are read
+        // fresh each time the picker opens (the coordinator records the active
+        // target before presenting, so it is already pinned).
+        let barController = LanguageBarController(
+            pair: pair, detected: detected,
+            recentProvider: { SettingsStore().recentTargets }
+        )
+        barController.onPick = { [weak self] newPair in
+            guard let self else { return }
+            self.setRetranslating()
+            self.currentOnRetranslate?(newPair)
+        }
+        languageBarController = barController
+
+        let translationCaption = sectionCaption("Translation")
+        let translationView = scrollableText(
+            translation, fontSize: 18, dim: false, minHeight: Layout.minSectionHeight
+        )
+        translationTextView = translationView.documentView as? NSTextView
+
+        let sourceCaption = sectionCaption("Recognized")
+        let sourceView = scrollableText(
+            source, fontSize: 14, dim: true, minHeight: Layout.minSectionHeight
+        )
+        sourceTextView = sourceView.documentView as? NSTextView
+
+        let stack = verticalStack([
+            header, barController.view,
+            translationCaption, translationView, sourceCaption, sourceView,
+        ])
+        stack.setCustomSpacing(10, after: header)
+        stack.setCustomSpacing(12, after: barController.view)
+        // Tight caption→content pairing; breathing room between the two sections.
+        stack.setCustomSpacing(2, after: translationCaption)
+        stack.setCustomSpacing(14, after: translationView)
+        stack.setCustomSpacing(2, after: sourceCaption)
+        return wrap(stack, stretching: [barController.view, translationView, sourceView])
+    }
+
+    /// (Re)populates the header row: engine badge, an optional faint "via Google"
+    /// note (an AI-preferred pair routed to Google — TECH §4), the "Copied ✓"
+    /// affordance, a flexible spacer, and the opt-in Save button. Clears any prior
+    /// subviews + Save controller first so it is safe to call on an in-place
+    /// update as well as a fresh build.
+    @MainActor
+    private func populateHeader(
+        _ header: NSStackView, badge: String, copied: Bool,
+        viaGoogleFallback: Bool, onSave: (@MainActor () async -> Bool)?
+    ) {
+        for subview in header.arrangedSubviews {
+            header.removeArrangedSubview(subview)
+            subview.removeFromSuperview()
+        }
+        saveButtonController = nil
+
+        header.addArrangedSubview(badgeView(badge))
         if viaGoogleFallback {
             header.addArrangedSubview(viaGoogleLabel())
         }
@@ -158,32 +301,14 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         if let onSave {
             header.addArrangedSubview(saveControl(onSave: onSave))
         }
-
-        let translationCaption = sectionCaption("Translation")
-        let translationView = scrollableText(
-            translation, fontSize: 18, dim: false, minHeight: Layout.minSectionHeight
-        )
-
-        let sourceCaption = sectionCaption("Recognized")
-        let sourceView = scrollableText(
-            source, fontSize: 14, dim: true, minHeight: Layout.minSectionHeight
-        )
-
-        let stack = verticalStack([
-            header, translationCaption, translationView, sourceCaption, sourceView,
-        ])
-        // Tight caption→content pairing; breathing room between the two sections.
-        stack.setCustomSpacing(2, after: translationCaption)
-        stack.setCustomSpacing(14, after: translationView)
-        stack.setCustomSpacing(2, after: sourceCaption)
-        return wrap(stack, stretching: [translationView, sourceView])
     }
 
     /// Title + body layout for info/error states.
     @MainActor
     private func makeMessageContent(title: String, body: String, isError: Bool) -> NSView {
-        // A message/error replaces any savable result — drop its controller.
-        saveButtonController = nil
+        // A message/error replaces any savable result — drop the whole result body
+        // so the next result rebuilds fresh (and the bar controller is released).
+        dropResultBody()
 
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
