@@ -18,6 +18,9 @@ struct PreferencesView: View {
             EngineTab(settings: settings, keychain: keychain)
                 .tabItem { Label("Engine", systemImage: "globe") }
 
+            LanguagesTab(settings: settings)
+                .tabItem { Label("Languages", systemImage: "character.bubble") }
+
             AccountTab(model: accountModel)
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
 
