@@ -1,3 +1,4 @@
+import AppKit
 import AuthenticationServices
 import Foundation
 
@@ -88,7 +89,17 @@ final class WebGoogleAuthorizationProvider: NSObject, GoogleAuthorizationProvide
         return AuthError.transport
     }
 
+    /// Anchors the auth UI to the app's real on-screen window (the Preferences
+    /// window the user signed in from). Returning a throwaway `ASPresentationAnchor()`
+    /// — a never-shown `NSWindow` — makes `ASWebAuthenticationSession` fail to
+    /// present: its completion handler never fires, the continuation never
+    /// resumes, and the Account tab is stuck on "signing in…" forever. In this
+    /// `LSUIElement` agent app there is no main window, so resolve the visible
+    /// window explicitly. The system invokes this on the main thread, so reading
+    /// `NSApp` here is safe.
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        ASPresentationAnchor()
+        NSApp.keyWindow
+            ?? NSApp.windows.first(where: { $0.isVisible })
+            ?? ASPresentationAnchor()
     }
 }

@@ -15,6 +15,15 @@ private struct StubAppleWebAuth: AppleWebAuthorizationProvider {
     }
 }
 
+/// Simulates a sign-in where `ASWebAuthenticationSession` presents but never
+/// calls back (the redirect is never delivered): the provider suspends forever
+/// and is never resumed — the real-world cause of the stuck "Loading" spinner.
+private struct HangingGoogleAuth: GoogleAuthorizationProvider {
+    func authorizationCode(authorizationURL: URL, redirectScheme: String, expectedState: String) async throws -> String {
+        try await withCheckedThrowingContinuation { (_: CheckedContinuation<String, Error>) in }
+    }
+}
+
 @MainActor
 @Suite("AccountViewModel — signed-out ↔ signed-in state machine")
 struct AccountViewModelTests {
@@ -169,6 +178,24 @@ struct AccountViewModelTests {
             googleAuthProvider: StubGoogleAuth(code: "c"), appleAuthProvider: StubAppleWebAuth(callbackTemplate: "translator-everywhere://apple-callback?session=s&refresh=r&state={state}")
         )
         let model = AccountViewModel(auth: client)
+        await model.signInWithGoogle()
+
+        if case .error = model.phase { } else { Issue.record("expected .error phase, got \(model.phase)") }
+        #expect(model.isSignedIn == false)
+    }
+
+    @Test("a sign-in that never calls back times out to an error instead of hanging forever")
+    func signInTimesOutInsteadOfHanging() async {
+        // The provider suspends forever (callback never arrives). Without the
+        // watchdog this would strand the UI in .signingIn permanently; with it,
+        // signIn must RETURN and land in .error so the buttons re-enable.
+        let client = AuthClient(
+            session: MockURLProtocol.makeSession(), tokens: makeTokens(), baseURL: baseURL,
+            googleAuthProvider: HangingGoogleAuth(),
+            appleAuthProvider: StubAppleWebAuth(callbackTemplate: "translator-everywhere://apple-callback?session=s&refresh=r&state={state}")
+        )
+        let model = AccountViewModel(auth: client, signInTimeout: .milliseconds(50))
+
         await model.signInWithGoogle()
 
         if case .error = model.phase { } else { Issue.record("expected .error phase, got \(model.phase)") }
