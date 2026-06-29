@@ -42,6 +42,57 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     private final class KeyablePanel: NSPanel {
         override var canBecomeKey: Bool { true }
         override var canBecomeMain: Bool { true }
+
+        /// Clears any active selection in the (non-editable but selectable)
+        /// "Recognized"/"Translation" text views when the user clicks outside
+        /// them — the standard macOS popup behavior. Without this a selection
+        /// persists until *another* text view is clicked, because nothing in the
+        /// surrounding chrome resigns first responder. Handled in `sendEvent` so
+        /// the click is seen before any subview (caption, button, language bar)
+        /// can consume it; the event is always forwarded to `super` so normal
+        /// dispatch (button presses, text selection, scrolling) is untouched.
+        override func sendEvent(_ event: NSEvent) {
+            if event.type == .leftMouseDown, let contentView {
+                let point = contentView.convert(event.locationInWindow, from: nil)
+                if ResultPanel.shouldClearSelection(forHit: contentView.hitTest(point)) {
+                    clearTextSelection(in: contentView)
+                }
+            }
+            super.sendEvent(event)
+        }
+
+        /// Collapses every descendant text view's selection and drops
+        /// first-responder focus — but only when something was actually selected,
+        /// so an ordinary click in empty space doesn't needlessly steal focus
+        /// (e.g. from an open picker's search field).
+        private func clearTextSelection(in root: NSView) {
+            var didClear = false
+            func visit(_ view: NSView) {
+                if let textView = view as? NSTextView, textView.selectedRange().length > 0 {
+                    textView.setSelectedRange(NSRange(location: 0, length: 0))
+                    didClear = true
+                }
+                view.subviews.forEach(visit)
+            }
+            visit(root)
+            if didClear { makeFirstResponder(nil) }
+        }
+    }
+
+    /// Whether a left-click that resolved to `hitView` should clear an active
+    /// text selection. Clicks that land inside a selectable `NSTextView` (or on a
+    /// scroller, so dragging to scroll doesn't wipe the selection) keep it; clicks
+    /// anywhere else in the panel — captions, header, language bar, empty area —
+    /// clear it. Walks up the view's ancestry so a hit on a text view's internal
+    /// subview still counts as "inside the text". Pure + static so the deselect
+    /// decision is unit-testable without mounting a window.
+    static func shouldClearSelection(forHit hitView: NSView?) -> Bool {
+        var view = hitView
+        while let current = view {
+            if current is NSTextView || current is NSScroller { return false }
+            view = current.superview
+        }
+        return true
     }
 
     /// Layout constants shared across the result presentation.
