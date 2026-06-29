@@ -34,6 +34,30 @@ struct ResultPanelHeaderTests {
         #expect(!headerLabels(panel, copied: false).contains("Copied ✓"))
     }
 
+    // Outside-click deselect — a click on a selectable text view (or its
+    // scroller, so a scroll-drag keeps the selection) must NOT clear; a click on
+    // any other chrome (caption, button, empty area) MUST clear.
+    @Test("Clicking inside a text view keeps the selection")
+    func keepSelectionOnTextHit() {
+        #expect(ResultPanel.shouldClearSelection(forHit: NSTextView()) == false)
+        #expect(ResultPanel.shouldClearSelection(forHit: NSScroller()) == false)
+    }
+
+    @Test("Clicking outside a text view clears the selection")
+    func clearSelectionOnChromeHit() {
+        #expect(ResultPanel.shouldClearSelection(forHit: NSView()) == true)
+        #expect(ResultPanel.shouldClearSelection(forHit: NSTextField(labelWithString: "Recognized")) == true)
+        #expect(ResultPanel.shouldClearSelection(forHit: nil) == true)
+    }
+
+    @Test("A subview of a text view still counts as inside the text")
+    func textViewSubviewCountsAsInside() {
+        let textView = NSTextView()
+        let inner = NSView()
+        textView.addSubview(inner)
+        #expect(ResultPanel.shouldClearSelection(forHit: inner) == false)
+    }
+
     /// Populates a fresh header stack via the panel's real builder and returns its
     /// top-level text chips. The badge text lives inside a nested container, so the
     /// top-level `NSTextField`s are exactly the "via Google" / "Copied ✓" notes.
