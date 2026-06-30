@@ -92,8 +92,8 @@ final class LoopbackRedirectListener {
                         + "Content-Length: \(body.utf8.count)\r\n"
                         + "Connection: close\r\n\r\n"
                         + body
-                    response.utf8CString.withUnsafeBufferPointer { ptr in
-                        _ = write(conn, ptr.baseAddress, strlen(ptr.baseAddress!))
+                    Data(response.utf8).withUnsafeBytes { raw in
+                        _ = write(conn, raw.baseAddress, raw.count)
                     }
 
                     guard let target = Self.requestTarget(from: firstLine),
