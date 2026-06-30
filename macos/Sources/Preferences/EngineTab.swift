@@ -55,12 +55,25 @@ struct EngineTab: View {
             }
 
             if preference == .openai {
-                Section {
-                    SecureField("OpenAI API key (sk-…)", text: $apiKey)
+                Section("OpenAI API key") {
+                    SecureField("Paste your key (sk-…)", text: $apiKey)
+                        .textFieldStyle(.roundedBorder)
                         .onChange(of: apiKey) { _, _ in
                             persistKey()
                             testState = .idle
                         }
+
+                    // Empty-state hint: the field is BYOK, and OpenAI isn't active
+                    // until a key is present (the engine falls back to Free).
+                    if trimmedKey.isEmpty {
+                        Label("Paste your own OpenAI API key above to turn on the "
+                              + "OpenAI engine. Until then, translation uses "
+                              + "Free (Vision + Google).",
+                              systemImage: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Label("Stored only in your macOS Keychain — never written to "
                           + "disk or sent anywhere but OpenAI.",
                           systemImage: "lock.fill")
