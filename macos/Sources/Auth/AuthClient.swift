@@ -23,13 +23,26 @@ final class WebAuthRouter {
     /// Opens `url` in the default browser and suspends until a redirect whose
     /// `state` query equals `state` is delivered to `handle`. Throws
     /// `AuthError.providerResponseInvalid` if the URL can't be opened.
+    ///
+    /// Cancellation-aware: if the awaiting task is cancelled (the sign-in
+    /// watchdog timed out), the waiter is dropped and the task unblocked, so a
+    /// LATE redirect finds no awaiter and is ignored — never completing a sign-in
+    /// the UI has already abandoned.
     func open(_ url: URL, awaitingState state: String) async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
-            // Register before opening so an instant redirect can't outrace us.
-            waiters[state] = continuation
-            if !NSWorkspace.shared.open(url) {
-                waiters[state] = nil
-                continuation.resume(throwing: AuthError.providerResponseInvalid)
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                // Register before opening so an instant redirect can't outrace us.
+                waiters[state] = continuation
+                if !NSWorkspace.shared.open(url) {
+                    waiters[state] = nil
+                    continuation.resume(throwing: AuthError.providerResponseInvalid)
+                }
+            }
+        } onCancel: { [self] in
+            Task { @MainActor in
+                if let continuation = waiters.removeValue(forKey: state) {
+                    continuation.resume(throwing: AuthError.cancelled)
+                }
             }
         }
     }
@@ -67,10 +80,11 @@ protocol GoogleAuthorizationProvider: Sendable {
     func authorizationCode(authorizationURL: URL, redirectScheme: String, expectedState: String) async throws -> String
 }
 
-/// Sign-in via AuthenticationServices (TECH §8.6).
+/// Sign-in via the system browser (TECH §8.6).
 ///
-/// Both Apple and Google run through `ASWebAuthenticationSession`. They diverge
-/// only in who does the token exchange:
+/// Both Apple and Google open the login in the user's default browser (via
+/// `WebAuthRouter`) and capture the redirect through the app's registered URL
+/// scheme. They diverge only in who does the token exchange:
 /// - **Google**: the app runs PKCE, gets a `code`, exchanges it for an `id_token`,
 ///   POSTs that to `/auth/google`, and receives our session JWT + refresh.
 /// - **Apple (web flow)**: the app opens Apple's `/auth/authorize`; Apple
@@ -173,12 +187,12 @@ final class AuthClient {
         return decoded.idToken
     }
 
-    // MARK: - Apple (web flow — ASWebAuthenticationSession, NO native entitlement)
+    // MARK: - Apple (web flow — system browser, NO native entitlement)
 
     /// Drives Sign in with Apple entirely through the browser:
     /// 1. generate a random `state`, build Apple's `/auth/authorize` URL,
-    /// 2. open `ASWebAuthenticationSession`; it follows Apple → our backend
-    ///    callback → the `translator-everywhere://apple-callback?...` redirect,
+    /// 2. open it in the browser (via `WebAuthRouter`); it follows Apple → our
+    ///    backend callback → the `translator-everywhere://apple-callback?...` redirect,
     /// 3. parse the callback (validate `state`, extract `session`+`refresh`),
     /// 4. store both tokens in the Keychain.
     ///
@@ -202,7 +216,7 @@ final class AuthClient {
     /// whenever a scope (name/email) is requested — `query` is rejected with
     /// `invalid_request`. Apple form-POSTs the `code` to the backend callback (which
     /// handles GET+POST), and the backend hands back via the `translator-everywhere://`
-    /// redirect that ASWebAuthenticationSession captures. Internal for tests.
+    /// redirect that `WebAuthRouter` captures. Internal for tests.
     static func appleAuthorizationURL(state: String) -> URL {
         var components = URLComponents(url: AuthConfig.appleAuthorizationEndpoint, resolvingAgainstBaseURL: false)!
         components.queryItems = [

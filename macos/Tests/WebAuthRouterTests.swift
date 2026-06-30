@@ -14,22 +14,31 @@ struct WebAuthRouterTests {
     func resumesMatchingState() async throws {
         let router = WebAuthRouter()
         let waiting = Task { try await router.awaitRedirect(matchingState: "S1") }
-        try await Task.sleep(for: .milliseconds(20)) // let the continuation register
 
-        // A mismatched state is ignored (not handled, waiter stays pending).
-        #expect(router.handle(URL(string: "scheme://cb?code=C&state=OTHER")!) == false)
-        // The matching state resumes the awaiter with the full callback URL.
-        #expect(router.handle(URL(string: "scheme://cb?code=C&state=S1")!) == true)
+        // Deterministically wait for the awaiter to register by retrying `handle`
+        // across scheduler turns (no wall-clock sleep): a mismatched state is
+        // ignored, and the matching state resumes the awaiter once it's pending.
+        let match = try #require(URL(string: "scheme://cb?code=C&state=S1"))
+        let other = try #require(URL(string: "scheme://cb?code=C&state=OTHER"))
+        #expect(router.handle(other) == false) // mismatch is never handled
+        var handled = false
+        for _ in 0..<1000 where !handled {
+            await Task.yield()
+            handled = router.handle(match)
+        }
+        #expect(handled)
 
         let callback = try await waiting.value
         #expect(callback.query?.contains("code=C") == true)
     }
 
     @Test("a redirect with no matching waiter is not handled")
-    func ignoresUnknownState() {
+    func ignoresUnknownState() throws {
         let router = WebAuthRouter()
-        #expect(router.handle(URL(string: "scheme://cb?code=C&state=nobody")!) == false)
-        // A redirect with no state at all is also ignored, not crashed on.
-        #expect(router.handle(URL(string: "scheme://cb?code=C")!) == false)
+        let unknown = try #require(URL(string: "scheme://cb?code=C&state=nobody"))
+        #expect(router.handle(unknown) == false)
+        // A redirect with no state at all is ignored, not crashed on.
+        let noState = try #require(URL(string: "scheme://cb?code=C"))
+        #expect(router.handle(noState) == false)
     }
 }

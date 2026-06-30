@@ -78,13 +78,14 @@ final class AccountViewModel {
         phase = .signingIn
         do {
             // Race the web-auth flow against a watchdog. If the flow never
-            // returns — e.g. the user abandons the auth browser, or the redirect
-            // back to our scheme is never delivered — this surfaces `.error`
-            // instead of leaving the buttons disabled and the spinner turning
-            // forever (the exact "stuck on Loading" symptom). On timeout the flow
-            // task is abandoned, not awaited: `ASWebAuthenticationSession`'s
-            // continuation isn't cancellation-aware, so a structured wait would
-            // deadlock on the very hang we're guarding against.
+            // returns — e.g. the user abandons the browser login, or never
+            // returns to the app so the redirect is never delivered — this
+            // surfaces `.error` instead of leaving the buttons disabled and the
+            // spinner turning forever (the "stuck on Loading" symptom). On
+            // timeout the flow task is cancelled (WebAuthRouter then drops its
+            // pending waiter) and the gate is resolved by the timer rather than
+            // by awaiting the flow, so a flow stuck at a non-cancellable await
+            // can't deadlock the recovery.
             let session = try await Self.firstToComplete(within: signInTimeout) {
                 try await flow()
             }
@@ -109,7 +110,7 @@ final class AccountViewModel {
         _ operation: @escaping () async throws -> T
     ) async throws -> T {
         let gate = ResumeGate<T>()
-        Task {
+        let work = Task {
             do { await gate.settle(.success(try await operation())) }
             catch { await gate.settle(.failure(error)) }
         }
@@ -117,7 +118,10 @@ final class AccountViewModel {
             try? await Task.sleep(for: timeout)
             await gate.settle(.failure(AuthError.transport))
         }
-        defer { timer.cancel() }
+        // On timeout, cancel the work task so a cancellation-aware operation (the
+        // browser sign-in) tears down its pending callback — otherwise a LATE
+        // redirect could resume it and save a session after the UI gave up.
+        defer { work.cancel(); timer.cancel() }
         return try await gate.awaitResult()
     }
 
