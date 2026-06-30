@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRD — End-to-end encrypted OpenAI-key sync · Translator Everywhere</title>
+<style>
+  :root{
+    --ink:#1a1c20; --muted:#5b6470; --line:#e3e7ec; --bg:#f7f9fb; --card:#fff;
+    --accent:#2f6fed; --good:#1f9d57; --warn:#c8761b; --bad:#d23b3b; --lock:#6a3fd0;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1040px;margin:0 auto;padding:32px 20px 80px}
+  header.top{border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:8px}
+  h1{font-size:26px;margin:0 0 4px} h2{font-size:19px;margin:34px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+  h3{font-size:15px;margin:18px 0 6px}
+  .sub{color:var(--muted);font-size:13px}
+  .pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;
+    padding:3px 9px;border-radius:20px;background:#eef3ff;color:var(--accent);text-transform:uppercase}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0;
+    box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .fig{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  svg{max-width:100%;height:auto;display:block}
+  .cap{color:var(--muted);font-size:12.5px;margin:6px 2px 0;font-style:italic}
+  ul{margin:6px 0 6px 2px;padding-left:20px} li{margin:3px 0}
+  code{font-family:var(--mono);background:#eef1f5;padding:1px 5px;border-radius:5px;font-size:12.5px}
+  table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:#f0f3f7;font-weight:700}
+  .in{color:var(--good);font-weight:700}.out{color:var(--bad);font-weight:700}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  .tag{font:600 11px var(--mono);padding:2px 7px;border-radius:5px;border:1px solid var(--line)}
+  .lock{color:var(--lock)}
+  .toc a{color:var(--accent);text-decoration:none}.toc{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <span class="pill">PRD · Gate 1 input</span>
+  <h1>End-to-end encrypted sync of the OpenAI API key</h1>
+  <div class="sub">Translator Everywhere (macOS) · <b>PM:</b> Erik · <b>Coordinator:</b> Claude · sdd_pipeline · backlog <code>fb-2026-06-30-sync-openai-key-e2e</code></div>
+  <div class="toc" style="margin-top:8px">
+    ★ <a href="#glance">At a glance</a> · <a href="#problem">1 Problem</a> · <a href="#users">2 Users</a> ·
+    <a href="#goals">3 Goals</a> · <a href="#scope">4 Scope</a> · <a href="#success">5 Success</a> ·
+    <a href="#principles">6 Principles</a> · <a href="#threat">7 Threat model</a> · <a href="#decisions">8 Decisions</a> · <a href="#risks">9 Risks</a>
+  </div>
+</header>
+
+<!-- ============ AT A GLANCE ============ -->
+<h2 id="glance">★ At a glance</h2>
+<div class="card fig">
+<svg viewBox="0 0 1000 470" role="img" aria-label="Product loop: device A encrypts the key with a passphrase-derived key and uploads ciphertext; the server stores only ciphertext; device B downloads and decrypts with the passphrase.">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b6470"/></marker>
+    <style>.t{font:13px -apple-system,sans-serif;fill:#1a1c20}.s{font:11px -apple-system,sans-serif;fill:#5b6470}.h{font:700 13px -apple-system,sans-serif;fill:#1a1c20}.mono{font:11px ui-monospace,Menlo,monospace;fill:#6a3fd0}</style>
+  </defs>
+
+  <!-- Device A -->
+  <rect x="20" y="60" width="300" height="180" rx="12" fill="#fff" stroke="#cfd6df"/>
+  <text x="34" y="84" class="h">Mac A — has the key</text>
+  <rect x="34" y="96" width="272" height="30" rx="6" fill="#eef3ff" stroke="#cfe0ff"/>
+  <text x="44" y="116" class="t">① enter OpenAI key <tspan class="mono">sk-…</tspan></text>
+  <rect x="34" y="132" width="272" height="30" rx="6" fill="#f3eefe" stroke="#ddd0f7"/>
+  <text x="44" y="152" class="t">② opt in → set <tspan class="lock" style="fill:#6a3fd0;font-weight:700">passphrase</tspan></text>
+  <rect x="34" y="168" width="272" height="56" rx="6" fill="#eafaf0" stroke="#bfe9cf"/>
+  <text x="44" y="187" class="t">③ KDF(passphrase,salt)→K</text>
+  <text x="44" y="206" class="t">④ AES-GCM encrypt key → <tspan class="mono">ciphertext</tspan></text>
+  <text x="44" y="219" class="s">key also stays in local Keychain</text>
+
+  <!-- Server -->
+  <rect x="385" y="95" width="230" height="150" rx="12" fill="#fff" stroke="#cfd6df"/>
+  <text x="500" y="120" class="h" text-anchor="middle">Our VPS (BWH)</text>
+  <rect x="405" y="134" width="190" height="74" rx="8" fill="#fbf4ec" stroke="#f0d9bf"/>
+  <text x="500" y="156" class="t" text-anchor="middle">stores per-user</text>
+  <text x="500" y="175" class="mono" text-anchor="middle" style="fill:#c8761b">{ ciphertext, salt,</text>
+  <text x="500" y="190" class="mono" text-anchor="middle" style="fill:#c8761b">nonce, kdf-params }</text>
+  <text x="500" y="232" class="s" text-anchor="middle">🔒 cannot decrypt — no passphrase</text>
+
+  <!-- Device B -->
+  <rect x="680" y="60" width="300" height="180" rx="12" fill="#fff" stroke="#cfd6df"/>
+  <text x="694" y="84" class="h">Mac B — new device</text>
+  <rect x="694" y="96" width="272" height="30" rx="6" fill="#eef3ff" stroke="#cfe0ff"/>
+  <text x="704" y="116" class="t">⑤ sign in (Google/Apple)</text>
+  <rect x="694" y="132" width="272" height="30" rx="6" fill="#f3eefe" stroke="#ddd0f7"/>
+  <text x="704" y="152" class="t">⑥ enter <tspan class="lock" style="fill:#6a3fd0;font-weight:700">passphrase</tspan></text>
+  <rect x="694" y="168" width="272" height="56" rx="6" fill="#eafaf0" stroke="#bfe9cf"/>
+  <text x="704" y="187" class="t">⑦ KDF→K, AES-GCM decrypt</text>
+  <text x="704" y="206" class="t">⑧ key in local Keychain ✓</text>
+  <text x="704" y="219" class="s">OpenAI engine ready</text>
+
+  <!-- arrows -->
+  <line x1="320" y1="170" x2="383" y2="170" stroke="#5b6470" marker-end="url(#ar)"/>
+  <text x="351" y="162" class="s" text-anchor="middle">upload</text>
+  <text x="351" y="186" class="s" text-anchor="middle">(TLS)</text>
+  <line x1="617" y1="170" x2="678" y2="170" stroke="#5b6470" marker-end="url(#ar)"/>
+  <text x="648" y="162" class="s" text-anchor="middle">download</text>
+
+  <!-- the promise strip -->
+  <rect x="20" y="285" width="960" height="58" rx="10" fill="#f3eefe" stroke="#ddd0f7"/>
+  <text x="34" y="308" class="h">The invariant</text>
+  <text x="34" y="330" class="t">The <b>passphrase never leaves the device</b> → the server only ever holds ciphertext it can't read. A full server breach leaks <b>no usable keys</b>. The OpenAI key still goes only to OpenAI.</text>
+
+  <!-- scope strip -->
+  <rect x="20" y="357" width="465" height="92" rx="10" fill="#eafaf0" stroke="#bfe9cf"/>
+  <text x="34" y="380" class="h" style="fill:#1f9d57">In scope</text>
+  <text x="34" y="400" class="t">opt-in sync · passphrase set/enter · E2E crypto ·</text>
+  <text x="34" y="417" class="t">backend ciphertext blob · multi-device LWW ·</text>
+  <text x="34" y="434" class="t">honest privacy-copy rewrite</text>
+  <rect x="515" y="357" width="465" height="92" rx="10" fill="#fdecec" stroke="#f3c9c9"/>
+  <text x="529" y="380" class="h" style="fill:#d23b3b">Out of scope</text>
+  <text x="529" y="400" class="t">passphrase recovery · syncing other secrets ·</text>
+  <text x="529" y="417" class="t">server-readable keys · iCloud Keychain ·</text>
+  <text x="529" y="434" class="t">non-Apple clients (design stays portable)</text>
+</svg>
+<div class="cap">The whole feature on one screen: encrypt-on-A → store-ciphertext → decrypt-on-B, with the passphrase as the only thing that can unlock it, and it never leaves the device.</div>
+</div>
+
+<!-- ============ 1 PROBLEM ============ -->
+<h2 id="problem">1 · Problem &amp; why now</h2>
+<div class="card">
+<p>Translator Everywhere lets a user bring their own OpenAI API key (BYOK) to use the OpenAI translation engine. Today that key lives <b>only in the local macOS Keychain</b> and is never sent to our server. That's privacy-safe but inconvenient: when the user signs in on a <b>second Mac</b>, the key isn't there — they must dig it out of OpenAI and re-enter it on every machine.</p>
+<p>The PM wants the key to <b>follow the user across their devices</b> once signed in — without our service ever being able to read it. A naïve "upload the key to our VPS" is rejected outright: an OpenAI key is a <b>bearer credential to a paid account</b>, so a server breach would leak credentials that cost users real money, and it would contradict the app's own on-screen privacy promise. This feature delivers the convenience under a strict <b>end-to-end-encrypted</b> constraint.</p>
+</div>
+
+<!-- ============ 2 USERS ============ -->
+<h2 id="users">2 · Users &amp; the job</h2>
+<div class="card">
+<ul>
+  <li><b>Multi-Mac BYOK user</b> (primary): uses OpenAI engine, signs in to sync their notebook, owns 2+ Macs. Job: <i>"set my key once and have it work on all my Macs."</i></li>
+  <li><b>Privacy-conscious user</b>: will only opt in if they trust that <i>we genuinely can't read the key</i>. Job: <i>"give me the convenience without trusting your server with my credential."</i></li>
+  <li><b>Single-Mac / Free-engine user</b>: unaffected — the feature is opt-in and invisible unless they have a key and turn it on.</li>
+</ul>
+</div>
+
+<!-- ============ 3 GOALS ============ -->
+<h2 id="goals">3 · Goals &amp; non-goals</h2>
+<div class="grid2">
+  <div class="card"><h3 class="in">Goals</h3><ul>
+    <li>A signed-in user can opt in to sync their OpenAI key across their Macs.</li>
+    <li>On a new Mac, after sign-in + passphrase, the key is restored to the local Keychain and OpenAI works.</li>
+    <li>The server <b>provably cannot</b> read the key (it holds ciphertext only; the passphrase never leaves the device).</li>
+    <li>The in-app privacy copy becomes <b>accurate</b> for the new behavior.</li>
+    <li>Zero impact on users who don't opt in.</li>
+  </ul></div>
+  <div class="card"><h3 class="out">Non-goals</h3><ul>
+    <li>Passphrase recovery / "reset my passphrase and keep my key" (impossible under E2E — by design).</li>
+    <li>Syncing other secrets (auth tokens, other API keys) — the blob format is extensible but only the OpenAI key ships now.</li>
+    <li>Server-side use of the key (server never decrypts; OpenAI calls stay on-device).</li>
+    <li>Cross-ecosystem clients today (design stays portable, but only macOS ships).</li>
+  </ul></div>
+</div>
+
+<!-- ============ 4 SCOPE ============ -->
+<h2 id="scope">4 · Scope</h2>
+<table>
+  <tr><th>Area</th><th class="in">In</th><th class="out">Out / later</th></tr>
+  <tr><td>App (macOS)</td><td>opt-in toggle, set/enter/change-passphrase flows + states, on-device KDF + AES-GCM, restore-on-new-device, disable, copy rewrite</td><td>passphrase recovery; biometric unlock of the passphrase (nice-to-have, later)</td></tr>
+  <tr><td>Backend (Go)</td><td>authenticated PUT/GET/DELETE of an opaque per-user encrypted blob; size cap; delete on account-delete</td><td>server-side decryption (never); any plaintext key handling</td></tr>
+  <tr><td>Crypto</td><td>passphrase→key KDF, AES-256-GCM, versioned blob format, integrity/auth</td><td>HSM / server-held keys; key escrow</td></tr>
+  <tr><td>Docs</td><td>rewrite Engine-tab + Account-tab privacy copy to match reality</td><td>—</td></tr>
+</table>
+
+<!-- ============ 5 SUCCESS ============ -->
+<h2 id="success">5 · Success criteria (acceptance)</h2>
+<div class="card"><ul>
+  <li><b>Round-trip:</b> enter key + opt in on Mac A → sign in + enter passphrase on Mac B → the exact same key is in Mac B's Keychain and a Test call succeeds.</li>
+  <li><b>Server-blind:</b> inspecting the server DB + all server logs reveals <b>no</b> recoverable key material — only ciphertext, salt, nonce, and KDF params. (Verified by direct inspection.)</li>
+  <li><b>Wrong passphrase</b> on Mac B fails closed with a clear message and never corrupts or partially-restores the key.</li>
+  <li><b>Opt-out:</b> disabling sync deletes the server blob; the local key remains usable.</li>
+  <li><b>No-opt-in users</b> see and store nothing new; existing local-only behavior unchanged.</li>
+  <li><b>Honest copy:</b> no on-screen statement is false after the change.</li>
+  <li>Build green, automated tests cover the crypto round-trip + wrong-passphrase + blob tamper; beta panel ships.</li>
+</ul></div>
+
+<!-- ============ 6 PRINCIPLES ============ -->
+<h2 id="principles">6 · Constraints &amp; principles</h2>
+<div class="card"><ul>
+  <li><b>E2E or nothing.</b> The encryption/decryption key is derived from the user's passphrase <i>on the device</i>; it and the passphrase never touch the network or the server.</li>
+  <li><b>Server is a dumb, blind store.</b> It authenticates the user (existing session JWT), enforces a size cap, stores/returns opaque bytes, and never logs or decrypts them.</li>
+  <li><b>Fail closed, never silently.</b> Any decrypt/auth failure surfaces clearly and leaves existing state intact — no half-restored or corrupted key.</li>
+  <li><b>Local Keychain stays the fast path.</b> A device that already has the key needs no passphrase for normal use; the passphrase is only for upload-on-opt-in and restore-on-new-device.</li>
+  <li><b>Truth in UI.</b> Every privacy claim shown to the user must remain literally true.</li>
+  <li><b>Opt-in, reversible, low-blast-radius.</b> Off by default; turning it off cleans up.</li>
+</ul></div>
+
+<!-- ============ 7 THREAT MODEL ============ -->
+<h2 id="threat">7 · Threat model (summary — full scheme in the Design Doc)</h2>
+<div class="card fig">
+<svg viewBox="0 0 1000 250" role="img" aria-label="Threat model: defends against server breach and network interception; the residual risk is offline brute-force of a weak passphrase.">
+  <style>.t2{font:12.5px -apple-system,sans-serif;fill:#1a1c20}.h2{font:700 13px -apple-system,sans-serif}</style>
+  <rect x="20" y="20" width="470" height="200" rx="10" fill="#eafaf0" stroke="#bfe9cf"/>
+  <text x="40" y="46" class="h2" fill="#1f9d57">✓ Defended</text>
+  <text x="40" y="74" class="t2">• Server breach / full DB dump → only ciphertext + salt + nonce; no key.</text>
+  <text x="40" y="100" class="t2">• Honest-but-curious server / insider → cannot read keys.</text>
+  <text x="40" y="126" class="t2">• Network interception (also under TLS) → ciphertext only.</text>
+  <text x="40" y="152" class="t2">• Server returns tampered/empty/wrong blob → AEAD + version</text>
+  <text x="55" y="170" class="t2">binding makes it fail closed, not leak.</text>
+  <text x="40" y="200" class="t2">• Lost device → key sits behind macOS Keychain + (remote) the blob behind the passphrase.</text>
+
+  <rect x="510" y="20" width="470" height="200" rx="10" fill="#fdecec" stroke="#f3c9c9"/>
+  <text x="530" y="46" class="h2" fill="#d23b3b">✗ Residual / out of scope</text>
+  <text x="530" y="74" class="t2">• <b>Weak passphrase</b> → offline brute-force of a stolen blob.</text>
+  <text x="545" y="92" class="t2">Mitigation: memory-hard KDF + a minimum-strength policy.</text>
+  <text x="530" y="118" class="t2">• Compromised endpoint (malware on the user's Mac reading</text>
+  <text x="545" y="136" class="t2">the Keychain or keystrokes) — out of any app's scope.</text>
+  <text x="530" y="162" class="t2">• Forgotten passphrase → no recovery (accepted trade-off).</text>
+  <text x="530" y="188" class="t2">• A maliciously-served client — N/A: we ship a signed native binary.</text>
+</svg>
+<div class="cap">The design must make the one residual in-scope risk — offline brute-force of a weak passphrase — economically infeasible via the KDF + a strength policy. The exact KDF/params are a Gate-1 decision in the Design Doc.</div>
+</div>
+
+<!-- ============ 8 DECISIONS ============ -->
+<h2 id="decisions">8 · Key product decisions (locked by PM unless flagged)</h2>
+<table>
+  <tr><th>Decision</th><th>Choice</th><th>Why</th></tr>
+  <tr><td>Where the key lives on the server</td><td><b>Ciphertext only</b></td><td>A breach must not leak keys; honors the privacy promise.</td></tr>
+  <tr><td>What unlocks it</td><td><b>A user sync passphrase</b> (new secret, not the OAuth login)</td><td>OAuth has no password we could derive from without the server seeing it; the passphrase keeps the secret off the server.</td></tr>
+  <tr><td>Recovery</td><td><b>None</b> — forget → re-enter the key from OpenAI</td><td>Any recovery path implies the server can recover the key = not E2E.</td></tr>
+  <tr><td>Enrollment</td><td><b>Opt-in</b>, off by default</td><td>Zero impact on non-users; explicit consent for a credential leaving the device (encrypted).</td></tr>
+  <tr><td>Local key</td><td>Stays in the Keychain; passphrase only for upload/restore</td><td>No friction for everyday use on an enrolled device.</td></tr>
+  <tr><td>Multi-device conflict</td><td>Last-write-wins on <code>updated_at</code></td><td>Mirrors the existing notebook sync; a key is a single small value.</td></tr>
+  <tr><td>KDF &amp; params</td><td><span class="tag">OPEN → Design Doc / Gate 1</span></td><td>Argon2id (memory-hard, needs a dep) vs PBKDF2 (built-in, weaker). Coordinator will recommend; PM signs off at Gate 1.</td></tr>
+  <tr><td>Passphrase strength policy</td><td><span class="tag">OPEN → Design Doc / Gate 1</span></td><td>Minimum length/strength needed to make offline brute-force infeasible.</td></tr>
+</table>
+
+<!-- ============ 9 RISKS ============ -->
+<h2 id="risks">9 · Risks</h2>
+<table>
+  <tr><th>Risk</th><th>Sev</th><th>Mitigation</th></tr>
+  <tr><td>Weak passphrase → key brute-forced from a stolen blob</td><td>High</td><td>Memory-hard KDF + enforced minimum strength + a clear "this protects your key" prompt.</td></tr>
+  <tr><td>Users lose the passphrase and blame us for "losing" their key</td><td>Med</td><td>Unmissable "we cannot recover this" warning at set-time; the local key is never lost, only the cross-device copy.</td></tr>
+  <tr><td>Subtle crypto mistake (nonce reuse, missing AAD, downgrade)</td><td>High</td><td>Gate-1 crypto design review + an adversarial check; AEAD with version-bound AAD; automated tamper tests.</td></tr>
+  <tr><td>Privacy copy left stale → an on-screen lie</td><td>Med</td><td>Copy rewrite is an explicit in-scope deliverable + an acceptance criterion.</td></tr>
+  <tr><td>Scope creep into a general secrets-sync system</td><td>Low</td><td>Versioned blob but ship only the OpenAI key; YAGNI.</td></tr>
+</table>
+
+<p class="sub" style="margin-top:30px">Next: the <b>Design Document</b> turns §7–§8 into the exact crypto scheme, the passphrase/recovery flows + screens, the backend contract, and the privacy-copy rewrite — for the PM's <b>Gate-1</b> sign-off before any code.</p>
+</div>
+</body>
+</html>
