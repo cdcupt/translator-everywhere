@@ -55,8 +55,8 @@ targets:
       properties:
         # Menu-bar agent: no Dock icon, no main window on launch.
         LSUIElement: true
-        CFBundleShortVersionString: "1.2.4"
-        CFBundleVersion: "7"
+        CFBundleShortVersionString: "1.2.5"
+        CFBundleVersion: "8"
         NSHumanReadableCopyright: ""
         # Sparkle auto-update configuration. The appcast is published as a
         # `latest` release asset by the (separately-owned) release pipeline;
@@ -87,8 +87,8 @@ targets:
       base:
         PRODUCT_NAME: Translator Everywhere
         PRODUCT_BUNDLE_IDENTIFIER: com.cdcupt.translator-everywhere
-        MARKETING_VERSION: "1.2.4"
-        CURRENT_PROJECT_VERSION: "7"
+        MARKETING_VERSION: "1.2.5"
+        CURRENT_PROJECT_VERSION: "8"
         # Real app icon: the Gate-1-approved paper-card 译 squircle, shipped as
         # the AppIcon image set in Sources/Assets.xcassets (compiled into
         # Assets.car + AppIcon.icns by actool). Sources/ already includes the
