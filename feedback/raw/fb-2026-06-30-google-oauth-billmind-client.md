@@ -94,3 +94,9 @@ mislabeled `CONFIG.md`.
 2. **Then ship app** v1.2.5/8 → **1.2.6/9** with the new `client_id`, full DMG cut.
 3. Later, optionally drop the old aud.
 Existing signed-in users are NOT logged out (refresh path doesn't re-check aud).
+
+## Outcome (shipped)
+
+- **v1.2.6** — new TE Desktop client (`524726675699-…`) + loopback listener (PRs #46/#47/#48) + backend dual-aud deployed. Fixed the BillMind branding AND the stuck-spinner (loopback round-trip completes).
+- **Follow-on 400** — after consent, Google's token endpoint returned 400: a Google **Desktop** client requires its `client_secret` even with PKCE (the v1.2.6 assumption that none was needed was wrong).
+- **v1.2.7** (PR #49) — moved the code→token exchange to the **backend** (`auth.GoogleOAuth`); the app POSTs `code`+`code_verifier`+`redirect_uri` to `/auth/google`; `GOOGLE_CLIENT_SECRET` lives only in BWH `deploy.env` (never in the public repo/app). Backend deployed ("google desktop-loopback code exchange enabled"; bogus id_token & bogus code both → 401). App v1.2.7/build 10 published; feed serves `<sparkle:version>10</sparkle:version>`. **Pending Erik's live Google round-trip confirmation.**
