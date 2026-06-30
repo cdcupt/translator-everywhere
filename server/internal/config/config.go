@@ -6,6 +6,7 @@ package config
 import (
 	"errors"
 	"os"
+	"strings"
 )
 
 // Defaults for the public (non-secret) identifiers, taken from
@@ -119,4 +120,18 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// GoogleAuds returns the accepted Google client ids. GOOGLE_AUD may be a single
+// id or a comma-separated set (e.g. "old,new") so a client-id cutover can accept
+// both during the rollout. Empty/whitespace entries are dropped.
+func (c Config) GoogleAuds() []string {
+	parts := strings.Split(c.GoogleAud, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
