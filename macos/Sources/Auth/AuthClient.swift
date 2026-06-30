@@ -72,21 +72,32 @@ final class WebAuthRouter {
 }
 
 /// Acquires a Google authorization `code` by driving the system browser. The
-/// real implementation opens the browser via `WebAuthRouter`; tests inject a
-/// stub so the PKCE token-exchange + backend POST can run headlessly.
+/// real implementation runs a localhost loopback redirect (Google's Desktop-app
+/// pattern); tests inject a stub so the PKCE token-exchange + backend POST can run
+/// headlessly.
 protocol GoogleAuthorizationProvider: Sendable {
-    /// Presents the consent UI for `authorizationURL` and returns the `code`
-    /// from the loopback redirect, validating `state`.
-    func authorizationCode(authorizationURL: URL, redirectScheme: String, expectedState: String) async throws -> String
+    /// Drives the browser consent + loopback capture. `buildAuthorizationURL` is
+    /// invoked with the loopback `redirect_uri` (known only once the listener
+    /// binds an ephemeral port) to construct the authorize URL. Returns the `code`
+    /// from the redirect (after validating `state`) AND the exact `redirectURI`
+    /// used — the caller MUST pass that same value to the token exchange, because
+    /// Google requires the authorize and token `redirect_uri` to be identical.
+    func authorizationCode(
+        expectedState: String,
+        buildAuthorizationURL: (_ redirectURI: String) -> URL
+    ) async throws -> (code: String, redirectURI: String)
 }
 
 /// Sign-in via the system browser (TECH §8.6).
 ///
-/// Both Apple and Google open the login in the user's default browser (via
-/// `WebAuthRouter`) and capture the redirect through the app's registered URL
-/// scheme. They diverge only in who does the token exchange:
-/// - **Google**: the app runs PKCE, gets a `code`, exchanges it for an `id_token`,
-///   POSTs that to `/auth/google`, and receives our session JWT + refresh.
+/// Both Apple and Google open the login in the user's default browser, but capture
+/// the redirect differently and diverge in who does the token exchange:
+/// - **Google**: a Desktop-app OAuth client with a **loopback** redirect — the app
+///   binds `127.0.0.1` (`LoopbackRedirectListener`), opens the consent page,
+///   captures the `?code` on localhost, runs PKCE to exchange it for an `id_token`,
+///   POSTs that to `/auth/google`, and receives our session JWT + refresh. (Custom
+///   URL schemes are unreliable on desktop Chrome; loopback is Google's documented
+///   desktop pattern.)
 /// - **Apple (web flow)**: the app opens Apple's `/auth/authorize`; Apple
 ///   redirects to our backend, which verifies the `code`, mints our session, and
 ///   302s back to the app's custom scheme carrying `session`+`refresh` directly —
@@ -131,13 +142,16 @@ final class AuthClient {
     @discardableResult
     func signInWithGoogle() async throws -> AuthSession {
         let pkce = PKCE()
-        let authURL = Self.googleAuthorizationURL(pkce: pkce)
-        let code = try await googleAuthProvider.authorizationCode(
-            authorizationURL: authURL,
-            redirectScheme: AuthConfig.googleRedirectScheme,
-            expectedState: pkce.state
+        // The redirect_uri isn't known until the loopback listener binds a port,
+        // so the provider builds the authorize URL via this closure and hands the
+        // chosen redirect_uri back for the token exchange (they must match).
+        let (code, redirectURI) = try await googleAuthProvider.authorizationCode(
+            expectedState: pkce.state,
+            buildAuthorizationURL: { redirectURI in
+                Self.googleAuthorizationURL(pkce: pkce, redirectURI: redirectURI)
+            }
         )
-        let idToken = try await exchangeGoogleCode(code, verifier: pkce.codeVerifier)
+        let idToken = try await exchangeGoogleCode(code, verifier: pkce.codeVerifier, redirectURI: redirectURI)
         let session = try await postSignIn(
             path: "/auth/google",
             body: GoogleSignInRequest(idToken: idToken)
@@ -146,12 +160,13 @@ final class AuthClient {
         return session
     }
 
-    /// Builds the Google authorization URL (PKCE `S256`). Internal for tests.
-    static func googleAuthorizationURL(pkce: PKCE) -> URL {
+    /// Builds the Google authorization URL (PKCE `S256`) for the given loopback
+    /// `redirectURI`. Internal for tests.
+    static func googleAuthorizationURL(pkce: PKCE, redirectURI: String) -> URL {
         var components = URLComponents(url: AuthConfig.googleAuthorizationEndpoint, resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "client_id", value: AuthConfig.googleClientID),
-            URLQueryItem(name: "redirect_uri", value: AuthConfig.googleRedirectURI),
+            URLQueryItem(name: "redirect_uri", value: redirectURI),
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "scope", value: AuthConfig.googleScope),
             URLQueryItem(name: "code_challenge", value: pkce.codeChallenge),
@@ -161,8 +176,9 @@ final class AuthClient {
         return components.url!
     }
 
-    /// Builds the Google `POST /token` PKCE-exchange request. Internal for tests.
-    static func googleTokenExchangeRequest(code: String, verifier: String) -> URLRequest {
+    /// Builds the Google `POST /token` PKCE-exchange request. `redirectURI` must be
+    /// the exact loopback URI used in the authorize request. Internal for tests.
+    static func googleTokenExchangeRequest(code: String, verifier: String, redirectURI: String) -> URLRequest {
         var request = URLRequest(url: AuthConfig.googleTokenEndpoint)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -171,14 +187,14 @@ final class AuthClient {
             "code": code,
             "code_verifier": verifier,
             "grant_type": "authorization_code",
-            "redirect_uri": AuthConfig.googleRedirectURI,
+            "redirect_uri": redirectURI,
         ]
         request.httpBody = Data(Self.formEncode(form).utf8)
         return request
     }
 
-    private func exchangeGoogleCode(_ code: String, verifier: String) async throws -> String {
-        let request = Self.googleTokenExchangeRequest(code: code, verifier: verifier)
+    private func exchangeGoogleCode(_ code: String, verifier: String, redirectURI: String) async throws -> String {
+        let request = Self.googleTokenExchangeRequest(code: code, verifier: verifier, redirectURI: redirectURI)
         let (data, response) = try await sessionData(for: request)
         try Self.ensure2xx(response)
         guard let decoded = try? JSONDecoder().decode(GoogleTokenResponse.self, from: data) else {

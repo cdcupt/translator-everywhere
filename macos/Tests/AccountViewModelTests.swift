@@ -4,7 +4,12 @@ import Testing
 
 private struct StubGoogleAuth: GoogleAuthorizationProvider {
     let code: String
-    func authorizationCode(authorizationURL: URL, redirectScheme: String, expectedState: String) async throws -> String { code }
+    func authorizationCode(
+        expectedState: String,
+        buildAuthorizationURL: (_ redirectURI: String) -> URL
+    ) async throws -> (code: String, redirectURI: String) {
+        (code, "http://127.0.0.1:0/oauth2redirect")
+    }
 }
 private struct StubAppleWebAuth: AppleWebAuthorizationProvider {
     let callbackTemplate: String
@@ -15,12 +20,15 @@ private struct StubAppleWebAuth: AppleWebAuthorizationProvider {
     }
 }
 
-/// Simulates a sign-in where `ASWebAuthenticationSession` presents but never
-/// calls back (the redirect is never delivered): the provider suspends forever
-/// and is never resumed — the real-world cause of the stuck "Loading" spinner.
+/// Simulates a sign-in that presents but never calls back (the redirect is never
+/// delivered): the provider suspends forever and is never resumed — the real-world
+/// cause of the stuck "Loading" spinner that the watchdog must rescue.
 private struct HangingGoogleAuth: GoogleAuthorizationProvider {
-    func authorizationCode(authorizationURL: URL, redirectScheme: String, expectedState: String) async throws -> String {
-        try await withCheckedThrowingContinuation { (_: CheckedContinuation<String, Error>) in }
+    func authorizationCode(
+        expectedState: String,
+        buildAuthorizationURL: (_ redirectURI: String) -> URL
+    ) async throws -> (code: String, redirectURI: String) {
+        try await withCheckedThrowingContinuation { (_: CheckedContinuation<(code: String, redirectURI: String), Error>) in }
     }
 }
 

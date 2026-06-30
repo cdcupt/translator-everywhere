@@ -7,22 +7,22 @@ enum AuthConfig {
     /// Our backend base URL. Every auth + sync call hangs off this.
     static let backendBaseURL = URL(string: "https://api.translator.daichenlab.com")!
 
-    /// Google OAuth *Desktop app* client id (PKCE, no client secret on device).
-    static let googleClientID =
-        "328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem.apps.googleusercontent.com"
+    /// Google OAuth **Desktop app** client id (PKCE + loopback, no client secret
+    /// on device). This is the Translator-Everywhere-branded Desktop client in
+    /// TE's own GCP project (`524726675699`). It replaced `328818408791-641sqb…`,
+    /// which lived in **BillMind's** project (wrong consent-screen brand) and was
+    /// an iOS-type client whose custom-scheme redirect desktop Chrome dropped.
+    static let googleClientID = "524726675699-vnleiirk1tj2rpa5eic7nj617j5p8rlu.apps.googleusercontent.com"
 
     /// Google authorization + token endpoints (OAuth 2.0).
     static let googleAuthorizationEndpoint = URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!
     static let googleTokenEndpoint = URL(string: "https://oauth2.googleapis.com/token")!
 
-    /// Loopback redirect scheme for the Desktop OAuth flow. Google accepts a
-    /// reverse-DNS custom scheme derived from the client id for installed apps.
-    static let googleRedirectScheme =
-        "com.googleusercontent.apps.328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem"
-
-    /// Full redirect URI used as Google's OAuth `redirect_uri`. The browser hands
-    /// this back to the app via the matching registered URL scheme.
-    static var googleRedirectURI: String { "\(googleRedirectScheme):/oauth2redirect" }
+    /// The redirect path the loopback listener serves. The full `redirect_uri`
+    /// (`http://127.0.0.1:<ephemeral-port>/oauth2redirect`) is built at runtime by
+    /// `LoopbackRedirectListener` once it binds, then threaded into BOTH the
+    /// authorize URL and the token exchange (Google requires them identical).
+    static let googleRedirectPath = "/oauth2redirect"
 
     /// Scopes — `openid email` is enough to mint the id_token our server needs.
     static let googleScope = "openid email profile"
