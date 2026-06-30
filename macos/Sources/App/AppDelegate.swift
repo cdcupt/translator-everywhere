@@ -12,15 +12,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Strong reference; an `NSStatusItem` is removed from the bar when released.
     private var statusItem: NSStatusItem?
 
-    /// Sparkle's standard updater. Constructed once with `startingUpdater: true`
-    /// so the daily background-check schedule (driven by the Info.plist keys
+    /// Sparkle's standard updater. Constructed with `startingUpdater: true` so the
+    /// daily background-check schedule (driven by the Info.plist keys
     /// `SUEnableAutomaticChecks` / `SUScheduledCheckInterval`) starts at launch.
     /// The appcast feed + EdDSA verification are configured via Info.plist; the
     /// release pipeline owns the signed appcast.
-    private let updaterController = SPUStandardUpdaterController(
+    ///
+    /// `userDriverDelegate: self` so we can foreground the app when Sparkle shows
+    /// update UI — this is an `LSUIElement` agent with no Dock icon, so without it
+    /// the update window/alert opens behind other apps. `lazy` so `self` is ready;
+    /// touched in `applicationDidFinishLaunching` so the updater still starts at
+    /// launch. Sparkle holds the user-driver delegate weakly; `AppDelegate` (owned
+    /// by `NSApp`) keeps it alive.
+    private lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: true,
         updaterDelegate: nil,
-        userDriverDelegate: nil
+        userDriverDelegate: self
     )
 
     /// The result UI (main-actor AppKit). Owned here for the app's lifetime.
@@ -95,6 +102,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installStatusItem()
         hotkeyManager.start()
+        // Force the lazy updater to start now so its daily background check runs
+        // (and registers us as the user-driver delegate for foregrounding).
+        _ = updaterController
         // The unit-test bundle hosts this app; don't pop the onboarding window
         // (or any UI) during the test runner's launch, which has no display
         // session and would crash the host before tests connect.
@@ -229,6 +239,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func checkForUpdates() {
+        // Foreground the agent so the resulting update window is frontmost; the
+        // user-driver delegate re-activates right as the window/alert appears.
+        NSApp.activate(ignoringOtherApps: true)
         updaterController.checkForUpdates(nil)
     }
 
@@ -239,5 +252,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+}
+
+// MARK: - Sparkle foregrounding
+
+/// Brings the app to the front whenever Sparkle is about to show update UI.
+/// As an `LSUIElement` agent with no Dock icon, the app isn't the active app when
+/// an update prompt appears, so without this the update window/alert opens behind
+/// other apps with no obvious way to surface it.
+/// `SPUStandardUserDriverDelegate` is not main-actor-annotated, so the methods are
+/// `nonisolated`; Sparkle's standard user driver invokes them on the main thread,
+/// so we assert main-actor isolation to touch `NSApp` (keeps it Swift-6-clean).
+extension AppDelegate: SPUStandardUserDriverDelegate {
+
+    /// Called just before the standard driver shows the "update available" window.
+    nonisolated func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        forUpdate update: SUAppcastItem,
+        state: SPUUserUpdateState
+    ) {
+        MainActor.assumeIsolated { NSApp.activate(ignoringOtherApps: true) }
+    }
+
+    /// Called just before the standard driver shows a modal alert (e.g. "you're
+    /// up to date", or an error).
+    nonisolated func standardUserDriverWillShowModalAlert() {
+        MainActor.assumeIsolated { NSApp.activate(ignoringOtherApps: true) }
     }
 }
