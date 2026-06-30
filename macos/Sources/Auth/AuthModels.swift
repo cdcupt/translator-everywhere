@@ -7,17 +7,12 @@ enum AuthConfig {
     /// Our backend base URL. Every auth + sync call hangs off this.
     static let backendBaseURL = URL(string: "https://api.translator.daichenlab.com")!
 
-    /// Google OAuth **Desktop app** client id (PKCE, no client secret on device).
-    ///
-    /// TODO(blocked on Erik's Google Cloud provisioning, 2026-06-30): replace with
-    /// the new **Translator-Everywhere-branded** Desktop OAuth client id. The old
-    /// value `328818408791-641sqb…` was a client in **BillMind's** GCP project —
-    /// wrong consent-screen brand ("BillMind") and an iOS-type custom-scheme
-    /// redirect that desktop Chrome drops. The replacement must be a *Desktop*
-    /// client (loopback redirect, no secret). Until this is the real id, Google
-    /// sign-in won't work — do NOT cut a release with the placeholder.
-    /// See `feedback/raw/fb-2026-06-30-google-oauth-billmind-client.md`.
-    static let googleClientID = "REPLACE_WITH_TE_DESKTOP_CLIENT_ID.apps.googleusercontent.com"
+    /// Google OAuth **Desktop app** client id (PKCE + loopback, no client secret
+    /// on device). This is the Translator-Everywhere-branded Desktop client in
+    /// TE's own GCP project (`524726675699`). It replaced `328818408791-641sqb…`,
+    /// which lived in **BillMind's** project (wrong consent-screen brand) and was
+    /// an iOS-type client whose custom-scheme redirect desktop Chrome dropped.
+    static let googleClientID = "524726675699-vnleiirk1tj2rpa5eic7nj617j5p8rlu.apps.googleusercontent.com"
 
     /// Google authorization + token endpoints (OAuth 2.0).
     static let googleAuthorizationEndpoint = URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!
