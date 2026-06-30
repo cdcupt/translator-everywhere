@@ -53,3 +53,44 @@ desktop-appropriate redirect:
    redeploy backend; ship a new app version.
 
 Not headlessly verifiable end-to-end (real Google round-trip) — Erik confirms.
+
+## Verified plan (investigation 2026-06-30, 4-lens workflow — all confirmed)
+
+**Both problems = one root cause** (verified): `641sqb` is an **iOS-type** client in
+**BillMind's GCP project**. Google: "one brand per project" → BillMind consent
+(Problem 1); iOS custom-scheme redirect → desktop Chrome silently drops the
+post-consent 302 (`ERR_UNKNOWN_URL_SCHEME`, Chromium bug 738724) → callback never
+arrives, `.signingIn` until the 180s watchdog (Problem 2). No existing TE Google
+client anywhere; consent branding is not per-client → **new provisioning is
+unavoidable**. Apple flow untouched.
+
+**Decision: Desktop-app OAuth client + ephemeral loopback (`http://127.0.0.1:<port>`)
+redirect for the Google branch only.** No `client_secret` needed (PKCE) — the
+current secret-free token exchange stays. Loopback needs **no entitlement** (sandbox
+off; bind 127.0.0.1 → bypasses the app firewall) and is cleanly cancellable (bonus:
+closes the existing "Google waiter not cancellation-aware" follow-up).
+
+**PHASE 0 — Erik (Google Cloud, BLOCKING):**
+1. NEW GCP project "Translator Everywhere" (do NOT reuse BillMind's 328818408791).
+2. OAuth consent screen: External, App name "Translator Everywhere" + TE privacy/ToS
+   URLs, scopes `openid`/`userinfo.email`/`userinfo.profile` (non-sensitive → no
+   Google review), then **Publish to Production** (else 100-user cap + "unverified").
+3. Credentials → OAuth client ID → **Desktop app** (no redirect URI to enter).
+4. Hand back the `client_id`; **ignore the client_secret** (not needed, must not ship).
+
+**Doable now (bpl, in parallel, placeholder id):** rewrite the Google branch as a
+loopback `LoopbackRedirectListener` (POSIX 127.0.0.1:0, one GET, return code+state,
+"you can close this" page) replacing the custom-scheme `WebAuthRouter` use for Google
+only; thread the runtime `redirect_uri` into BOTH `googleAuthorizationURL` and
+`googleTokenExchangeRequest` (must match); drop the Google entry from
+`CFBundleURLTypes` (keep `translator-everywhere` for Apple); backend **dual-audience**
+support (`GOOGLE_AUD` comma-split → membership check in `provider.go`); fix the
+mislabeled `CONFIG.md`.
+
+**Cutover order (avoid breaking sign-ins):**
+1. **Backend first, dual-aud `<old>,<new>`** — ⚠️ edit `~/.translator-everywhere/deploy.env`
+   **on BWH** (bwh-deploy.sh REUSES it; editing the repo alone is a silent no-op),
+   then run `server/deploy/bwh-deploy.sh` on the box.
+2. **Then ship app** v1.2.5/8 → **1.2.6/9** with the new `client_id`, full DMG cut.
+3. Later, optionally drop the old aud.
+Existing signed-in users are NOT logged out (refresh path doesn't re-check aud).
