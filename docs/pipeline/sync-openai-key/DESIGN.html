@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design — E2E encrypted OpenAI-key sync · Translator Everywhere</title>
+<style>
+  :root{--ink:#1a1c20;--muted:#5b6470;--line:#e3e7ec;--bg:#f7f9fb;--card:#fff;
+    --accent:#2f6fed;--good:#1f9d57;--warn:#c8761b;--bad:#d23b3b;--lock:#6a3fd0;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1060px;margin:0 auto;padding:32px 20px 90px}
+  header.top{border-bottom:2px solid var(--ink);padding-bottom:14px}
+  h1{font-size:25px;margin:0 0 4px}h2{font-size:19px;margin:36px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+  h3{font-size:15px;margin:18px 0 6px}
+  .sub{color:var(--muted);font-size:13px}
+  .pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:20px;background:#eef3ff;color:var(--accent);text-transform:uppercase}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0;box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .fig{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  svg{max-width:100%;height:auto;display:block}
+  .cap{color:var(--muted);font-size:12.5px;margin:6px 2px 0;font-style:italic}
+  ul{margin:6px 0 6px 2px;padding-left:20px}li{margin:3px 0}
+  code{font-family:var(--mono);background:#eef1f5;padding:1px 5px;border-radius:5px;font-size:12px}
+  table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+  td code{overflow-wrap:anywhere}
+  th{background:#f0f3f7;font-weight:700}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .toc a{color:var(--accent);text-decoration:none}.toc{font-size:13px;color:var(--muted)}
+  .note{border-left:4px solid var(--accent);background:#f1f6ff;padding:10px 14px;border-radius:0 8px 8px 0;margin:10px 0;font-size:13.5px}
+  .danger{border-left-color:var(--bad);background:#fdeeee}
+  .decide{border-left-color:var(--warn);background:#fbf4ec}
+  .tag{font:600 11px var(--mono);padding:2px 7px;border-radius:5px;border:1px solid var(--line)}
+  .kbd{font:600 12px var(--mono);background:#11151c;color:#d7e3ff;padding:2px 7px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <span class="pill">Design Doc · Gate 1</span>
+  <h1>End-to-end encrypted OpenAI-key sync — Design &amp; Security Design</h1>
+  <div class="sub"><b>PM:</b> Erik · <b>Coordinator:</b> Claude · informed by a 4-lens crypto/UX/backend/adversary consult · companion to <code>PRD.html</code></div>
+  <div class="toc" style="margin-top:8px">★ <a href="#glance">At a glance</a> · <a href="#crypto">1 Crypto scheme</a> · <a href="#pass">2 Passphrase model</a> · <a href="#flows">3 Ceremonies &amp; states</a> · <a href="#conflict">4 Multi-device</a> · <a href="#backend">5 Backend contract</a> · <a href="#copy">6 Privacy copy</a> · <a href="#threat">7 Threat model</a> · <a href="#gate">8 Decisions for sign-off</a></div>
+</header>
+
+<!-- ===================== AT A GLANCE ===================== -->
+<h2 id="glance">★ At a glance</h2>
+<div class="card fig">
+<svg viewBox="0 0 1020 430" role="img" aria-label="Master diagram: passphrase to Argon2id to HKDF to AES-GCM produces an opaque envelope stored server-side; only the passphrase unlocks it.">
+  <defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b6470"/></marker>
+  <style>.t{font:12px -apple-system,sans-serif;fill:#1a1c20}.s{font:10.5px -apple-system,sans-serif;fill:#5b6470}.h{font:700 12.5px -apple-system,sans-serif;fill:#1a1c20}.m{font:10.5px ui-monospace,Menlo,monospace;fill:#6a3fd0}</style></defs>
+
+  <!-- crypto pipeline -->
+  <text x="20" y="34" class="h">On-device crypto (never leaves the Mac)</text>
+  <rect x="20" y="46" width="120" height="50" rx="8" fill="#f3eefe" stroke="#ddd0f7"/><text x="80" y="68" class="t" text-anchor="middle">passphrase</text><text x="80" y="84" class="s" text-anchor="middle">app-generated</text>
+  <line x1="140" y1="71" x2="172" y2="71" stroke="#5b6470" marker-end="url(#a)"/>
+  <rect x="174" y="42" width="150" height="58" rx="8" fill="#eafaf0" stroke="#bfe9cf"/><text x="249" y="62" class="t" text-anchor="middle">Argon2id</text><text x="249" y="78" class="m" text-anchor="middle">256MiB·t3·p1</text><text x="249" y="92" class="s" text-anchor="middle">+ 16B salt</text>
+  <line x1="324" y1="71" x2="356" y2="71" stroke="#5b6470" marker-end="url(#a)"/>
+  <rect x="358" y="46" width="120" height="50" rx="8" fill="#eafaf0" stroke="#bfe9cf"/><text x="418" y="66" class="t" text-anchor="middle">HKDF-expand</text><text x="418" y="84" class="m" text-anchor="middle">→ KEK (256-bit)</text>
+  <line x1="478" y1="71" x2="510" y2="71" stroke="#5b6470" marker-end="url(#a)"/>
+  <rect x="512" y="42" width="170" height="58" rx="8" fill="#eef3ff" stroke="#cfe0ff"/><text x="597" y="60" class="t" text-anchor="middle">AES-256-GCM</text><text x="597" y="76" class="m" text-anchor="middle">nonce(12B) + AAD</text><text x="597" y="92" class="s" text-anchor="middle">seal(OpenAI key)</text>
+  <line x1="682" y1="71" x2="714" y2="71" stroke="#5b6470" marker-end="url(#a)"/>
+  <rect x="716" y="40" width="150" height="62" rx="8" fill="#fbf4ec" stroke="#f0d9bf"/><text x="791" y="58" class="h" text-anchor="middle">Envelope</text><text x="791" y="74" class="m" text-anchor="middle" style="fill:#c8761b">{v,kdf,params,</text><text x="791" y="88" class="m" text-anchor="middle" style="fill:#c8761b">salt,nonce,ct,tag}</text>
+
+  <!-- AAD callout -->
+  <rect x="512" y="120" width="354" height="40" rx="8" fill="#fff" stroke="#cfd6df"/>
+  <text x="524" y="138" class="s">AAD = { version, userID, kdf+params, salt, purpose }</text>
+  <text x="524" y="153" class="s">→ binds identity + version: server can't swap or downgrade</text>
+  <line x1="597" y1="100" x2="597" y2="118" stroke="#5b6470" marker-end="url(#a)"/>
+
+  <!-- server -->
+  <rect x="716" y="178" width="150" height="84" rx="10" fill="#fff" stroke="#cfd6df"/>
+  <text x="791" y="200" class="h" text-anchor="middle">VPS store</text>
+  <text x="791" y="220" class="s" text-anchor="middle">user_secrets</text>
+  <text x="791" y="236" class="s" text-anchor="middle">bytea (opaque)</text>
+  <text x="791" y="252" class="s" text-anchor="middle">🔒 can't decrypt</text>
+  <line x1="791" y1="102" x2="791" y2="176" stroke="#5b6470" marker-end="url(#a)" stroke-dasharray="3 3"/>
+  <text x="800" y="145" class="s">PUT (TLS)</text>
+
+  <!-- three ceremonies -->
+  <text x="20" y="200" class="h">The passphrase is asked for in exactly 3 moments</text>
+  <rect x="20" y="212" width="210" height="50" rx="8" fill="#eef3ff" stroke="#cfe0ff"/><text x="125" y="232" class="t" text-anchor="middle">① Enable on Mac A</text><text x="125" y="248" class="s" text-anchor="middle">create vault → PUT</text>
+  <rect x="20" y="270" width="210" height="50" rx="8" fill="#eef3ff" stroke="#cfe0ff"/><text x="125" y="290" class="t" text-anchor="middle">② Unlock on Mac B</text><text x="125" y="306" class="s" text-anchor="middle">GET → decrypt → Keychain</text>
+  <rect x="20" y="328" width="210" height="50" rx="8" fill="#eef3ff" stroke="#cfe0ff"/><text x="125" y="348" class="t" text-anchor="middle">③ Change passphrase</text><text x="125" y="364" class="s" text-anchor="middle">re-key → PUT</text>
+
+  <!-- never -->
+  <rect x="250" y="212" width="430" height="166" rx="10" fill="#fdeeee" stroke="#f3c9c9"/>
+  <text x="265" y="234" class="h" style="fill:#d23b3b">Never asked for, never sent</text>
+  <text x="265" y="258" class="t">• Normal translation reads the plaintext key straight from the</text>
+  <text x="280" y="274" class="t">Keychain — fast path untouched (EngineResolver).</text>
+  <text x="265" y="296" class="t">• The passphrase + derived KEK <b>never</b> hit the network/server.</text>
+  <text x="265" y="318" class="t">• Editing the key re-encrypts + re-uploads <b>silently</b> (cached KEK).</text>
+  <text x="265" y="340" class="t">• A breached server / DB dump → only the opaque envelope.</text>
+  <text x="265" y="362" class="t">• Forgotten passphrase → re-enter the key (30s); local key never lost.</text>
+
+  <rect x="700" y="290" width="300" height="88" rx="10" fill="#f3eefe" stroke="#ddd0f7"/>
+  <text x="715" y="312" class="h">Security floor = passphrase entropy</text>
+  <text x="715" y="333" class="s">Argon2id throttles a GPU rig to ~10²–10⁴ guesses/s.</text>
+  <text x="715" y="350" class="s">App-generated 6-word / 128-bit secret ⇒ astronomically</text>
+  <text x="715" y="365" class="s">uncrackable. A weak human password would not be → gated.</text>
+</svg>
+<div class="cap">Passphrase → Argon2id(+salt) → HKDF → KEK → AES-GCM(nonce, identity-bound AAD) → opaque envelope on the server. The passphrase is the only thing that unlocks it, and it never leaves the device.</div>
+</div>
+
+<!-- ===================== 1 CRYPTO ===================== -->
+<h2 id="crypto">1 · Cryptographic scheme (exact)</h2>
+<div class="card">
+<h3>Primitives</h3>
+<table>
+  <tr><th>Step</th><th>Choice</th><th>Parameters / notes</th></tr>
+  <tr><td>Passphrase → key (KDF)</td><td><b>Argon2id</b> (libsodium <code>crypto_pwhash</code>, MODERATE)</td><td><code>m=256&nbsp;MiB, t=3, p=1</code>, 32-byte output. Per-user <b>16-byte random salt</b>. Runs only on enable / unlock / change — never per request (~0.5–1 s on a Mac). Client enforces a <b>params floor</b> (reject a blob claiming &lt; the floor).</td></tr>
+  <tr><td>Sub-key derivation</td><td><b>HKDF-SHA256 expand</b> (CryptoKit)</td><td>Expand the Argon2id output to the AEAD key with <code>info="te:openai-key:v1"</code> — purpose-binds the KEK so it can't be reused for a different secret slot.</td></tr>
+  <tr><td>Encrypt the key (AEAD)</td><td><b>AES-256-GCM</b> (CryptoKit <code>AES.GCM</code>)</td><td>Fresh <b>random 96-bit nonce</b> per seal (<code>AES.GCM.Nonce()</code>); 128-bit tag; plaintext = the key's UTF-8 bytes (optionally fixed-padded to hide length).</td></tr>
+  <tr><td>Authenticated data (AAD)</td><td>canonical, length-prefixed</td><td><code>{ schemaVersion, userID, kdfAlgo+params, salt, purpose="openai-key", version }</code> — reconstructed identically on encrypt + decrypt, <b>not stored separately</b>.</td></tr>
+</table>
+<div class="note">Why each piece: Argon2id's memory-hardness is what makes offline brute-force of a stolen blob infeasible (PBKDF2 is GPU-cheap → <b>rejected</b>). GCM is an AEAD, so a wrong passphrase (wrong key) or any tampering <b>fails closed on decrypt</b> — no separate password verifier is stored (storing one would aid an offline attacker). Binding <code>userID</code> + <code>version</code> into the AAD means a malicious/breached server <b>cannot</b> install another user's blob or roll back to an old (possibly-leaked) key — the tag won't verify under this device's identity.</div>
+</div>
+
+<div class="card fig">
+<h3>The stored envelope (opaque to the server)</h3>
+<svg viewBox="0 0 980 210" role="img" aria-label="Envelope fields and what the server sees versus what only the client can use.">
+  <style>.t{font:12px -apple-system,sans-serif;fill:#1a1c20}.s{font:10.5px -apple-system,sans-serif;fill:#5b6470}.h{font:700 12.5px -apple-system,sans-serif;fill:#1a1c20}.m{font:11px ui-monospace,Menlo,monospace;fill:#1a1c20}</style>
+  <rect x="20" y="20" width="600" height="170" rx="10" fill="#fbf4ec" stroke="#f0d9bf"/>
+  <text x="34" y="44" class="h">envelope (serialized → base64 → one byte string)</text>
+  <text x="34" y="72" class="m">v: 1                      <tspan class="s">schema version</tspan></text>
+  <text x="34" y="92" class="m">kdf: "argon2id"           <tspan class="s">algo id</tspan></text>
+  <text x="34" y="112" class="m">kdf_params: {m,t,p}       <tspan class="s">so a new device can re-derive</tspan></text>
+  <text x="34" y="132" class="m">salt: 16B   nonce: 12B    <tspan class="s">random</tspan></text>
+  <text x="34" y="152" class="m">ct: &lt;ciphertext&gt;          <tspan class="s">the encrypted OpenAI key</tspan></text>
+  <text x="34" y="172" class="m">tag: 16B                  <tspan class="s">GCM auth tag</tspan></text>
+  <rect x="650" y="20" width="310" height="170" rx="10" fill="#eafaf0" stroke="#bfe9cf"/>
+  <text x="665" y="44" class="h">Server's view</text>
+  <text x="665" y="72" class="t">• one opaque <tspan class="m">bytea</tspan> per (user, name)</text>
+  <text x="665" y="96" class="t">• never parses salt vs nonce vs ct</text>
+  <text x="665" y="120" class="t">• never runs a KDF or AES</text>
+  <text x="665" y="144" class="t">• can't tell a right passphrase from</text>
+  <text x="680" y="160" class="t">a wrong one → <b>not an oracle</b></text>
+</svg>
+<div class="cap">salt + kdf_params travel inside the blob so a brand-new device with only the download can re-derive the key from the passphrase. The server stores the bytes whole and interprets nothing.</div>
+</div>
+
+<!-- ===================== 2 PASSPHRASE ===================== -->
+<h2 id="pass">2 · Passphrase model &amp; strength policy <span class="tag">load-bearing</span></h2>
+<div class="card">
+<p>The scheme's security collapses to passphrase entropy, so this is a <b>security control, not UX flavor</b>. Both the crypto and adversary lenses converged here:</p>
+<ul>
+  <li><b>Default = app-generated.</b> Offer a generated <b>6-word EFF-Diceware</b> passphrase (~77 bits) — pre-selected — shown once with <i>"Save this in your password manager. We can't reset it."</i> + a copy button.</li>
+  <li><b>"Use my own" is behind a strict gate:</b> live strength meter, minimum length (≥ 12 chars / "4+ random words"), reject a bundled common/breached-password list (offline list; or HIBP k-anonymity if we add it later), and block submit below a real strength threshold. An unconstrained passphrase is <b>never</b> accepted.</li>
+  <li>A required <b>acknowledgement checkbox</b> ("I understand there's no recovery") gates the primary button.</li>
+  <li>The passphrase is <b>never</b> persisted, logged, transmitted, or put in a Codable model. After unlock the device caches only the <i>derived KEK</i> (+ salt + epoch) in the Keychain, so editing the key re-encrypts silently without re-prompting.</li>
+</ul>
+</div>
+
+<!-- ===================== 3 FLOWS ===================== -->
+<h2 id="flows">3 · The three ceremonies &amp; their states</h2>
+<div class="card fig">
+<svg viewBox="0 0 1000 360" role="img" aria-label="State machine of the key-sync feature across enable, unlock, change, disable and failure states.">
+  <defs><marker id="b" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b6470"/></marker>
+  <style>.t{font:11.5px -apple-system,sans-serif;fill:#1a1c20}.s{font:10px -apple-system,sans-serif;fill:#5b6470}.h{font:700 12px -apple-system,sans-serif;fill:#fff}</style></defs>
+  <rect x="30" y="150" width="150" height="56" rx="10" fill="#8895a6"/><text x="105" y="175" class="h" text-anchor="middle">Sync OFF</text><text x="105" y="193" class="s" text-anchor="middle" fill="#fff">key local only</text>
+  <rect x="270" y="40" width="170" height="56" rx="10" fill="#2f6fed"/><text x="355" y="65" class="h" text-anchor="middle">Set passphrase</text><text x="355" y="83" class="s" text-anchor="middle" fill="#dce8ff">create vault (PUT)</text>
+  <rect x="270" y="260" width="170" height="56" rx="10" fill="#6a3fd0"/><text x="355" y="285" class="h" text-anchor="middle">Unlock (new Mac)</text><text x="355" y="303" class="s" text-anchor="middle" fill="#e8dffb">GET → decrypt</text>
+  <rect x="560" y="150" width="160" height="56" rx="10" fill="#1f9d57"/><text x="640" y="175" class="h" text-anchor="middle">Sync ON</text><text x="640" y="193" class="s" text-anchor="middle" fill="#dff5e8">key in Keychain</text>
+  <rect x="800" y="40" width="170" height="56" rx="10" fill="#2f6fed"/><text x="885" y="65" class="h" text-anchor="middle">Change passphrase</text><text x="885" y="83" class="s" text-anchor="middle" fill="#dce8ff">re-key → PUT</text>
+  <rect x="800" y="260" width="170" height="56" rx="10" fill="#c8761b"/><text x="885" y="285" class="h" text-anchor="middle">Disable</text><text x="885" y="303" class="s" text-anchor="middle" fill="#fbe9d4">DELETE blob</text>
+
+  <line x1="180" y1="165" x2="268" y2="80" stroke="#5b6470" marker-end="url(#b)"/><text x="200" y="110" class="s">enable + have key</text>
+  <line x1="180" y1="190" x2="268" y2="284" stroke="#5b6470" marker-end="url(#b)"/><text x="190" y="250" class="s">new Mac, blob exists</text>
+  <line x1="440" y1="68" x2="558" y2="160" stroke="#5b6470" marker-end="url(#b)"/><text x="470" y="105" class="s">verify read-back</text>
+  <line x1="440" y1="288" x2="558" y2="196" stroke="#5b6470" marker-end="url(#b)"/><text x="470" y="250" class="s">passphrase ✓</text>
+  <line x1="720" y1="168" x2="798" y2="80" stroke="#5b6470" marker-end="url(#b)"/>
+  <line x1="720" y1="188" x2="798" y2="282" stroke="#5b6470" marker-end="url(#b)"/>
+  <line x1="885" y1="96" x2="700" y2="150" stroke="#5b6470" marker-end="url(#b)" stroke-dasharray="3 3"/>
+  <line x1="885" y1="316" x2="180" y2="200" stroke="#c8761b" marker-end="url(#b)" stroke-dasharray="3 3"/><text x="500" y="340" class="s" fill="#c8761b">disable → back to OFF (local key kept)</text>
+</svg>
+<div class="cap">Three deliberate ceremonies (Set / Unlock / Change) move between OFF and ON; everything else (translating, editing the key) happens silently in ON without the passphrase.</div>
+</div>
+
+<div class="grid2">
+  <div class="card"><h3>Enable (create vault) — Mac A</h3><ul>
+    <li>Toggle <i>"Sync this key across my Macs (end-to-end encrypted)"</i> under the key field. Disabled if not signed in ("Sign in on Account…") or no key ("Add a key above first").</li>
+    <li>Flip on → set-passphrase sheet (generated default / own-with-gate / ack checkbox).</li>
+    <li><b>Foreground, confirmed:</b> encrypt → PUT → <b>read back &amp; decrypt</b> to verify before showing "Synced". Cancel → toggle reverts to OFF.</li>
+    <li>Never overwrite a <b>populated</b> server slot from a device that hasn't decrypted it (create vs join).</li>
+  </ul></div>
+  <div class="card"><h3>Unlock (join vault) — Mac B</h3><ul>
+    <li>After sign-in (or foreground sync) the app detects <b>blob present AND no local key</b> → shows the unlock sheet <b>once</b> with "Not now"; then degrades to a calm persistent Engine row: <i>"An encrypted key is waiting. [Unlock…] or paste a key above."</i></li>
+    <li>Success → write the key to the local Keychain, cache the KEK. Wrong passphrase → fail closed; offer <i>"Forgot it? Paste your key instead."</i></li>
+    <li><b>Existing local key + server blob differ</b> → one-time choice "keep this Mac's key or unlock the synced one?", default <b>keep local</b>. Never silently overwrite.</li>
+  </ul></div>
+</div>
+<div class="note danger"><b>Inert on failure (critical).</b> A pulled blob is attacker-controlled input. A decrypt/tag failure shows an error and <b>changes nothing</b> — never deletes the local key, never re-enrolls, never overwrites the server. "Server has no blob" must <b>never</b> delete a working local key.</div>
+
+<!-- ===================== 4 CONFLICT ===================== -->
+<h2 id="conflict">4 · Multi-device &amp; conflict</h2>
+<div class="card"><ul>
+  <li><b>Version counter, not clock LWW.</b> The server holds a monotonic <code>version</code>; PUT carries <code>base_version</code> and succeeds only if it matches (else 409 with the current blob) — deterministic and clock-skew-proof (a refinement over the PRD's "last-write-wins").</li>
+  <li>Client keeps a <b>local high-water version mark</b> and refuses a blob with a <i>lower</i> version → blocks server rollback.</li>
+  <li><b>Passphrase epoch:</b> blobs are stamped so a unlock failure after a remote change shows <i>"the passphrase was changed on another Mac — enter the new one"</i> instead of a cryptic "wrong passphrase."</li>
+  <li>The key blob is carved out of the notebook's blind LWW path entirely.</li>
+</ul></div>
+
+<!-- ===================== 5 BACKEND ===================== -->
+<h2 id="backend">5 · Backend contract</h2>
+<div class="card fig">
+<svg viewBox="0 0 980 200" role="img" aria-label="ER diagram: user_secrets references users; sequence of PUT with version check.">
+  <style>.t{font:11.5px -apple-system,sans-serif;fill:#1a1c20}.s{font:10px -apple-system,sans-serif;fill:#5b6470}.h{font:700 12px -apple-system,sans-serif;fill:#1a1c20}.m{font:10.5px ui-monospace,Menlo,monospace;fill:#1a1c20}</style>
+  <rect x="20" y="30" width="190" height="86" rx="8" fill="#eef3ff" stroke="#cfe0ff"/><text x="115" y="50" class="h" text-anchor="middle">users</text><text x="34" y="72" class="m">id  uuid PK</text><text x="34" y="90" class="s">… (existing)</text>
+  <rect x="330" y="20" width="260" height="160" rx="8" fill="#fbf4ec" stroke="#f0d9bf"/><text x="460" y="40" class="h" text-anchor="middle">user_secrets  (new)</text>
+  <text x="344" y="64" class="m">user_id  uuid  FK→users.id</text><text x="344" y="82" class="m">name     text   ('openai-key')</text><text x="344" y="100" class="m">blob     bytea  (opaque)</text><text x="344" y="118" class="m">version  bigint (monotonic)</text><text x="344" y="136" class="m">created_at / updated_at</text><text x="344" y="160" class="s">PK (user_id, name) · ON DELETE CASCADE</text>
+  <line x1="210" y1="73" x2="328" y2="90" stroke="#5b6470"/><text x="250" y="74" class="s">1 → 0..N</text>
+  <rect x="650" y="30" width="310" height="150" rx="8" fill="#fff" stroke="#cfd6df"/>
+  <text x="665" y="50" class="h">Server invariants</text>
+  <text x="665" y="72" class="t">• auth = session JWT; user_id from token</text>
+  <text x="665" y="92" class="t">• base64-decode, size-cap (≤4 KiB → 413)</text>
+  <text x="665" y="112" class="t">• store/return bytes; <b>no parse/decrypt/KDF</b></text>
+  <text x="665" y="132" class="t">• <b>no body logging</b> on /secret/* routes</text>
+  <text x="665" y="152" class="t">• version conflict → 409; per-user rate-limit</text>
+</svg>
+</div>
+<table>
+  <tr><th>Method · path</th><th>Body</th><th>Responses</th></tr>
+  <tr><td><code>PUT /secret/openai-key</code></td><td><code>{ blob:&lt;b64&gt;, base_version:&lt;int|null&gt; }</code></td><td><code>200 {version, updated_at}</code> · <code>409 {version, blob, updated_at}</code> (conflict) · <code>413</code> oversize</td></tr>
+  <tr><td><code>GET /secret/openai-key</code></td><td>—</td><td><code>200 {blob, version, updated_at}</code> · <code>404</code> none stored</td></tr>
+  <tr><td><code>DELETE /secret/openai-key</code></td><td>—</td><td><code>204</code> (idempotent)</td></tr>
+</table>
+<div class="note">Registered in the same authed chi group as <code>/vocab</code> (reuses the session-JWT middleware), but a <b>separate endpoint + table</b> — the high-value secret stays isolated, separately size-capped, and easy to audit. Deletion: disable → DELETE; local key-clear → client also DELETEs; account-delete → <code>ON DELETE CASCADE</code> (no new code).</div>
+
+<!-- ===================== 6 COPY ===================== -->
+<h2 id="copy">6 · Privacy-copy rewrite (gating)</h2>
+<div class="card">
+<p>The two current statements become <b>false</b> once a key blob is uploaded, so the rewrite is an acceptance criterion, not a nicety:</p>
+<table>
+  <tr><th>Where</th><th>Today</th><th>New</th></tr>
+  <tr><td>Engine — sync <b>OFF</b></td><td rowspan="2">"Stored only in your macOS Keychain — never written to disk or sent anywhere but OpenAI."</td><td>"Stored only in your Mac's Keychain. Never sent anywhere but OpenAI."</td></tr>
+  <tr><td>Engine — sync <b>ON</b></td><td>"In your Mac's Keychain, plus an <b>end-to-end encrypted</b> copy synced to your other Macs — we store only ciphertext and <b>can't read your key</b>."</td></tr>
+  <tr><td>Account tab</td><td>"We only ever store text rows — never your screen images."</td><td>"We store your saved vocabulary as text rows — never your screen images. If you turn on key sync, we also store an <b>end-to-end encrypted</b> copy of your OpenAI key we can't read."</td></tr>
+</table>
+</div>
+
+<!-- ===================== 7 THREAT ===================== -->
+<h2 id="threat">7 · Threat model &amp; residual risks (post-hardening)</h2>
+<div class="grid2">
+  <div class="card"><h3 style="color:var(--good)">Defended</h3><ul>
+    <li>Breached/curious server, full DB dump, backups, logs, shared-VPS co-tenant → opaque envelope only.</li>
+    <li>Network MITM / TLS-terminating proxy → ciphertext beneath TLS.</li>
+    <li><b>Malicious-server blob swap / install another user's key</b> → AAD binds userID → tag fails.</li>
+    <li><b>Version downgrade / rollback</b> → AAD version + local high-water mark.</li>
+    <li>Wrong passphrase, tampered/empty blob → fail closed, local state intact.</li>
+  </ul></div>
+  <div class="card"><h3 style="color:var(--bad)">Residual / accepted</h3><ul>
+    <li><b>Weak passphrase</b> → offline brute-force. Mitigated by Argon2id + the app-generated default + the strength gate (the §2 control).</li>
+    <li><b>Forgotten passphrase</b> → no recovery (PM-locked); 30-second re-entry, local key never lost.</li>
+    <li>Compromised endpoint (malware on the Mac) → out of any app's scope.</li>
+    <li>Blob leaks the key <i>length</i> (GCM) → optional fixed-size padding.</li>
+    <li>3rd-party KDF dep (libsodium) supply-chain → pin + checksum; only <code>crypto_pwhash</code> used.</li>
+  </ul></div>
+</div>
+
+<!-- ===================== 8 GATE ===================== -->
+<h2 id="gate">8 · Decisions for your Gate-1 sign-off</h2>
+<div class="note decide">
+<b>D1 — Accept a crypto dependency for Argon2id?</b> Recommended: <b>yes</b> — add <code>swift-sodium</code> (libsodium) for Argon2id. The built-in PBKDF2 alternative is GPU-cheap and materially weaker for a human passphrase; the adversary lens says "do not ship" with PBKDF2. Cost: one pinned, widely-audited dependency.
+</div>
+<div class="note decide">
+<b>D2 — Default to an app-generated passphrase</b> (6-word Diceware, "save it — no reset"), with "use my own" only behind a strict strength + breached-password gate? Recommended: <b>yes</b> — it's the single highest-leverage control against the one real residual risk. The alternative (let users type any passphrase) is what makes weak-passphrase brute-force possible.
+</div>
+<div class="note decide">
+<b>D3 — Version-counter optimistic concurrency</b> instead of the PRD's "last-write-wins"? Recommended: <b>yes</b> — deterministic + clock-skew-proof + blocks server rollback, at trivial cost. (This is the only place the design refines a PRD decision.)
+</div>
+<div class="note">
+<b>Also confirm (defaults are sensible, override if you disagree):</b> opt-in lives on the <b>Engine tab</b> under the key (Account = read-only mirror); the unlock prompt on a new Mac shows <b>once</b> then degrades to a calm row (no nagging); disabling sync <b>deletes</b> the server blob but keeps the local key; the privacy-copy rewrite ships <b>with</b> the feature (gating).
+</div>
+
+<p class="sub" style="margin-top:26px"><b>Gate 1 ask:</b> approve this design (and D1–D3) and I'll proceed to the Tech Document (infra + frontend + backend + QA test plan) for Gate 2 — still no production code until then.</p>
+</div>
+</body>
+</html>
