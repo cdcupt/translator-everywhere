@@ -10,9 +10,17 @@
 - **Sign in with Apple:** **WEB OAuth flow** (`ASWebAuthenticationSession`, `response_mode=form_post`) — the native `ASAuthorizationController` flow is NOT available for Developer-ID (non-App-Store) distribution. Uses a **Services ID** `com.cdcupt.translator-everywhere.web` (the OAuth `client_id`), a **Sign-in-with-Apple key** (`.p8`, Key ID `57Z3AW3BS6`) for the client-secret JWT, redirect `https://api.translator.daichenlab.com/auth/apple/callback`, app callback scheme `translator-everywhere`. See the "Apple web OAuth flow defaults" block below.
 
 ## Google sign-in
-- **OAuth Client ID (Desktop app):** `328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem.apps.googleusercontent.com`
-- Flow: PKCE via `ASWebAuthenticationSession`, loopback redirect. Backend verifies Google `id_token`
-  (`aud` = this client ID, `iss = https://accounts.google.com`).
+- **OAuth Client ID (Desktop app):** `REPLACE_WITH_TE_DESKTOP_CLIENT_ID.apps.googleusercontent.com`
+  — ⚠️ TODO: a NEW Translator-Everywhere-branded **Desktop** OAuth client must be
+  provisioned (Google Cloud). The old `328818408791-641sqb…` was a client in
+  **BillMind's** GCP project (wrong consent-screen brand) and an **iOS**-type client
+  (custom-scheme redirect that desktop Chrome drops). See
+  `feedback/raw/fb-2026-06-30-google-oauth-billmind-client.md`.
+- Flow: **PKCE with an `http://127.0.0.1:<ephemeral-port>/oauth2redirect` loopback
+  redirect** (`LoopbackRedirectListener` — the app binds localhost, opens the consent
+  page in the default browser, captures `?code` on localhost; no client secret).
+  Backend verifies the Google `id_token` (`aud` ∈ the configured client id(s) —
+  `GOOGLE_AUD` supports a comma-separated set for cutover; `iss = https://accounts.google.com`).
 
 ## Backend host
 - **Domain:** `api.translator.daichenlab.com` → **`67.230.179.139`** (BWH), DNS-only / unproxied.

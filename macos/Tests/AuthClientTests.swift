@@ -2,11 +2,17 @@ import Foundation
 import Testing
 @testable import Translator_Everywhere
 
-/// A Google authorization stub that returns a canned `code` without any UI.
+/// A Google authorization stub that returns a canned `code` + loopback redirect
+/// URI without any UI. Exercises `buildAuthorizationURL` to mirror the real flow.
 private struct StubGoogleAuth: GoogleAuthorizationProvider {
     let code: String
-    func authorizationCode(authorizationURL: URL, redirectScheme: String, expectedState: String) async throws -> String {
-        code
+    var redirectURI = "http://127.0.0.1:0/oauth2redirect"
+    func authorizationCode(
+        expectedState: String,
+        buildAuthorizationURL: (_ redirectURI: String) -> URL
+    ) async throws -> (code: String, redirectURI: String) {
+        _ = buildAuthorizationURL(redirectURI)
+        return (code, redirectURI)
     }
 }
 
@@ -48,12 +54,14 @@ struct AuthClientTests {
     @Test("Google authorization URL carries client_id, S256 challenge, state")
     func googleAuthorizationURL() {
         let pkce = PKCE(codeVerifier: "verifier-abc", state: "state-xyz")
-        let url = AuthClient.googleAuthorizationURL(pkce: pkce)
+        let redirectURI = "http://127.0.0.1:51234/oauth2redirect"
+        let url = AuthClient.googleAuthorizationURL(pkce: pkce, redirectURI: redirectURI)
         let items = Dictionary(
             uniqueKeysWithValues: URLComponents(url: url, resolvingAgainstBaseURL: false)!
                 .queryItems!.map { ($0.name, $0.value) }
         )
         #expect(items["client_id"] == AuthConfig.googleClientID)
+        #expect(items["redirect_uri"] == redirectURI)
         #expect(items["response_type"] == "code")
         #expect(items["code_challenge_method"] == "S256")
         #expect(items["code_challenge"] == pkce.codeChallenge)
@@ -61,15 +69,20 @@ struct AuthClientTests {
         #expect((items["scope"] ?? nil)?.contains("openid") == true)
     }
 
-    @Test("Google token-exchange request posts form-encoded code + verifier")
+    @Test("Google token-exchange request posts form-encoded code + verifier + redirect")
     func googleTokenExchangeRequest() {
-        let request = AuthClient.googleTokenExchangeRequest(code: "auth-code-1", verifier: "verifier-abc")
+        let redirectURI = "http://127.0.0.1:51234/oauth2redirect"
+        let request = AuthClient.googleTokenExchangeRequest(
+            code: "auth-code-1", verifier: "verifier-abc", redirectURI: redirectURI
+        )
         #expect(request.httpMethod == "POST")
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/x-www-form-urlencoded")
         let body = String(data: request.httpBody!, encoding: .utf8)!
         #expect(body.contains("code=auth-code-1"))
         #expect(body.contains("code_verifier=verifier-abc"))
         #expect(body.contains("grant_type=authorization_code"))
+        // redirect_uri is percent-encoded in the form body.
+        #expect(body.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A51234%2Foauth2redirect"))
         #expect(request.url == AuthConfig.googleTokenEndpoint)
     }
 

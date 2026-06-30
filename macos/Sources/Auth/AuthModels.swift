@@ -7,22 +7,27 @@ enum AuthConfig {
     /// Our backend base URL. Every auth + sync call hangs off this.
     static let backendBaseURL = URL(string: "https://api.translator.daichenlab.com")!
 
-    /// Google OAuth *Desktop app* client id (PKCE, no client secret on device).
-    static let googleClientID =
-        "328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem.apps.googleusercontent.com"
+    /// Google OAuth **Desktop app** client id (PKCE, no client secret on device).
+    ///
+    /// TODO(blocked on Erik's Google Cloud provisioning, 2026-06-30): replace with
+    /// the new **Translator-Everywhere-branded** Desktop OAuth client id. The old
+    /// value `328818408791-641sqb…` was a client in **BillMind's** GCP project —
+    /// wrong consent-screen brand ("BillMind") and an iOS-type custom-scheme
+    /// redirect that desktop Chrome drops. The replacement must be a *Desktop*
+    /// client (loopback redirect, no secret). Until this is the real id, Google
+    /// sign-in won't work — do NOT cut a release with the placeholder.
+    /// See `feedback/raw/fb-2026-06-30-google-oauth-billmind-client.md`.
+    static let googleClientID = "REPLACE_WITH_TE_DESKTOP_CLIENT_ID.apps.googleusercontent.com"
 
     /// Google authorization + token endpoints (OAuth 2.0).
     static let googleAuthorizationEndpoint = URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!
     static let googleTokenEndpoint = URL(string: "https://oauth2.googleapis.com/token")!
 
-    /// Loopback redirect scheme for the Desktop OAuth flow. Google accepts a
-    /// reverse-DNS custom scheme derived from the client id for installed apps.
-    static let googleRedirectScheme =
-        "com.googleusercontent.apps.328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem"
-
-    /// Full redirect URI used as Google's OAuth `redirect_uri`. The browser hands
-    /// this back to the app via the matching registered URL scheme.
-    static var googleRedirectURI: String { "\(googleRedirectScheme):/oauth2redirect" }
+    /// The redirect path the loopback listener serves. The full `redirect_uri`
+    /// (`http://127.0.0.1:<ephemeral-port>/oauth2redirect`) is built at runtime by
+    /// `LoopbackRedirectListener` once it binds, then threaded into BOTH the
+    /// authorize URL and the token exchange (Google requires them identical).
+    static let googleRedirectPath = "/oauth2redirect"
 
     /// Scopes — `openid email` is enough to mint the id_token our server needs.
     static let googleScope = "openid email profile"
