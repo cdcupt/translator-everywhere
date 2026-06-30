@@ -112,6 +112,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Routes OAuth redirects back into the app. The browser hands the
+    /// post-login redirect (Google's `com.googleusercontent.apps.…` or the
+    /// backend's `translator-everywhere://apple-callback`) to our registered URL
+    /// schemes; `WebAuthRouter` resumes the in-flight sign-in awaiting that
+    /// `state`. This is what makes browser-driven sign-in work regardless of the
+    /// user's default browser.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            let handled = WebAuthRouter.shared.handle(url)
+            // Log the scheme + outcome only — never the URL itself, which carries
+            // the OAuth code/session.
+            NSLog("[TE] auth redirect received (scheme: %@, handled: %@)",
+                  url.scheme ?? "nil", handled ? "yes" : "no")
+        }
+    }
+
     /// `true` when the process is hosting the XCTest bundle.
     private static var isRunningTests: Bool {
         NSClassFromString("XCTestCase") != nil

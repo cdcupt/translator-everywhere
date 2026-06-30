@@ -31,15 +31,21 @@ final class AccountViewModel {
     private let onSignedIn: @MainActor () async -> Date?
     /// Called after sign-out / delete so the app can stop any sync.
     private let onSignedOut: @MainActor () -> Void
+    /// Upper bound on a web sign-in before we give up and surface an error, so a
+    /// flow that never calls back can't strand the UI in `.signingIn`. Generous
+    /// by default to allow a real OAuth + 2FA round-trip; injectable for tests.
+    private let signInTimeout: Duration
 
     init(
         auth: AuthClient = AuthClient(),
         onSignedIn: @escaping @MainActor () async -> Date? = { nil },
-        onSignedOut: @escaping @MainActor () -> Void = {}
+        onSignedOut: @escaping @MainActor () -> Void = {},
+        signInTimeout: Duration = .seconds(180)
     ) {
         self.auth = auth
         self.onSignedIn = onSignedIn
         self.onSignedOut = onSignedOut
+        self.signInTimeout = signInTimeout
         if let session = auth.currentSession {
             self.phase = .signedIn(session.user)
         } else {
@@ -71,7 +77,18 @@ final class AccountViewModel {
     private func signIn(_ flow: @escaping () async throws -> AuthSession) async {
         phase = .signingIn
         do {
-            let session = try await flow()
+            // Race the web-auth flow against a watchdog. If the flow never
+            // returns — e.g. the user abandons the browser login, or never
+            // returns to the app so the redirect is never delivered — this
+            // surfaces `.error` instead of leaving the buttons disabled and the
+            // spinner turning forever (the "stuck on Loading" symptom). On
+            // timeout the flow task is cancelled (WebAuthRouter then drops its
+            // pending waiter) and the gate is resolved by the timer rather than
+            // by awaiting the flow, so a flow stuck at a non-cancellable await
+            // can't deadlock the recovery.
+            let session = try await Self.firstToComplete(within: signInTimeout) {
+                try await flow()
+            }
             phase = .signedIn(session.user)
             lastSyncedAt = await onSignedIn()
         } catch AuthError.cancelled {
@@ -80,6 +97,32 @@ final class AccountViewModel {
         } catch {
             phase = .error(Self.message(for: error))
         }
+    }
+
+    /// Returns `operation`'s result, or throws `AuthError.transport` if it has not
+    /// completed within `timeout`. The operation runs in an unstructured task that
+    /// is abandoned (not awaited) on timeout — required because the underlying
+    /// web-auth continuation can't be cancelled, so a structured `TaskGroup` wait
+    /// would hang on a stuck sign-in. The abandoned task is a bounded one-off
+    /// leak; making the providers cancellation-aware is a tracked follow-up.
+    static func firstToComplete<T>(
+        within timeout: Duration,
+        _ operation: @escaping () async throws -> T
+    ) async throws -> T {
+        let gate = ResumeGate<T>()
+        let work = Task {
+            do { await gate.settle(.success(try await operation())) }
+            catch { await gate.settle(.failure(error)) }
+        }
+        let timer = Task {
+            try? await Task.sleep(for: timeout)
+            await gate.settle(.failure(AuthError.transport))
+        }
+        // On timeout, cancel the work task so a cancellation-aware operation (the
+        // browser sign-in) tears down its pending callback — otherwise a LATE
+        // redirect could resume it and save a session after the UI gave up.
+        defer { work.cancel(); timer.cancel() }
+        return try await gate.awaitResult()
     }
 
     func signOut() async {
@@ -121,5 +164,32 @@ final class AccountViewModel {
         default:
             return "Something went wrong. Please try again."
         }
+    }
+}
+
+/// A one-shot result gate used by `AccountViewModel.firstToComplete` to resolve
+/// from whichever of two racing tasks (the sign-in flow, the timeout) finishes
+/// first. The first `settle` wins; any later one is ignored, so the underlying
+/// `CheckedContinuation` is never resumed twice. Actor-isolated so the two tasks
+/// settle it without a data race.
+private actor ResumeGate<T> {
+    private var continuation: CheckedContinuation<T, Error>?
+    private var settled: Result<T, Error>?
+
+    func awaitResult() async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            if let settled {
+                continuation.resume(with: settled)
+            } else {
+                self.continuation = continuation
+            }
+        }
+    }
+
+    func settle(_ result: Result<T, Error>) {
+        guard settled == nil else { return }
+        settled = result
+        continuation?.resume(with: result)
+        continuation = nil
     }
 }

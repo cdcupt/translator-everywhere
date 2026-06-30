@@ -1,19 +1,90 @@
-import AuthenticationServices
+import AppKit
 import Foundation
 
+/// Bridges a browser-based OAuth round-trip back into the app.
+///
+/// A provider registers the `state` it expects and opens the login URL in the
+/// user's default browser; when the OS delivers the post-login redirect to one
+/// of the app's registered URL schemes, `AppDelegate` forwards it here and the
+/// matching awaiter resumes with the callback URL.
+///
+/// This deliberately replaces `ASWebAuthenticationSession`: on macOS that API
+/// routes the login to the *default browser* and is broken when that browser is
+/// Chrome/Firefox (the auth window opens then immediately closes, so no page is
+/// shown). Driving the browser ourselves + capturing the custom-scheme redirect
+/// works with any default browser.
+@MainActor
+final class WebAuthRouter {
+    static let shared = WebAuthRouter()
+
+    /// In-flight sign-ins, keyed by the OAuth `state` we expect echoed back.
+    private var waiters: [String: CheckedContinuation<URL, Error>] = [:]
+
+    /// Opens `url` in the default browser and suspends until a redirect whose
+    /// `state` query equals `state` is delivered to `handle`. Throws
+    /// `AuthError.providerResponseInvalid` if the URL can't be opened.
+    ///
+    /// Cancellation-aware: if the awaiting task is cancelled (the sign-in
+    /// watchdog timed out), the waiter is dropped and the task unblocked, so a
+    /// LATE redirect finds no awaiter and is ignored — never completing a sign-in
+    /// the UI has already abandoned.
+    func open(_ url: URL, awaitingState state: String) async throws -> URL {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                // Register before opening so an instant redirect can't outrace us.
+                waiters[state] = continuation
+                if !NSWorkspace.shared.open(url) {
+                    waiters[state] = nil
+                    continuation.resume(throwing: AuthError.providerResponseInvalid)
+                }
+            }
+        } onCancel: { [self] in
+            Task { @MainActor in
+                if let continuation = waiters.removeValue(forKey: state) {
+                    continuation.resume(throwing: AuthError.cancelled)
+                }
+            }
+        }
+    }
+
+    /// Suspends until `handle` receives a redirect whose `state` matches. The
+    /// registration seam `open` is built on; exposed so the routing can be
+    /// unit-tested without opening a real browser.
+    func awaitRedirect(matchingState state: String) async throws -> URL {
+        try await withCheckedThrowingContinuation { waiters[state] = $0 }
+    }
+
+    /// Resumes the awaiter whose `state` matches `url`, returning whether one was
+    /// found. Called by `AppDelegate` for every incoming custom-scheme URL.
+    @discardableResult
+    func handle(_ url: URL) -> Bool {
+        guard let state = Self.state(from: url),
+              let continuation = waiters.removeValue(forKey: state)
+        else { return false }
+        continuation.resume(returning: url)
+        return true
+    }
+
+    private static func state(from url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "state" })?.value
+    }
+}
+
 /// Acquires a Google authorization `code` by driving the system browser. The
-/// real implementation is `ASWebAuthenticationSession`; tests inject a stub so
-/// the PKCE token-exchange + backend POST can run headlessly.
+/// real implementation opens the browser via `WebAuthRouter`; tests inject a
+/// stub so the PKCE token-exchange + backend POST can run headlessly.
 protocol GoogleAuthorizationProvider: Sendable {
     /// Presents the consent UI for `authorizationURL` and returns the `code`
     /// from the loopback redirect, validating `state`.
     func authorizationCode(authorizationURL: URL, redirectScheme: String, expectedState: String) async throws -> String
 }
 
-/// Sign-in via AuthenticationServices (TECH §8.6).
+/// Sign-in via the system browser (TECH §8.6).
 ///
-/// Both Apple and Google run through `ASWebAuthenticationSession`. They diverge
-/// only in who does the token exchange:
+/// Both Apple and Google open the login in the user's default browser (via
+/// `WebAuthRouter`) and capture the redirect through the app's registered URL
+/// scheme. They diverge only in who does the token exchange:
 /// - **Google**: the app runs PKCE, gets a `code`, exchanges it for an `id_token`,
 ///   POSTs that to `/auth/google`, and receives our session JWT + refresh.
 /// - **Apple (web flow)**: the app opens Apple's `/auth/authorize`; Apple
@@ -116,12 +187,12 @@ final class AuthClient {
         return decoded.idToken
     }
 
-    // MARK: - Apple (web flow — ASWebAuthenticationSession, NO native entitlement)
+    // MARK: - Apple (web flow — system browser, NO native entitlement)
 
     /// Drives Sign in with Apple entirely through the browser:
     /// 1. generate a random `state`, build Apple's `/auth/authorize` URL,
-    /// 2. open `ASWebAuthenticationSession`; it follows Apple → our backend
-    ///    callback → the `translator-everywhere://apple-callback?...` redirect,
+    /// 2. open it in the browser (via `WebAuthRouter`); it follows Apple → our
+    ///    backend callback → the `translator-everywhere://apple-callback?...` redirect,
     /// 3. parse the callback (validate `state`, extract `session`+`refresh`),
     /// 4. store both tokens in the Keychain.
     ///
@@ -145,7 +216,7 @@ final class AuthClient {
     /// whenever a scope (name/email) is requested — `query` is rejected with
     /// `invalid_request`. Apple form-POSTs the `code` to the backend callback (which
     /// handles GET+POST), and the backend hands back via the `translator-everywhere://`
-    /// redirect that ASWebAuthenticationSession captures. Internal for tests.
+    /// redirect that `WebAuthRouter` captures. Internal for tests.
     static func appleAuthorizationURL(state: String) -> URL {
         var components = URLComponents(url: AuthConfig.appleAuthorizationEndpoint, resolvingAgainstBaseURL: false)!
         components.queryItems = [

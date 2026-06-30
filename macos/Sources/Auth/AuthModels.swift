@@ -20,7 +20,8 @@ enum AuthConfig {
     static let googleRedirectScheme =
         "com.googleusercontent.apps.328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem"
 
-    /// Full redirect URI handed to `ASWebAuthenticationSession`.
+    /// Full redirect URI used as Google's OAuth `redirect_uri`. The browser hands
+    /// this back to the app via the matching registered URL scheme.
     static var googleRedirectURI: String { "\(googleRedirectScheme):/oauth2redirect" }
 
     /// Scopes — `openid email` is enough to mint the id_token our server needs.
@@ -43,8 +44,8 @@ enum AuthConfig {
     static let appleRedirectURI = "https://api.translator.daichenlab.com/auth/apple/callback"
 
     /// Custom URL scheme the backend redirects to after a successful (or failed)
-    /// Apple sign-in. Registered in the app's `CFBundleURLTypes` (project.yml) and
-    /// handed to `ASWebAuthenticationSession` as the `callbackURLScheme`.
+    /// Apple sign-in. Registered in the app's `CFBundleURLTypes` (project.yml) so
+    /// the browser routes the redirect back into the app (`WebAuthRouter`).
     static let appleCallbackScheme = "translator-everywhere"
 
     /// Scopes requested from Apple. `name email` is what our backend needs to
