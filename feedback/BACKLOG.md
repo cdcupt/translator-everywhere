@@ -30,7 +30,6 @@ Lower-impact or needs-more-signal. Promote when warranted.
 |----|-------|-------|--------------|
 | `fb-defer-byoai-inapp` | In-app BYOK summary polish (model picker + base-URL) on top of the existing OpenAI summarize | `bpl` | Export hand-off covers the core ask; in-app result is a "both" nicety. |
 | `fb-defer-byoai-codex-mcp` | Codex-CLI local handoff + app-as-MCP-server for notebook summary | `sdd_pipeline` | Build only on real demand — niche; the only paths that ride a ChatGPT *plan* and return in-app. |
-
 | `fb-defer-drop-old-google-aud` | Drop the old BillMind Google aud from the backend after users update | `bpl` (ops) | After most users are on v1.2.6+, edit `GOOGLE_AUD` on BWH `~/.translator-everywhere/deploy.env` to the NEW id only + restart the container (removes the legacy BillMind client from the accepted set). |
 
 ## Engineering follow-ups (not user feedback — tracked for completeness)
