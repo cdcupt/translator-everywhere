@@ -51,9 +51,13 @@ if [[ ! -f "$ENV_FILE" ]]; then
 DATABASE_URL=postgres://$ROLE:$DB_PASS@$PG_CONTAINER:5432/$DB?sslmode=disable
 JWT_SECRET=$JWT
 APPLE_AUD=com.cdcupt.translator-everywhere
-GOOGLE_AUD=328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem.apps.googleusercontent.com
+GOOGLE_AUD=524726675699-vnleiirk1tj2rpa5eic7nj617j5p8rlu.apps.googleusercontent.com
 PORT=$PORT
 EOF
+  # NOTE: this block writes $ENV_FILE only on first deploy (guarded above). To
+  # change GOOGLE_AUD on a box that already has $ENV_FILE, edit it there. During
+  # the Google client cutover set GOOGLE_AUD=<old-billmind>,<new-te> (comma set)
+  # so both verify, then drop <old> once users have updated.
   chmod 600 "$ENV_FILE"
   echo "  created (new secrets generated)"
 else

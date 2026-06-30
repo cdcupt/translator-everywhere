@@ -14,7 +14,11 @@ import (
 const (
 	DefaultAppleAud  = "com.cdcupt.translator-everywhere"
 	DefaultAppleIss  = "https://appleid.apple.com"
-	DefaultGoogleAud = "328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem.apps.googleusercontent.com"
+	// The Translator-Everywhere Desktop OAuth client (TE GCP project 524726675699).
+	// GOOGLE_AUD may carry a comma-separated set; during the client cutover the
+	// deployed env is set to "<old-billmind-client>,<this>" so both verify, then
+	// the old one is dropped once users have updated (see GoogleAuds()).
+	DefaultGoogleAud = "524726675699-vnleiirk1tj2rpa5eic7nj617j5p8rlu.apps.googleusercontent.com"
 	DefaultPort      = "8110"
 	// DefaultBindAddr binds all interfaces inside the container. This is NOT a
 	// public exposure: the container is published only on the host's
