@@ -44,6 +44,22 @@ func (f fakeAppleExchanger) ExchangeCode(_ context.Context, code string) (auth.I
 	return f.identity, nil
 }
 
+// fakeGoogleExchanger is a GoogleCodeExchanger stub (Desktop-loopback path).
+type fakeGoogleExchanger struct {
+	identity auth.Identity
+	err      error
+}
+
+func (f fakeGoogleExchanger) ExchangeCode(_ context.Context, code, _, _ string) (auth.Identity, error) {
+	if f.err != nil {
+		return auth.Identity{}, f.err
+	}
+	if code != "good-code" {
+		return auth.Identity{}, errors.New("invalid code")
+	}
+	return f.identity, nil
+}
+
 func newTestServer(t *testing.T) (*Server, *db.FakeRepository) {
 	t.Helper()
 	repo := db.NewFakeRepository()
@@ -125,6 +141,54 @@ func signIn(t *testing.T, srv *Server) sessionResponse {
 		t.Fatalf("sign in: missing session/refresh in redirect")
 	}
 	return sessionResponse{SessionJWT: res.session, RefreshToken: res.refresh}
+}
+
+func TestGoogleSignInCodeFlow(t *testing.T) {
+	srv, repo := newTestServer(t)
+	srv.GoogleOAuth = fakeGoogleExchanger{identity: auth.Identity{Provider: "google", Subject: "g-sub-2", Email: "e@x.com"}}
+
+	rec := doJSON(t, srv.Router(), http.MethodPost, "/auth/google",
+		map[string]string{"code": "good-code", "code_verifier": "v", "redirect_uri": "http://127.0.0.1:1/oauth2redirect"}, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
+	}
+	var resp sessionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	id, err := srv.Sessions.VerifyAccessToken(resp.SessionJWT)
+	if err != nil {
+		t.Fatalf("verify issued jwt: %v", err)
+	}
+	if user, err := repo.GetUser(context.Background(), id); err != nil || user.Provider != "google" {
+		t.Fatalf("user not persisted as google: %+v err=%v", user, err)
+	}
+}
+
+func TestGoogleSignInCodeFlowNotConfigured(t *testing.T) {
+	srv, _ := newTestServer(t) // GoogleOAuth left nil
+	rec := doJSON(t, srv.Router(), http.MethodPost, "/auth/google",
+		map[string]string{"code": "good-code", "code_verifier": "v", "redirect_uri": "r"}, "")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 when exchanger unconfigured", rec.Code)
+	}
+}
+
+func TestGoogleSignInRejectsEmptyBody(t *testing.T) {
+	srv, _ := newTestServer(t)
+	rec := doJSON(t, srv.Router(), http.MethodPost, "/auth/google", map[string]string{}, "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 when neither code nor id_token present", rec.Code)
+	}
+}
+
+func TestGoogleSignInLegacyIDTokenStillWorks(t *testing.T) {
+	srv, _ := newTestServer(t) // google fakeVerifier accepts any id_token
+	rec := doJSON(t, srv.Router(), http.MethodPost, "/auth/google",
+		map[string]string{"id_token": "anything"}, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 for legacy id_token path", rec.Code)
+	}
 }
 
 func TestHealthz(t *testing.T) {

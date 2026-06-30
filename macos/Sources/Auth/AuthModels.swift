@@ -7,21 +7,21 @@ enum AuthConfig {
     /// Our backend base URL. Every auth + sync call hangs off this.
     static let backendBaseURL = URL(string: "https://api.translator.daichenlab.com")!
 
-    /// Google OAuth **Desktop app** client id (PKCE + loopback, no client secret
-    /// on device). This is the Translator-Everywhere-branded Desktop client in
-    /// TE's own GCP project (`524726675699`). It replaced `328818408791-641sqb…`,
-    /// which lived in **BillMind's** project (wrong consent-screen brand) and was
-    /// an iOS-type client whose custom-scheme redirect desktop Chrome dropped.
+    /// Google OAuth **Desktop app** client id (PKCE + loopback). The
+    /// Translator-Everywhere-branded Desktop client in TE's own GCP project
+    /// (`524726675699`). The app only uses this to build the authorize URL — the
+    /// code→token exchange (which needs the Desktop client_secret) happens on our
+    /// backend, so no secret ever ships in the app.
     static let googleClientID = "524726675699-vnleiirk1tj2rpa5eic7nj617j5p8rlu.apps.googleusercontent.com"
 
-    /// Google authorization + token endpoints (OAuth 2.0).
+    /// Google authorization endpoint (OAuth 2.0). The token endpoint is NOT used
+    /// by the app — the backend does the code exchange.
     static let googleAuthorizationEndpoint = URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!
-    static let googleTokenEndpoint = URL(string: "https://oauth2.googleapis.com/token")!
 
     /// The redirect path the loopback listener serves. The full `redirect_uri`
     /// (`http://127.0.0.1:<ephemeral-port>/oauth2redirect`) is built at runtime by
-    /// `LoopbackRedirectListener` once it binds, then threaded into BOTH the
-    /// authorize URL and the token exchange (Google requires them identical).
+    /// `LoopbackRedirectListener`, then sent to BOTH the authorize URL and (via the
+    /// backend) the token exchange (Google requires them identical).
     static let googleRedirectPath = "/oauth2redirect"
 
     /// Scopes — `openid email` is enough to mint the id_token our server needs.
@@ -77,10 +77,19 @@ struct AuthSession: Sendable, Equatable {
 
 // MARK: - Wire types (match the server JSON exactly — see server/internal/api)
 
-/// `POST /auth/google` request body.
+/// `POST /auth/google` request body. The app sends the Desktop-loopback
+/// authorization `code` (+ its PKCE verifier and the exact loopback `redirect_uri`);
+/// the backend exchanges it with Google (server-side client_secret) and mints the
+/// session.
 struct GoogleSignInRequest: Encodable {
-    let idToken: String
-    enum CodingKeys: String, CodingKey { case idToken = "id_token" }
+    let code: String
+    let codeVerifier: String
+    let redirectURI: String
+    enum CodingKeys: String, CodingKey {
+        case code
+        case codeVerifier = "code_verifier"
+        case redirectURI = "redirect_uri"
+    }
 }
 
 /// `POST /auth/refresh` request body.
@@ -106,16 +115,6 @@ struct SessionResponse: Decodable {
 struct RefreshResponse: Decodable {
     let sessionJWT: String
     enum CodingKeys: String, CodingKey { case sessionJWT = "session_jwt" }
-}
-
-/// Google `POST /token` response (PKCE exchange). We only need `id_token`.
-struct GoogleTokenResponse: Decodable {
-    let idToken: String
-    let accessToken: String?
-    enum CodingKeys: String, CodingKey {
-        case idToken = "id_token"
-        case accessToken = "access_token"
-    }
 }
 
 /// Errors surfaced by `AuthClient`. UI maps these to DESIGN §4 copy.

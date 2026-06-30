@@ -94,10 +94,11 @@ protocol GoogleAuthorizationProvider: Sendable {
 /// the redirect differently and diverge in who does the token exchange:
 /// - **Google**: a Desktop-app OAuth client with a **loopback** redirect — the app
 ///   binds `127.0.0.1` (`LoopbackRedirectListener`), opens the consent page,
-///   captures the `?code` on localhost, runs PKCE to exchange it for an `id_token`,
-///   POSTs that to `/auth/google`, and receives our session JWT + refresh. (Custom
-///   URL schemes are unreliable on desktop Chrome; loopback is Google's documented
-///   desktop pattern.)
+///   captures the `?code` on localhost, and POSTs the `code`+verifier+redirect_uri
+///   to `/auth/google`. The **backend** does the token exchange (Google requires
+///   the Desktop client_secret even with PKCE, so it stays server-side) and returns
+///   our session JWT + refresh. (Custom URL schemes are unreliable on desktop
+///   Chrome; loopback is Google's documented desktop pattern.)
 /// - **Apple (web flow)**: the app opens Apple's `/auth/authorize`; Apple
 ///   redirects to our backend, which verifies the `code`, mints our session, and
 ///   302s back to the app's custom scheme carrying `session`+`refresh` directly —
@@ -133,28 +134,30 @@ final class AuthClient {
 
     // MARK: - Google (fully built + unit-tested)
 
-    /// Drives the Google PKCE flow end-to-end:
-    /// 1. generate PKCE, build the authorization URL,
-    /// 2. get the `code` from the loopback redirect,
-    /// 3. exchange `code` + `code_verifier` at Google's token endpoint → id_token,
-    /// 4. POST the id_token to `/auth/google` → our session,
-    /// 5. store both tokens in the Keychain.
+    /// Drives the Google Desktop-loopback flow:
+    /// 1. generate PKCE, bind a loopback listener, open the authorize URL,
+    /// 2. capture the `code` on `127.0.0.1`,
+    /// 3. POST `code` + `code_verifier` + `redirect_uri` to `/auth/google` — the
+    ///    backend does the token exchange (Google requires the Desktop
+    ///    client_secret, kept server-side) and returns our session,
+    /// 4. store both tokens in the Keychain.
     @discardableResult
     func signInWithGoogle() async throws -> AuthSession {
         let pkce = PKCE()
-        // The redirect_uri isn't known until the loopback listener binds a port,
-        // so the provider builds the authorize URL via this closure and hands the
-        // chosen redirect_uri back for the token exchange (they must match).
+        // The redirect_uri isn't known until the loopback listener binds a port, so
+        // the provider builds the authorize URL via this closure and hands the
+        // chosen redirect_uri back — it must be forwarded to the backend exchange.
         let (code, redirectURI) = try await googleAuthProvider.authorizationCode(
             expectedState: pkce.state,
             buildAuthorizationURL: { redirectURI in
                 Self.googleAuthorizationURL(pkce: pkce, redirectURI: redirectURI)
             }
         )
-        let idToken = try await exchangeGoogleCode(code, verifier: pkce.codeVerifier, redirectURI: redirectURI)
         let session = try await postSignIn(
             path: "/auth/google",
-            body: GoogleSignInRequest(idToken: idToken)
+            body: GoogleSignInRequest(
+                code: code, codeVerifier: pkce.codeVerifier, redirectURI: redirectURI
+            )
         )
         try tokens.save(session)
         return session
@@ -174,33 +177,6 @@ final class AuthClient {
             URLQueryItem(name: "state", value: pkce.state),
         ]
         return components.url!
-    }
-
-    /// Builds the Google `POST /token` PKCE-exchange request. `redirectURI` must be
-    /// the exact loopback URI used in the authorize request. Internal for tests.
-    static func googleTokenExchangeRequest(code: String, verifier: String, redirectURI: String) -> URLRequest {
-        var request = URLRequest(url: AuthConfig.googleTokenEndpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        let form = [
-            "client_id": AuthConfig.googleClientID,
-            "code": code,
-            "code_verifier": verifier,
-            "grant_type": "authorization_code",
-            "redirect_uri": redirectURI,
-        ]
-        request.httpBody = Data(Self.formEncode(form).utf8)
-        return request
-    }
-
-    private func exchangeGoogleCode(_ code: String, verifier: String, redirectURI: String) async throws -> String {
-        let request = Self.googleTokenExchangeRequest(code: code, verifier: verifier, redirectURI: redirectURI)
-        let (data, response) = try await sessionData(for: request)
-        try Self.ensure2xx(response)
-        guard let decoded = try? JSONDecoder().decode(GoogleTokenResponse.self, from: data) else {
-            throw AuthError.decoding
-        }
-        return decoded.idToken
     }
 
     // MARK: - Apple (web flow — system browser, NO native entitlement)
