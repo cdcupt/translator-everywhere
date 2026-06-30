@@ -1,9 +1,66 @@
-import AuthenticationServices
+import AppKit
 import Foundation
 
+/// Bridges a browser-based OAuth round-trip back into the app.
+///
+/// A provider registers the `state` it expects and opens the login URL in the
+/// user's default browser; when the OS delivers the post-login redirect to one
+/// of the app's registered URL schemes, `AppDelegate` forwards it here and the
+/// matching awaiter resumes with the callback URL.
+///
+/// This deliberately replaces `ASWebAuthenticationSession`: on macOS that API
+/// routes the login to the *default browser* and is broken when that browser is
+/// Chrome/Firefox (the auth window opens then immediately closes, so no page is
+/// shown). Driving the browser ourselves + capturing the custom-scheme redirect
+/// works with any default browser.
+@MainActor
+final class WebAuthRouter {
+    static let shared = WebAuthRouter()
+
+    /// In-flight sign-ins, keyed by the OAuth `state` we expect echoed back.
+    private var waiters: [String: CheckedContinuation<URL, Error>] = [:]
+
+    /// Opens `url` in the default browser and suspends until a redirect whose
+    /// `state` query equals `state` is delivered to `handle`. Throws
+    /// `AuthError.providerResponseInvalid` if the URL can't be opened.
+    func open(_ url: URL, awaitingState state: String) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            // Register before opening so an instant redirect can't outrace us.
+            waiters[state] = continuation
+            if !NSWorkspace.shared.open(url) {
+                waiters[state] = nil
+                continuation.resume(throwing: AuthError.providerResponseInvalid)
+            }
+        }
+    }
+
+    /// Suspends until `handle` receives a redirect whose `state` matches. The
+    /// registration seam `open` is built on; exposed so the routing can be
+    /// unit-tested without opening a real browser.
+    func awaitRedirect(matchingState state: String) async throws -> URL {
+        try await withCheckedThrowingContinuation { waiters[state] = $0 }
+    }
+
+    /// Resumes the awaiter whose `state` matches `url`, returning whether one was
+    /// found. Called by `AppDelegate` for every incoming custom-scheme URL.
+    @discardableResult
+    func handle(_ url: URL) -> Bool {
+        guard let state = Self.state(from: url),
+              let continuation = waiters.removeValue(forKey: state)
+        else { return false }
+        continuation.resume(returning: url)
+        return true
+    }
+
+    private static func state(from url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "state" })?.value
+    }
+}
+
 /// Acquires a Google authorization `code` by driving the system browser. The
-/// real implementation is `ASWebAuthenticationSession`; tests inject a stub so
-/// the PKCE token-exchange + backend POST can run headlessly.
+/// real implementation opens the browser via `WebAuthRouter`; tests inject a
+/// stub so the PKCE token-exchange + backend POST can run headlessly.
 protocol GoogleAuthorizationProvider: Sendable {
     /// Presents the consent UI for `authorizationURL` and returns the `code`
     /// from the loopback redirect, validating `state`.

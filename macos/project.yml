@@ -74,6 +74,15 @@ targets:
             CFBundleTypeRole: None
             CFBundleURLSchemes:
               - translator-everywhere
+          # Google's installed-app OAuth redirect scheme (reverse-DNS of the
+          # client id). Registering it lets the browser hand the post-consent
+          # redirect (carrying ?code&state) back to the app, where WebAuthRouter
+          # resumes the sign-in. Required because we drive the login via the
+          # default browser, not ASWebAuthenticationSession (broken with Chrome).
+          - CFBundleURLName: com.cdcupt.translator-everywhere.google-oauth
+            CFBundleTypeRole: None
+            CFBundleURLSchemes:
+              - com.googleusercontent.apps.328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem
     settings:
       base:
         PRODUCT_NAME: Translator Everywhere
