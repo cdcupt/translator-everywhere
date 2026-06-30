@@ -6,6 +6,7 @@ package config
 import (
 	"errors"
 	"os"
+	"strings"
 )
 
 // Defaults for the public (non-secret) identifiers, taken from
@@ -13,7 +14,11 @@ import (
 const (
 	DefaultAppleAud  = "com.cdcupt.translator-everywhere"
 	DefaultAppleIss  = "https://appleid.apple.com"
-	DefaultGoogleAud = "328818408791-641sqb2v2smjgjud26e87j7rhnfo0uem.apps.googleusercontent.com"
+	// The Translator-Everywhere Desktop OAuth client (TE GCP project 524726675699).
+	// GOOGLE_AUD may carry a comma-separated set; during the client cutover the
+	// deployed env is set to "<old-billmind-client>,<this>" so both verify, then
+	// the old one is dropped once users have updated (see GoogleAuds()).
+	DefaultGoogleAud = "524726675699-vnleiirk1tj2rpa5eic7nj617j5p8rlu.apps.googleusercontent.com"
 	DefaultPort      = "8110"
 	// DefaultBindAddr binds all interfaces inside the container. This is NOT a
 	// public exposure: the container is published only on the host's
@@ -119,4 +124,18 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// GoogleAuds returns the accepted Google client ids. GOOGLE_AUD may be a single
+// id or a comma-separated set (e.g. "old,new") so a client-id cutover can accept
+// both during the rollout. Empty/whitespace entries are dropped.
+func (c Config) GoogleAuds() []string {
+	parts := strings.Split(c.GoogleAud, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }

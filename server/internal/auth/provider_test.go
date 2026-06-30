@@ -61,7 +61,41 @@ func (tj *testJWKS) sign(t *testing.T, claims jwt.MapClaims) string {
 }
 
 func (tj *testJWKS) verifier(provider, aud string, issuers []string) *ProviderVerifier {
-	return newVerifierWithJWKSURL(provider, tj.server.URL, aud, issuers, tj.server.Client())
+	return newVerifierWithJWKSURL(provider, tj.server.URL, []string{aud}, issuers, tj.server.Client())
+}
+
+func (tj *testJWKS) verifierMulti(provider string, auds, issuers []string) *ProviderVerifier {
+	return newVerifierWithJWKSURL(provider, tj.server.URL, auds, issuers, tj.server.Client())
+}
+
+// TestProviderVerifyMultipleAudiences covers the Google client-id cutover: a
+// verifier configured with two accepted audiences accepts a token minted for
+// EITHER, and still rejects a third.
+func TestProviderVerifyMultipleAudiences(t *testing.T) {
+	const (
+		oldAud = "old-client.apps.googleusercontent.com"
+		newAud = "new-client.apps.googleusercontent.com"
+		iss    = "https://accounts.google.com"
+	)
+	tj := newTestJWKS(t)
+	now := time.Now()
+	v := tj.verifierMulti("google", []string{oldAud, newAud}, []string{iss})
+
+	mint := func(aud string) string {
+		return tj.sign(t, jwt.MapClaims{
+			"iss": iss, "aud": aud, "sub": "u-1",
+			"exp": now.Add(time.Hour).Unix(), "iat": now.Unix(),
+		})
+	}
+
+	for _, aud := range []string{oldAud, newAud} {
+		if _, err := v.Verify(context.Background(), mint(aud)); err != nil {
+			t.Errorf("aud %q should verify, got %v", aud, err)
+		}
+	}
+	if _, err := v.Verify(context.Background(), mint("third-client.apps.googleusercontent.com")); err == nil {
+		t.Error("a token for an unconfigured aud must be rejected")
+	}
 }
 
 func TestProviderVerify(t *testing.T) {

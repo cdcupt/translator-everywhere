@@ -52,7 +52,7 @@ func run() error {
 	repo := db.NewPostgresRepository(pool)
 	sessions := auth.NewSessionManager(cfg.JWTSecret)
 	httpClient := &http.Client{Timeout: 10 * time.Second}
-	google := auth.NewGoogleVerifier(cfg.GoogleAud, config.GoogleIssuers, httpClient)
+	google := auth.NewGoogleVerifier(cfg.GoogleAuds(), config.GoogleIssuers, httpClient)
 
 	appleOAuth, err := buildAppleOAuth(cfg, httpClient)
 	if err != nil {
