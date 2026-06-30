@@ -27,6 +27,13 @@ type AppleCodeExchanger interface {
 	ExchangeCode(ctx context.Context, code string) (auth.Identity, error)
 }
 
+// GoogleCodeExchanger trades a Google Desktop-loopback authorization code (with
+// its PKCE verifier + redirect_uri) for a verified Identity. *auth.GoogleOAuth
+// satisfies this; tests substitute a fake.
+type GoogleCodeExchanger interface {
+	ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI string) (auth.Identity, error)
+}
+
 // Server holds the handler dependencies.
 type Server struct {
 	Repo     db.Repository
@@ -37,6 +44,10 @@ type Server struct {
 	// nil when the Apple web secrets are not configured; the callback then
 	// returns an error redirect instead of 500ing.
 	AppleOAuth AppleCodeExchanger
+	// GoogleOAuth runs the Google Desktop-loopback code exchange (server-side, so
+	// the client_secret never ships in the app). nil when GOOGLE_CLIENT_SECRET is
+	// absent; /auth/google then only accepts the legacy id_token body.
+	GoogleOAuth GoogleCodeExchanger
 	// AppCallbackScheme is the custom URL scheme the Apple callback 302s back to.
 	AppCallbackScheme string
 

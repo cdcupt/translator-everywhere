@@ -19,7 +19,11 @@ const (
 	// deployed env is set to "<old-billmind-client>,<this>" so both verify, then
 	// the old one is dropped once users have updated (see GoogleAuds()).
 	DefaultGoogleAud = "524726675699-vnleiirk1tj2rpa5eic7nj617j5p8rlu.apps.googleusercontent.com"
-	DefaultPort      = "8110"
+	// DefaultGoogleClientID is the single client used for the server-side token
+	// exchange (the new TE Desktop client). Unlike GOOGLE_AUD (a verify-set), this
+	// is one value. GOOGLE_CLIENT_SECRET (a secret) has no default.
+	DefaultGoogleClientID = "524726675699-vnleiirk1tj2rpa5eic7nj617j5p8rlu.apps.googleusercontent.com"
+	DefaultPort           = "8110"
 	// DefaultBindAddr binds all interfaces inside the container. This is NOT a
 	// public exposure: the container is published only on the host's
 	// 127.0.0.1:8110, so 0.0.0.0 here is reachable solely from the host loopback.
@@ -50,6 +54,13 @@ type Config struct {
 	Port        string
 	BindAddr    string
 
+	// Google sign-in — Desktop loopback + PKCE. The app captures the auth code on
+	// localhost and POSTs it here; the server does the token exchange (Google
+	// requires the Desktop client_secret even with PKCE), so the secret never
+	// ships in the app. ClientID is the OAuth client; ClientSecret is a SECRET.
+	GoogleClientID     string
+	GoogleClientSecret string
+
 	// Sign in with Apple — web OAuth flow.
 	AppleServicesID   string // OAuth client_id; also the id_token audience.
 	AppleKeyID        string // .p8 key id (header kid for the client_secret).
@@ -62,6 +73,13 @@ type Config struct {
 // AppleWebConfigured reports whether the secrets needed to run the Apple web
 // OAuth code exchange are present. When false, /auth/apple/callback returns an
 // error redirect rather than 500ing, and the rest of the API still serves.
+// GoogleWebConfigured reports whether the server can run the Google code→token
+// exchange (needs the client_secret). When false, /auth/google falls back to the
+// legacy id_token path and the code path returns an error.
+func (c Config) GoogleWebConfigured() bool {
+	return c.GoogleClientID != "" && c.GoogleClientSecret != ""
+}
+
 func (c Config) AppleWebConfigured() bool {
 	return c.AppleServicesID != "" && c.AppleKeyID != "" &&
 		c.AppleTeamID != "" && c.ApplePrivateKey != ""
@@ -85,6 +103,9 @@ func Load() (Config, error) {
 		GoogleAud:   envOr("GOOGLE_AUD", DefaultGoogleAud),
 		Port:        envOr("PORT", DefaultPort),
 		BindAddr:    envOr("BIND_ADDR", DefaultBindAddr),
+
+		GoogleClientID:     envOr("GOOGLE_CLIENT_ID", DefaultGoogleClientID),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 
 		AppleServicesID:   envOr("APPLE_SERVICES_ID", DefaultAppleServicesID),
 		AppleKeyID:        os.Getenv("APPLE_KEY_ID"),

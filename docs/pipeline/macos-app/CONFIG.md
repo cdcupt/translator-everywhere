@@ -15,11 +15,17 @@
   `328818408791-641sqb…`, which lived in **BillMind's** project (wrong consent-screen
   brand) and was an **iOS**-type client whose custom-scheme redirect desktop Chrome
   dropped. See `feedback/raw/fb-2026-06-30-google-oauth-billmind-client.md`.
-- Flow: **PKCE with an `http://127.0.0.1:<ephemeral-port>/oauth2redirect` loopback
-  redirect** (`LoopbackRedirectListener` — the app binds localhost, opens the consent
-  page in the default browser, captures `?code` on localhost; no client secret).
-  Backend verifies the Google `id_token` (`aud` ∈ the configured client id(s) —
-  `GOOGLE_AUD` supports a comma-separated set for cutover; `iss = https://accounts.google.com`).
+- Flow: **PKCE + `http://127.0.0.1:<ephemeral-port>/oauth2redirect` loopback**
+  (`LoopbackRedirectListener` — the app binds localhost, opens the consent page in the
+  default browser, captures `?code`). The app then POSTs `code`+`code_verifier`+
+  `redirect_uri` to **`/auth/google`**; the **backend** does the code→token exchange
+  with Google — a Google **Desktop** client requires its `client_secret` even with
+  PKCE, so `GOOGLE_CLIENT_SECRET` lives only in the server's `deploy.env`, never in
+  the app/repo. The backend then verifies the resulting `id_token` (`aud` ∈ the
+  configured client id(s); `GOOGLE_AUD` supports a comma-separated set for cutover;
+  `iss = https://accounts.google.com`).
+- **Secret:** `GOOGLE_CLIENT_SECRET` (+ `GOOGLE_CLIENT_ID`) set in
+  `~/.translator-everywhere/deploy.env` on the BWH box only.
 
 ## Backend host
 - **Domain:** `api.translator.daichenlab.com` → **`67.230.179.139`** (BWH), DNS-only / unproxied.

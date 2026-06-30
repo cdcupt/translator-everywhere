@@ -12,6 +12,12 @@ import (
 )
 
 type googleSignInRequest struct {
+	// New flow: the app captures the Desktop-loopback authorization code and the
+	// server exchanges it (so Google's required client_secret stays server-side).
+	Code         string `json:"code"`
+	CodeVerifier string `json:"code_verifier"`
+	RedirectURI  string `json:"redirect_uri"`
+	// Legacy flow: a Google id_token the app already obtained. Kept for back-compat.
 	IDToken string `json:"id_token"`
 }
 
@@ -132,22 +138,42 @@ func (s *Server) handleGoogleSignIn(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if req.IDToken == "" {
-		writeError(w, http.StatusBadRequest, "id_token is required")
-		return
+	switch {
+	case req.Code != "":
+		// New Desktop-loopback flow: exchange the code server-side.
+		if s.GoogleOAuth == nil {
+			writeError(w, http.StatusServiceUnavailable, "google sign-in is not configured")
+			return
+		}
+		identity, err := s.GoogleOAuth.ExchangeCode(r.Context(), req.Code, req.CodeVerifier, req.RedirectURI)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "could not verify google sign-in")
+			return
+		}
+		s.completeSignIn(w, r, identity)
+	case req.IDToken != "":
+		// Legacy flow: verify an id_token the app already obtained.
+		s.signInWithProvider(w, r, s.Google, req.IDToken)
+	default:
+		writeError(w, http.StatusBadRequest, "code or id_token is required")
 	}
-	s.signInWithProvider(w, r, s.Google, req.IDToken)
 }
 
-// signInWithProvider runs the shared verify → upsert user → issue session flow.
+// signInWithProvider verifies an identity token then runs the shared
+// upsert-user → issue-session flow.
 func (s *Server) signInWithProvider(w http.ResponseWriter, r *http.Request, verifier IdentityVerifier, token string) {
-	ctx := r.Context()
-
-	identity, err := verifier.Verify(ctx, token)
+	identity, err := verifier.Verify(r.Context(), token)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid identity token")
 		return
 	}
+	s.completeSignIn(w, r, identity)
+}
+
+// completeSignIn upserts the user for a verified identity, issues a session, and
+// writes it. Shared by the id_token, Apple-code, and Google-code paths.
+func (s *Server) completeSignIn(w http.ResponseWriter, r *http.Request, identity auth.Identity) {
+	ctx := r.Context()
 
 	var email *string
 	if identity.Email != "" {

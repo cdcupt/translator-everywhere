@@ -62,6 +62,23 @@ func run() error {
 	srv := api.NewServer(repo, sessions, appleOAuth, google)
 	srv.AppCallbackScheme = cfg.AppCallbackScheme
 
+	// Google Desktop-loopback code exchange (server-side, so the client_secret
+	// never ships in the app). Present only when GOOGLE_CLIENT_SECRET is set;
+	// otherwise /auth/google accepts only the legacy id_token body.
+	if cfg.GoogleWebConfigured() {
+		googleOAuth, err := auth.NewGoogleOAuth(auth.GoogleOAuthConfig{
+			ClientID:     cfg.GoogleClientID,
+			ClientSecret: cfg.GoogleClientSecret,
+			Verifier:     google,
+			HTTPClient:   httpClient,
+		})
+		if err != nil {
+			return err
+		}
+		srv.GoogleOAuth = googleOAuth
+		log.Printf("server: google desktop-loopback code exchange enabled")
+	}
+
 	httpServer := &http.Server{
 		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
 		Handler:           srv.Router(),

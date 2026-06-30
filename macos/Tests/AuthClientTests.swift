@@ -69,36 +69,19 @@ struct AuthClientTests {
         #expect((items["scope"] ?? nil)?.contains("openid") == true)
     }
 
-    @Test("Google token-exchange request posts form-encoded code + verifier + redirect")
-    func googleTokenExchangeRequest() {
-        let redirectURI = "http://127.0.0.1:51234/oauth2redirect"
-        let request = AuthClient.googleTokenExchangeRequest(
-            code: "auth-code-1", verifier: "verifier-abc", redirectURI: redirectURI
-        )
-        #expect(request.httpMethod == "POST")
-        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/x-www-form-urlencoded")
-        let body = String(data: request.httpBody!, encoding: .utf8)!
-        #expect(body.contains("code=auth-code-1"))
-        #expect(body.contains("code_verifier=verifier-abc"))
-        #expect(body.contains("grant_type=authorization_code"))
-        // redirect_uri is percent-encoded in the form body.
-        #expect(body.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A51234%2Foauth2redirect"))
-        #expect(request.url == AuthConfig.googleTokenEndpoint)
-    }
-
-    @Test("Google sign-in exchanges code → id_token → session and stores both tokens")
+    @Test("Google sign-in POSTs code+verifier+redirect_uri to /auth/google and stores the session")
     func googleSignInStoresTokens() async throws {
         MockURLProtocol.reset()
         defer { MockURLProtocol.reset() }
 
-        // Two stops: Google token endpoint → id_token; our /auth/google → session.
-        let googleToken = Data(#"{"id_token":"google.id.token","access_token":"a"}"#.utf8)
+        // One stop now: our /auth/google → session (the backend does the Google
+        // token exchange; the app no longer talks to Google's token endpoint).
         let session = sessionJSON()
+        var authPath: String?
+        var authBody: Data?
         MockURLProtocol.handler = { request in
-            let host = request.url?.host ?? ""
-            if host.contains("googleapis") {
-                return (googleToken, MockURLProtocol.okResponse(for: request))
-            }
+            authPath = request.url?.path
+            authBody = MockURLProtocol.lastBody
             return (session, MockURLProtocol.okResponse(for: request))
         }
 
@@ -107,63 +90,31 @@ struct AuthClientTests {
             session: MockURLProtocol.makeSession(),
             tokens: tokens,
             baseURL: baseURL,
-            googleAuthProvider: StubGoogleAuth(code: "auth-code-1"),
+            googleAuthProvider: StubGoogleAuth(code: "auth-code-1", redirectURI: "http://127.0.0.1:5/oauth2redirect"),
             appleAuthProvider: StubAppleWebAuth(callbackTemplate: "translator-everywhere://apple-callback?session=s&refresh=r&state={state}")
         )
 
         let result = try await client.signInWithGoogle()
 
         #expect(result.sessionJWT == "sess.jwt.token")
-        #expect(result.refreshToken == "refresh.token.123")
         #expect(result.user.provider == .google)
-        // Persisted: a fresh load returns the same session.
-        let loaded = tokens.load()
-        #expect(loaded?.sessionJWT == "sess.jwt.token")
-        #expect(loaded?.refreshToken == "refresh.token.123")
-    }
+        #expect(tokens.load()?.refreshToken == "refresh.token.123")
 
-    @Test("Google sign-in POSTs id_token to /auth/google")
-    func googleSignInPostsIDToken() async throws {
-        MockURLProtocol.reset()
-        defer { MockURLProtocol.reset() }
-        let googleToken = Data(#"{"id_token":"google.id.token"}"#.utf8)
-        let session = sessionJSON()
-        var authPath: String?
-        var authBody: Data?
-        MockURLProtocol.handler = { request in
-            let host = request.url?.host ?? ""
-            if host.contains("googleapis") {
-                return (googleToken, MockURLProtocol.okResponse(for: request))
-            }
-            authPath = request.url?.path
-            authBody = MockURLProtocol.lastBody
-            return (session, MockURLProtocol.okResponse(for: request))
-        }
-
-        let client = AuthClient(
-            session: MockURLProtocol.makeSession(),
-            tokens: makeTokens(),
-            baseURL: baseURL,
-            googleAuthProvider: StubGoogleAuth(code: "c"),
-            appleAuthProvider: StubAppleWebAuth(callbackTemplate: "translator-everywhere://apple-callback?session=s&refresh=r&state={state}")
-        )
-        _ = try await client.signInWithGoogle()
-
+        // The request carried code + verifier + redirect_uri (no id_token).
         #expect(authPath == "/auth/google")
         let json = try JSONSerialization.jsonObject(with: authBody ?? Data()) as? [String: Any]
-        #expect(json?["id_token"] as? String == "google.id.token")
+        #expect(json?["code"] as? String == "auth-code-1")
+        #expect(json?["code_verifier"] as? String != nil)
+        #expect(json?["redirect_uri"] as? String == "http://127.0.0.1:5/oauth2redirect")
+        #expect(json?["id_token"] == nil)
     }
 
-    @Test("Backend 500 on sign-in surfaces .server and stores nothing")
+    @Test("Backend 400/500 on sign-in surfaces .server and stores nothing")
     func googleSignInServerError() async {
         MockURLProtocol.reset()
         defer { MockURLProtocol.reset() }
         MockURLProtocol.handler = { request in
-            let host = request.url?.host ?? ""
-            if host.contains("googleapis") {
-                return (Data(#"{"id_token":"t"}"#.utf8), MockURLProtocol.okResponse(for: request))
-            }
-            return (Data("oops".utf8), HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!)
+            (Data("oops".utf8), HTTPURLResponse(url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil)!)
         }
         let tokens = makeTokens()
         let client = AuthClient(
