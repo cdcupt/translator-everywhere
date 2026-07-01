@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tech Document — OpenAI-key sync (login-only, encrypted at rest) · Translator Everywhere</title>
+<style>
+  :root{--ink:#1a1c20;--muted:#5b6470;--line:#e3e7ec;--bg:#f7f9fb;--card:#fff;
+    --accent:#2f6fed;--good:#1f9d57;--warn:#c8761b;--bad:#d23b3b;--lock:#6a3fd0;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 90px}
+  header.top{border-bottom:2px solid var(--ink);padding-bottom:14px}
+  h1{font-size:24px;margin:0 0 4px}h2{font-size:19px;margin:38px 0 10px;padding-top:10px;border-top:2px solid var(--ink)}
+  h3{font-size:15.5px;margin:20px 0 6px}h4{font-size:13.5px;margin:14px 0 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .sub{color:var(--muted);font-size:13px}
+  .pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:20px;background:#eef3ff;color:var(--accent);text-transform:uppercase}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0;box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .fig{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  svg{max-width:100%;height:auto;display:block}
+  .cap{color:var(--muted);font-size:12.5px;margin:6px 2px 0;font-style:italic}
+  ul{margin:6px 0 6px 2px;padding-left:20px}li{margin:3px 0}
+  code{font-family:var(--mono);background:#eef1f5;padding:1px 5px;border-radius:5px;font-size:12px;overflow-wrap:anywhere}
+  table{border-collapse:collapse;width:100%;margin:10px 0;font-size:12.8px;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+  td code{overflow-wrap:anywhere}
+  th{background:#f0f3f7;font-weight:700}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid2>*{min-width:0}@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  .toc a{color:var(--accent);text-decoration:none}.toc{font-size:13px;color:var(--muted);line-height:1.9}
+  .note{border-left:4px solid var(--accent);background:#f1f6ff;padding:10px 14px;border-radius:0 8px 8px 0;margin:10px 0;font-size:13.3px}
+  .danger{border-left-color:var(--bad);background:#fdeeee}
+  .decide{border-left-color:var(--warn);background:#fbf4ec}
+  .ok{color:var(--good);font-weight:700}.no{color:var(--bad);font-weight:700}
+  .tag{font:600 11px var(--mono);padding:2px 7px;border-radius:5px;border:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <span class="pill">Tech Document · Gate 2 · rev 2</span>
+  <h1>OpenAI-key sync — Infrastructure + Frontend + Backend + Test Plan</h1>
+  <div class="sub"><b>PM:</b> Erik · <b>Coordinator:</b> Claude · one merged doc per sdd_pipeline · builds on the Gate-1 <code>DESIGN.html</code> (login-only, encrypted at rest — <b>not</b> E2E).</div>
+  <div class="toc" style="margin-top:8px">★ <a href="#glance">At a glance</a> · <a href="#arch">1 Architecture</a> · <a href="#backend">2 Backend / Infra</a> · <a href="#frontend">3 Frontend</a> · <a href="#contract">4 Wire contract</a> · <a href="#qa">5 Test plan</a> · <a href="#decisions">6 Tech decisions for Gate 2</a></div>
+</header>
+
+<!-- ===================== AT A GLANCE ===================== -->
+<h2 id="glance">★ At a glance</h2>
+<div class="card fig">
+<svg viewBox="0 0 1040 500" role="img" aria-label="Architecture spine and the two core flows: enable→upload→encrypt-at-rest→store, and sign-in→fetch→decrypt→auto-restore.">
+  <defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b6470"/></marker>
+  <style>.t{font:12px -apple-system,sans-serif;fill:#1a1c20}.s{font:10px -apple-system,sans-serif;fill:#5b6470}.h{font:700 12.5px -apple-system,sans-serif;fill:#1a1c20}.m{font:10px ui-monospace,Menlo,monospace;fill:#6a3fd0}</style></defs>
+
+  <!-- macOS app -->
+  <rect x="16" y="54" width="300" height="250" rx="12" fill="#fff" stroke="#cfd6df"/>
+  <text x="30" y="76" class="h">macOS app (Translator_Everywhere)</text>
+  <rect x="30" y="86" width="272" height="30" rx="6" fill="#eef3ff" stroke="#cfe0ff"/><text x="40" y="105" class="t">EngineTab — key field + Sync toggle</text>
+  <rect x="30" y="122" width="272" height="30" rx="6" fill="#eef3ff" stroke="#cfe0ff"/><text x="40" y="141" class="t">KeySyncService @MainActor @Observable</text>
+  <rect x="30" y="158" width="272" height="30" rx="6" fill="#eef3ff" stroke="#cfe0ff"/><text x="40" y="177" class="t">SecretSyncClient (actor) — PUT/GET/DEL</text>
+  <rect x="30" y="194" width="272" height="30" rx="6" fill="#eafaf0" stroke="#bfe9cf"/><text x="40" y="213" class="t">macOS Keychain — <tspan class="m">openai-api-key</tspan></text>
+  <text x="40" y="242" class="s">no passphrase · no client-side crypto</text>
+  <text x="40" y="258" class="s">auto-restore hooked on onSignedIn</text>
+  <text x="40" y="278" class="s">SettingsStore.keySyncEnabled (UserDefaults)</text>
+
+  <!-- server -->
+  <rect x="372" y="54" width="300" height="250" rx="12" fill="#fff" stroke="#cfd6df"/>
+  <text x="522" y="76" class="h" text-anchor="middle">Go server (BWH, chi)</text>
+  <rect x="386" y="86" width="272" height="28" rx="6" fill="#f1f6ff" stroke="#cfe0ff"/><text x="522" y="104" class="t" text-anchor="middle">authMiddleware → user_id from session JWT</text>
+  <rect x="386" y="120" width="272" height="28" rx="6" fill="#f1f6ff" stroke="#cfe0ff"/><text x="522" y="138" class="t" text-anchor="middle">secret_handlers · rate-limit · size-cap</text>
+  <rect x="386" y="154" width="272" height="46" rx="6" fill="#eafaf0" stroke="#bfe9cf"/><text x="522" y="172" class="t" text-anchor="middle">secrets.Sealer — AES-256-GCM</text><text x="522" y="188" class="s" text-anchor="middle">Seal on PUT · Open on GET · AAD=user_id</text>
+  <rect x="386" y="206" width="272" height="30" rx="6" fill="#fbf4ec" stroke="#f0d9bf"/><text x="522" y="225" class="t" text-anchor="middle">Repository (pgx) — Upsert/Get/Delete</text>
+  <rect x="440" y="250" width="164" height="40" rx="6" fill="#fdeeee" stroke="#f3c9c9"/><text x="522" y="267" class="s" text-anchor="middle">master key SECRET_ENCRYPTION_KEY</text><text x="522" y="281" class="s" text-anchor="middle">from deploy.env — NOT in DB</text>
+
+  <!-- postgres -->
+  <rect x="728" y="120" width="296" height="120" rx="12" fill="#fff" stroke="#cfd6df"/>
+  <text x="876" y="142" class="h" text-anchor="middle">Postgres (shared 9relay-postgres)</text>
+  <rect x="744" y="152" width="264" height="72" rx="8" fill="#fbf4ec" stroke="#f0d9bf"/>
+  <text x="876" y="172" class="t" text-anchor="middle">user_secrets</text>
+  <text x="876" y="190" class="m" text-anchor="middle" style="fill:#c8761b">PK(user_id, name)</text>
+  <text x="876" y="206" class="m" text-anchor="middle" style="fill:#c8761b">blob = key_id|nonce|ct+tag</text>
+  <text x="876" y="220" class="s" text-anchor="middle">ciphertext only · ON DELETE CASCADE</text>
+
+  <!-- arrows -->
+  <line x1="316" y1="173" x2="370" y2="140" stroke="#5b6470" marker-end="url(#a)"/>
+  <line x1="370" y1="150" x2="316" y2="183" stroke="#5b6470" marker-end="url(#a)"/>
+  <text x="343" y="128" class="s" text-anchor="middle">TLS</text>
+  <line x1="672" y1="185" x2="726" y2="185" stroke="#5b6470" marker-end="url(#a)"/>
+  <line x1="726" y1="200" x2="672" y2="215" stroke="#5b6470" marker-end="url(#a)"/>
+
+  <!-- decisions strip -->
+  <rect x="16" y="322" width="1008" height="164" rx="10" fill="#fbf4ec" stroke="#f0d9bf"/>
+  <text x="30" y="344" class="h">Key technical decisions (Coordinator — confirm at Gate 2)</text>
+  <text x="30" y="366" class="t">① <b>Encrypt at rest</b> AES-256-GCM, master key in <tspan class="m" style="fill:#6a3fd0">deploy.env</tspan> not the DB, <tspan class="m" style="fill:#6a3fd0">key_id</tspan> byte for rotation, AAD binds user_id.</text>
+  <text x="30" y="388" class="t">② <b>Graceful-degrade boot:</b> if the master key is absent/invalid the server still starts; only <tspan class="m" style="fill:#6a3fd0">/secret/*</tspan> returns 503 (avoids a shared-box 502 blast radius).</text>
+  <text x="30" y="410" class="t">③ <b>Auto-restore</b> after sign-in when the local Keychain is empty; never clobber a different local key; never wipe on empty server.</text>
+  <text x="30" y="432" class="t">④ <b>Hardening:</b> per-user rate-limit (30/min, 429), size cap 4 KB (413), no key/blob in logs, TLS-only.</text>
+  <text x="30" y="454" class="t">⑤ <b>Reuse existing patterns:</b> SecretSyncClient mirrors SyncClient (401→refresh-once); append to existing files (no new Xcode files); +dep <tspan class="m" style="fill:#6a3fd0">go-chi/httprate</tspan>.</text>
+  <text x="30" y="475" class="s">The server can decrypt the key — intentional (login-only). Not end-to-end. Users can rotate the key at OpenAI.</text>
+</svg>
+<div class="cap">The whole system on one screen: app ↔ TLS ↔ Go server ↔ Postgres, with the master key isolated in the process env; the two flows (enable→upload→encrypt, sign-in→fetch→decrypt→restore) run over the same spine.</div>
+</div>
+
+<!-- ===================== 1 ARCHITECTURE ===================== -->
+<h2 id="arch">1 · Architecture &amp; the two flows</h2>
+<div class="card fig">
+<svg viewBox="0 0 1040 300" role="img" aria-label="Sequence of the enable flow and the sign-in auto-restore flow across app, server, and DB.">
+  <defs><marker id="b" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2f6fed"/></marker>
+  <marker id="bg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#1f9d57"/></marker>
+  <style>.t{font:11px -apple-system,sans-serif;fill:#1a1c20}.s{font:9.5px -apple-system,sans-serif;fill:#5b6470}.lane{font:700 11px -apple-system,sans-serif;fill:#1a1c20}</style></defs>
+  <!-- lanes -->
+  <line x1="150" y1="40" x2="150" y2="290" stroke="#e3e7ec"/><line x1="420" y1="40" x2="420" y2="290" stroke="#e3e7ec"/>
+  <line x1="690" y1="40" x2="690" y2="290" stroke="#e3e7ec"/><line x1="930" y1="40" x2="930" y2="290" stroke="#e3e7ec"/>
+  <text x="150" y="32" class="lane" text-anchor="middle">EngineTab / KeySyncService</text>
+  <text x="420" y="32" class="lane" text-anchor="middle">SecretSyncClient</text>
+  <text x="690" y="32" class="lane" text-anchor="middle">Go server</text>
+  <text x="930" y="32" class="lane" text-anchor="middle">Keychain / DB</text>
+  <!-- enable flow (blue) -->
+  <text x="20" y="60" class="s" style="fill:#2f6fed">ENABLE</text>
+  <line x1="150" y1="70" x2="420" y2="70" stroke="#2f6fed" marker-end="url(#b)"/><text x="285" y="64" class="t" text-anchor="middle">enable(key)</text>
+  <line x1="420" y1="90" x2="690" y2="90" stroke="#2f6fed" marker-end="url(#b)"/><text x="555" y="84" class="t" text-anchor="middle">PUT /secret/openai-key {key}</text>
+  <line x1="690" y1="110" x2="930" y2="110" stroke="#2f6fed" marker-end="url(#b)"/><text x="810" y="104" class="t" text-anchor="middle">Seal → upsert (LWW)</text>
+  <line x1="930" y1="128" x2="150" y2="128" stroke="#2f6fed" stroke-dasharray="3 3" marker-end="url(#b)"/><text x="540" y="122" class="s" text-anchor="middle">200 {updated_at} → syncState=.synced</text>
+  <!-- restore flow (green) -->
+  <text x="20" y="168" class="s" style="fill:#1f9d57">SIGN-IN</text>
+  <line x1="150" y1="178" x2="420" y2="178" stroke="#1f9d57" marker-end="url(#bg)"/><text x="285" y="172" class="t" text-anchor="middle">restoreAfterSignIn()</text>
+  <line x1="420" y1="198" x2="690" y2="198" stroke="#1f9d57" marker-end="url(#bg)"/><text x="555" y="192" class="t" text-anchor="middle">GET /secret/openai-key</text>
+  <line x1="690" y1="218" x2="930" y2="218" stroke="#1f9d57" marker-end="url(#bg)"/><text x="810" y="212" class="t" text-anchor="middle">fetch → Open (decrypt)</text>
+  <line x1="930" y1="236" x2="150" y2="236" stroke="#1f9d57" stroke-dasharray="3 3" marker-end="url(#bg)"/><text x="540" y="230" class="s" text-anchor="middle">200 {key} or 404</text>
+  <text x="150" y="264" class="t" text-anchor="middle">branch: empty→restore · same→re-arm</text>
+  <text x="150" y="278" class="t" text-anchor="middle">different→conflict · 404→no-op</text>
+</svg>
+<div class="cap">Two flows over one spine. The restore branch logic (bottom-left) is detailed as a flowchart in §3.</div>
+</div>
+
+<!-- ===================== 2 BACKEND ===================== -->
+<h2 id="backend">2 · Backend / Infrastructure design (Go)</h2>
+
+<h3>2.1 Data model</h3>
+<div class="card fig">
+<svg viewBox="0 0 980 190" role="img" aria-label="ER diagram: users 1 to 0..1 user_secrets via user_id with ON DELETE CASCADE.">
+  <style>.t{font:11px -apple-system,sans-serif;fill:#1a1c20}.s{font:9.5px -apple-system,sans-serif;fill:#5b6470}.h{font:700 12px -apple-system,sans-serif;fill:#1a1c20}.m{font:10.5px ui-monospace,Menlo,monospace;fill:#1a1c20}</style>
+  <rect x="30" y="46" width="200" height="96" rx="8" fill="#eef3ff" stroke="#cfe0ff"/>
+  <text x="130" y="68" class="h" text-anchor="middle">users (existing)</text>
+  <text x="46" y="92" class="m">id uuid PK</text><text x="46" y="110" class="m">email, provider…</text><text x="46" y="132" class="s">migration 00001_init.sql:3</text>
+  <rect x="470" y="30" width="300" height="130" rx="8" fill="#fbf4ec" stroke="#f0d9bf"/>
+  <text x="620" y="52" class="h" text-anchor="middle">user_secrets (new · 00002)</text>
+  <text x="486" y="76" class="m">user_id uuid FK→users.id</text>
+  <text x="486" y="94" class="m">name    text   ('openai-key')</text>
+  <text x="486" y="112" class="m">blob    bytea  (envelope)</text>
+  <text x="486" y="130" class="m">updated_at timestamptz</text>
+  <text x="620" y="150" class="s" text-anchor="middle">PK(user_id, name) · ON DELETE CASCADE</text>
+  <line x1="230" y1="94" x2="468" y2="94" stroke="#5b6470"/>
+  <text x="349" y="86" class="s" text-anchor="middle">1 → 0..1</text>
+  <text x="349" y="108" class="s" text-anchor="middle">account-delete cascades the row</text>
+</svg>
+<div class="cap">One optional secret row per user, keyed by <code>(user_id, name)</code>. <code>name</code> is left unconstrained (YAGNI) but the handler hardcodes the literal <code>"openai-key"</code> — no caller-supplied name. Point lookup + upsert only, so the PK is the only index needed.</div>
+</div>
+
+<h3>2.2 Encryption envelope &amp; the Sealer</h3>
+<div class="card fig">
+<svg viewBox="0 0 980 150" role="img" aria-label="Blob layout: 1-byte key_id, 12-byte nonce, ciphertext plus 16-byte GCM tag; AAD binds user id and purpose.">
+  <style>.t{font:11px -apple-system,sans-serif;fill:#1a1c20}.s{font:9.5px -apple-system,sans-serif;fill:#5b6470}.m{font:11px ui-monospace,Menlo,monospace;fill:#1a1c20}</style>
+  <rect x="30" y="40" width="90" height="46" rx="6" fill="#f3eefe" stroke="#ddd0f7"/><text x="75" y="60" class="m" text-anchor="middle">key_id</text><text x="75" y="78" class="s" text-anchor="middle">1 byte</text>
+  <rect x="126" y="40" width="150" height="46" rx="6" fill="#eef3ff" stroke="#cfe0ff"/><text x="201" y="60" class="m" text-anchor="middle">nonce</text><text x="201" y="78" class="s" text-anchor="middle">12 bytes (random)</text>
+  <rect x="282" y="40" width="330" height="46" rx="6" fill="#eafaf0" stroke="#bfe9cf"/><text x="447" y="60" class="m" text-anchor="middle">ciphertext + GCM tag</text><text x="447" y="78" class="s" text-anchor="middle">len(key) + 16 bytes</text>
+  <text x="30" y="112" class="t">AAD (authenticated, not stored): <tspan class="m">user_id[16] ‖ "openai-key"</tspan> — binds the blob to one user + slot.</text>
+  <text x="30" y="132" class="s">key_id selects the master key → rotation without downtime. Unknown key_id → error, never a panic. New nonce every write (no reuse).</text>
+</svg>
+</div>
+<div class="card">
+<h4>Package <code>server/internal/secrets/</code> (new)</h4>
+<ul>
+  <li><code>NewSealer(base64Key string) (*Sealer, error)</code> — decodes + validates the master key is exactly 32 bytes; error otherwise (drives graceful-degrade at boot).</li>
+  <li><code>Seal(plaintext, aad []byte) ([]byte, error)</code> — <code>0x01 ‖ rand12 ‖ gcm.Seal(...)</code> using <code>crypto/aes</code>+<code>crypto/cipher</code> and <code>crypto/rand</code>.</li>
+  <li><code>Open(blob, aad []byte) ([]byte, error)</code> — reads <code>key_id</code>, dispatches to the master key, GCM-opens; any failure returns an error and <b>no</b> plaintext (fail closed).</li>
+  <li>AAD is assembled in the handler (<code>append(userID[:], []byte("openai-key")...)</code>), not inside Sealer — keeps the crypto pure.</li>
+</ul>
+</div>
+
+<h3>2.3 Endpoints</h3>
+<table>
+  <tr><th>Verb · path</th><th>Auth</th><th>Body / returns</th><th>Codes</th></tr>
+  <tr><td><code>PUT /secret/openai-key</code></td><td>session JWT</td><td><code>{key}</code> → <code>{updated_at}</code>; Seal + upsert LWW on <code>updated_at</code></td><td>200 · 400 (empty) · 413 (&gt;4 KB) · 401 · 429 · 503 (no master key)</td></tr>
+  <tr><td><code>GET /secret/openai-key</code></td><td>session JWT</td><td>→ <code>{key, updated_at}</code>; fetch + Open</td><td>200 · 404 (none) · 401 · 429 · 503</td></tr>
+  <tr><td><code>DELETE /secret/openai-key</code></td><td>session JWT</td><td>— (idempotent)</td><td>204 · 401 · 429</td></tr>
+</table>
+<div class="note"><b>Auth invariant:</b> <code>user_id</code> comes only from the verified JWT (<code>userIDFromContext</code>, <code>middleware.go:46</code>) — never from the body. A user can only ever read/write their own row; a <code>GET</code> for another user yields <code>404</code> because the row is keyed on their id.</div>
+
+<h3>2.4 Hardening</h3>
+<div class="grid2">
+  <div class="card"><h4>Secrets never leak</h4><ul>
+    <li>No body-logging middleware exists today (<code>server.go</code> stack = RequestID/RealIP/Recoverer); we add none for <code>/secret/*</code>. Error paths log <code>"decrypt failed for user %s"</code> — user_id only, never the key/blob.</li>
+    <li>Only the <code>GET</code> response body carries plaintext; PUT/DELETE responses never echo the key.</li>
+  </ul></div>
+  <div class="card"><h4>Abuse &amp; size</h4><ul>
+    <li>Per-user rate limit <b>30/min</b> (<code>go-chi/httprate</code>, keyed on JWT sub) → <code>429</code>; scoped to the <code>/secret/*</code> subgroup only.</li>
+    <li>Body size cap <b>4 KB</b> → <code>413</code> (a real key is ~a few hundred bytes).</li>
+    <li>TLS-only (Caddy edge). </li>
+  </ul></div>
+</div>
+
+<h3>2.5 Files &amp; deploy</h3>
+<div class="grid2">
+  <div class="card"><h4>Create</h4><ul>
+    <li><code>server/migrations/00002_user_secrets.sql</code></li>
+    <li><code>server/internal/secrets/sealer.go</code> + <code>sealer_test.go</code></li>
+    <li><code>server/internal/api/secret_handlers.go</code></li>
+  </ul></div>
+  <div class="card"><h4>Modify</h4><ul>
+    <li><code>config/config.go</code> — load+validate <code>SECRET_ENCRYPTION_KEY</code> (optional → degrade)</li>
+    <li><code>db/repository.go</code>,<code>models.go</code>,<code>postgres.go</code>,<code>fake.go</code> — Upsert/Get/DeleteSecret (+ fake cascade)</li>
+    <li><code>api/server.go</code> — <code>Sealer</code> field + route subgroup</li>
+    <li><code>cmd/server/main.go</code> — build Sealer from cfg</li>
+    <li><code>go.mod</code> — <code>go-chi/httprate</code></li>
+  </ul></div>
+</div>
+<div class="note decide"><b>Deploy runbook (BWH):</b> ① <code>openssl rand -base64 32</code> <b>on the box</b>; ② append <code>SECRET_ENCRYPTION_KEY=…</code> to <code>~/.translator-everywhere/deploy.env</code> (⚠ <code>bwh-deploy.sh</code> reuses an existing env file — editing the repo is a silent no-op); ③ migration runs automatically on boot (<code>main.go:39</code>); ④ <b>container-only redeploy</b> — do NOT run full <code>bwh-deploy.sh</code> (its Caddy restart touches the shared <code>9relay-caddy</code>); ⑤ smoke: authed <code>GET</code> → 404, then PUT/GET round-trip, then <code>psql</code> confirm <code>blob</code> is opaque bytea. Add the env var <b>before</b> redeploy.</div>
+<div class="note"><b>Rotation runbook (future):</b> add a second master key under <code>key_id=0x02</code>, keep both in memory, new writes use <code>0x02</code>, a background pass re-Seals <code>0x01</code> blobs; retire <code>0x01</code> when none remain. No downtime; no schema change.</div>
+
+<!-- ===================== 3 FRONTEND ===================== -->
+<h2 id="frontend">3 · Frontend design (macOS / SwiftUI, Swift 6 strict concurrency)</h2>
+
+<h3>3.1 Components</h3>
+<div class="card fig">
+<svg viewBox="0 0 1000 210" role="img" aria-label="Component graph: EngineTab binds KeySyncService which uses SecretSyncClient and KeychainStore; AppDelegate onSignedIn triggers restore.">
+  <defs><marker id="c" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5b6470"/></marker>
+  <style>.t{font:11px -apple-system,sans-serif;fill:#1a1c20}.s{font:9.5px -apple-system,sans-serif;fill:#5b6470}.h{font:700 11.5px -apple-system,sans-serif;fill:#1a1c20}</style></defs>
+  <rect x="24" y="30" width="180" height="56" rx="8" fill="#eef3ff" stroke="#cfe0ff"/><text x="114" y="52" class="h" text-anchor="middle">AppDelegate</text><text x="114" y="70" class="s" text-anchor="middle">onSignedIn / onSignedOut</text>
+  <rect x="24" y="120" width="180" height="56" rx="8" fill="#eef3ff" stroke="#cfe0ff"/><text x="114" y="142" class="h" text-anchor="middle">EngineTab (View)</text><text x="114" y="160" class="s" text-anchor="middle">toggle · copy · conflict alert</text>
+  <rect x="300" y="76" width="200" height="60" rx="8" fill="#f3eefe" stroke="#ddd0f7"/><text x="400" y="98" class="h" text-anchor="middle">KeySyncService</text><text x="400" y="116" class="s" text-anchor="middle">@MainActor @Observable · state machine</text>
+  <rect x="590" y="30" width="180" height="56" rx="8" fill="#eafaf0" stroke="#bfe9cf"/><text x="680" y="52" class="h" text-anchor="middle">SecretSyncClient</text><text x="680" y="70" class="s" text-anchor="middle">actor · PUT/GET/DEL</text>
+  <rect x="590" y="120" width="180" height="56" rx="8" fill="#eafaf0" stroke="#bfe9cf"/><text x="680" y="142" class="h" text-anchor="middle">KeychainStore</text><text x="680" y="160" class="s" text-anchor="middle">openai-api-key</text>
+  <rect x="840" y="30" width="140" height="56" rx="8" fill="#f1f6ff" stroke="#cfe0ff"/><text x="910" y="52" class="h" text-anchor="middle">SyncAuthProvider</text><text x="910" y="70" class="s" text-anchor="middle">token · 401→refresh</text>
+  <line x1="114" y1="86" x2="114" y2="118" stroke="#5b6470" marker-end="url(#c)"/><text x="150" y="106" class="s">restore</text>
+  <line x1="204" y1="148" x2="300" y2="120" stroke="#5b6470" marker-end="url(#c)"/><text x="250" y="126" class="s">binds</text>
+  <line x1="500" y1="100" x2="588" y2="70" stroke="#5b6470" marker-end="url(#c)"/>
+  <line x1="500" y1="112" x2="588" y2="142" stroke="#5b6470" marker-end="url(#c)"/>
+  <line x1="770" y1="58" x2="838" y2="58" stroke="#5b6470" marker-end="url(#c)"/>
+</svg>
+</div>
+
+<h3>3.2 State machine &amp; the restore branch</h3>
+<div class="grid2">
+<div class="card fig">
+<svg viewBox="0 0 480 220" role="img" aria-label="KeySyncState: off, syncing, synced, failed.">
+  <defs><marker id="d" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5b6470"/></marker><style>.s{font:9.5px -apple-system,sans-serif;fill:#5b6470}.h{font:700 11px -apple-system,sans-serif;fill:#fff}</style></defs>
+  <rect x="20" y="90" width="110" height="40" rx="8" fill="#8895a6"/><text x="75" y="115" class="h" text-anchor="middle">off</text>
+  <rect x="185" y="20" width="110" height="40" rx="8" fill="#2f6fed"/><text x="240" y="45" class="h" text-anchor="middle">syncing</text>
+  <rect x="185" y="160" width="110" height="40" rx="8" fill="#c8761b"/><text x="240" y="185" class="h" text-anchor="middle">failed</text>
+  <rect x="350" y="90" width="110" height="40" rx="8" fill="#1f9d57"/><text x="405" y="115" class="h" text-anchor="middle">synced</text>
+  <line x1="130" y1="105" x2="185" y2="50" stroke="#5b6470" marker-end="url(#d)"/><text x="150" y="70" class="s">enable</text>
+  <line x1="295" y1="40" x2="350" y2="95" stroke="#5b6470" marker-end="url(#d)"/><text x="335" y="60" class="s">2xx</text>
+  <line x1="240" y1="60" x2="240" y2="158" stroke="#5b6470" marker-end="url(#d)"/><text x="255" y="115" class="s">err</text>
+  <line x1="350" y1="120" x2="130" y2="120" stroke="#5b6470" stroke-dasharray="3 3" marker-end="url(#d)"/><text x="240" y="138" class="s" text-anchor="middle">disable → off</text>
+</svg>
+<div class="cap"><code>KeySyncState</code> drives the Engine-tab status line.</div>
+</div>
+<div class="card fig">
+<svg viewBox="0 0 480 240" role="img" aria-label="restoreAfterSignIn flowchart: fetch, then branch on 404, local empty, same key, or different key.">
+  <defs><marker id="e" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5b6470"/></marker><style>.t{font:10px -apple-system,sans-serif;fill:#1a1c20}.s{font:9px -apple-system,sans-serif;fill:#5b6470}</style></defs>
+  <rect x="180" y="10" width="120" height="34" rx="8" fill="#eef3ff" stroke="#cfe0ff"/><text x="240" y="31" class="t" text-anchor="middle">GET fetch()</text>
+  <path d="M240,44 L300,80 L240,116 L180,80 Z" fill="#fbf4ec" stroke="#f0d9bf"/><text x="240" y="84" class="t" text-anchor="middle">result?</text>
+  <rect x="20" y="150" width="120" height="40" rx="8" fill="#f1f6ff" stroke="#cfe0ff"/><text x="80" y="166" class="t" text-anchor="middle">404 / empty srv</text><text x="80" y="182" class="s" text-anchor="middle">no-op (never wipe)</text>
+  <rect x="150" y="150" width="120" height="40" rx="8" fill="#eafaf0" stroke="#bfe9cf"/><text x="210" y="166" class="t" text-anchor="middle">local empty</text><text x="210" y="182" class="s" text-anchor="middle">restore + toast</text>
+  <rect x="280" y="150" width="90" height="40" rx="8" fill="#eafaf0" stroke="#bfe9cf"/><text x="325" y="166" class="t" text-anchor="middle">same key</text><text x="325" y="182" class="s" text-anchor="middle">re-arm flag</text>
+  <rect x="378" y="150" width="90" height="40" rx="8" fill="#fdeeee" stroke="#f3c9c9"/><text x="423" y="166" class="t" text-anchor="middle">different</text><text x="423" y="182" class="s" text-anchor="middle">conflict prompt</text>
+  <line x1="200" y1="104" x2="90" y2="148" stroke="#5b6470" marker-end="url(#e)"/>
+  <line x1="235" y1="116" x2="215" y2="148" stroke="#5b6470" marker-end="url(#e)"/>
+  <line x1="270" y1="108" x2="320" y2="148" stroke="#5b6470" marker-end="url(#e)"/>
+  <line x1="285" y1="98" x2="415" y2="148" stroke="#5b6470" marker-end="url(#e)"/>
+</svg>
+<div class="cap">The don't-clobber / never-wipe rules live entirely in <code>restoreAfterSignIn()</code>.</div>
+</div>
+</div>
+
+<h3>3.3 Copy strings (truth-in-UI · from DESIGN §5)</h3>
+<table>
+  <tr><th>Where</th><th>String (exact)</th></tr>
+  <tr><td>Engine — sync OFF</td><td>"Stored only in your Mac's Keychain. Never sent anywhere but OpenAI."</td></tr>
+  <tr><td>Engine — sync ON</td><td>"In your Mac's Keychain, and stored on our server (encrypted) so it's there when you sign in on another Mac. We keep it encrypted at rest — but note we can decrypt it to sync it, so it is not end-to-end encrypted."</td></tr>
+  <tr><td>Account tab</td><td>"We store your saved vocabulary as text rows — never your screen images. If you turn on key sync, we also store your OpenAI key, encrypted, so it follows you across Macs."</td></tr>
+</table>
+<div class="note">Extract these into testable constants so QA can assert exact equality and that the stale <code>"never written to disk or sent anywhere but OpenAI"</code> is absent when sync is ON.</div>
+
+<h3>3.4 Files to modify (append to existing — no new Xcode files)</h3>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>Sync/SyncClient.swift</code></td><td>append <code>SecretFetchResult</code>, <code>SecretSyncClientProtocol</code>, <code>actor SecretSyncClient</code> (401→refresh-once like <code>SyncClient</code>)</td></tr>
+  <tr><td><code>Sync/SyncAdapters.swift</code></td><td>append <code>KeySyncState</code> + <code>@MainActor @Observable KeySyncService</code></td></tr>
+  <tr><td><code>Settings/SettingsStore.swift</code></td><td><code>keySyncEnabled: Bool</code> (UserDefaults, default false)</td></tr>
+  <tr><td><code>Preferences/EngineTab.swift</code></td><td>inject <code>KeySyncService</code>; sync toggle + disabled-reason; context copy; conflict alert; restored toast; upload on key edit</td></tr>
+  <tr><td><code>Account/AccountTab.swift</code></td><td>privacy copy update</td></tr>
+  <tr><td><code>App/AppDelegate.swift</code></td><td>instantiate <code>KeySyncService</code>; <code>onSignedIn</code>→restore, <code>onSignedOut</code>→clear-flag, account-delete→clear-flag; thread through <code>PreferencesWindowController</code></td></tr>
+</table>
+<div class="note decide"><b>Resolved UX (Coordinator):</b> <b>(R5 toast)</b> auto-restore fires at sign-in, which happens on the Account surface — show the "Restored your OpenAI key" confirmation on the <b>Account signed-in view</b> plus the Engine-tab status line (no OS-notification permission needed). <b>(R2 cleared-key)</b> the documented opt-out is the <b>toggle</b> (disable → DELETE server copy); merely clearing the key field does not delete the server copy, so a later sign-in on an empty Keychain will auto-restore — intended, and now stated in the copy.</div>
+
+<!-- ===================== 4 CONTRACT ===================== -->
+<h2 id="contract">4 · Shared wire contract (the seam both halves implement)</h2>
+<table>
+  <tr><th>Op</th><th>Request</th><th>Success</th><th>Client mapping</th></tr>
+  <tr><td>PUT</td><td><code>Authorization: Bearer &lt;jwt&gt;</code> · <code>{"key":"sk-…"}</code></td><td><code>200 {"updated_at":"…"}</code></td><td><code>upload(key)</code> → <code>.synced</code></td></tr>
+  <tr><td>GET</td><td><code>Authorization: Bearer &lt;jwt&gt;</code></td><td><code>200 {"key":"sk-…","updated_at":"…"}</code> / <code>404</code></td><td><code>.found</code> / <code>.notFound</code></td></tr>
+  <tr><td>DELETE</td><td><code>Authorization: Bearer &lt;jwt&gt;</code></td><td><code>204</code></td><td><code>delete()</code></td></tr>
+  <tr><td>any</td><td>expired/missing token</td><td><code>401</code></td><td><code>.unauthorized</code> → refresh once, retry</td></tr>
+  <tr><td>any</td><td>master key unset on server</td><td><code>503</code></td><td>surface "sync temporarily unavailable"; keep local key</td></tr>
+</table>
+
+<!-- ===================== 5 QA ===================== -->
+<h2 id="qa">5 · Test plan (QA)</h2>
+<div class="card">
+<h4>How this repo tests</h4>
+<ul>
+  <li><b>Backend:</b> <code>cd server &amp;&amp; go vet ./... &amp;&amp; go test -race ./...</code> — stdlib <code>testing</code> + <code>httptest</code> + in-memory <code>db.FakeRepository</code> (CI <code>.github/workflows/server.yml</code>).</li>
+  <li><b>macOS:</b> Swift Testing (<code>@Test</code>/<code>#expect</code>) via <code>xcodebuild test</code> (scheme "Translator Everywhere", <code>platform=macOS</code>, <code>CODE_SIGNING_ALLOWED=NO</code>); HTTP faked by <code>MockURLProtocol</code>; Keychain + sync-fake patterns already exist in <code>macos/Tests/</code>.</li>
+  <li><b>Manual-only</b> (can't run headlessly): the two-Mac round-trip (AC1), live-session Keychain ACL, prod DB / <code>deploy.env</code> inspection, prod-log grep, rotated/wrong-master-key ops check.</li>
+</ul>
+</div>
+<div class="grid2">
+  <div class="card"><h4>Backend unit — crypto (secrets)</h4><ul>
+    <li>Seal→Open round-trips; two seals of same input differ (fresh nonce).</li>
+    <li><b>Wrong master key → error + empty plaintext</b> (fail closed).</li>
+    <li>Tamper ciphertext / tag / nonce byte → GCM rejects, no plaintext.</li>
+    <li><b>AAD binding:</b> blob for user A won't Open under user B.</li>
+    <li>Constructor rejects non-32-byte / non-base64 / empty key.</li>
+    <li><code>key_id</code> rotation: old blob opens via keyring; unknown id → error, not panic.</li>
+  </ul></div>
+  <div class="card"><h4>Backend config / boot</h4><ul>
+    <li>Missing/short/non-base64 key → <b>graceful degrade</b>: server boots, <code>/secret/*</code> → 503 (Coordinator decision; QA asserts this, not fail-fast).</li>
+    <li>Valid key → routes live; key value never in any error/log string.</li>
+  </ul></div>
+</div>
+<div class="grid2">
+  <div class="card"><h4>Backend integration (httptest + fake)</h4><ul>
+    <li>PUT then GET (same owner) → identical key + updated_at.</li>
+    <li>GET as a <b>different user</b> → 404 (no cross-user read).</li>
+    <li>PUT &gt; 4 KB → 413; normal → 200.</li>
+    <li>PUT older→newer → <b>LWW by updated_at</b>; stale write ignored.</li>
+    <li>DELETE → 204; next GET → 404.</li>
+    <li><b>Account-delete cascades</b> the secret row.</li>
+    <li><b>No plaintext in logs:</b> logger→buffer, PUT/GET a sentinel key, assert absent — incl. forced error paths.</li>
+    <li>Unauthenticated → 401; over rate limit → 429.</li>
+  </ul></div>
+  <div class="card"><h4>Client unit (mock client + test Keychain)</h4><ul>
+    <li>enable → <code>upload</code> once with the key; edit-while-on → re-upload.</li>
+    <li>disable → <code>delete</code> called + local key retained.</li>
+    <li><b>auto-restore</b> when local empty → key in Keychain + toast.</li>
+    <li><b>don't-clobber</b> different local key → prompt, Keychain unchanged; same key → no-op.</li>
+    <li><b>never-wipe</b> on 404/empty → local untouched.</li>
+    <li>toggle disabled when signed-out / no key (reason shown); signed-out → no network.</li>
+  </ul></div>
+</div>
+<div class="card"><h4>Copy / truth-in-UI</h4><ul>
+  <li>Assert the three DESIGN §5 strings verbatim; when sync ON, the stale "never written to disk…" string is absent and "can decrypt"/"not end-to-end" present.</li>
+</ul></div>
+
+<h3>5.1 Acceptance matrix (PRD §5)</h3>
+<table>
+  <tr><th>#</th><th>Criterion</th><th>Covered by</th><th>Automatable?</th></tr>
+  <tr><td>AC1</td><td>Round-trip A→B auto-restores exact key, Test passes</td><td>manual two-Mac; pieces by client auto-restore + integration round-trip</td><td class="no">Manual-only</td></tr>
+  <tr><td>AC2</td><td>Encrypted at rest; master key not in DB; DB dump useless</td><td>crypto unit (ciphertext≠plaintext, wrong-key, AAD) + psql/deploy.env inspection</td><td>property <span class="ok">auto</span> · isolation manual</td></tr>
+  <tr><td>AC3</td><td>No plaintext in logs on PUT/GET</td><td>log-buffer unit + prod-log grep</td><td class="ok">auto</td></tr>
+  <tr><td>AC4</td><td>Don't clobber a different local key</td><td>client unit + live</td><td class="ok">auto</td></tr>
+  <tr><td>AC5</td><td>Never wipe on empty server</td><td>client unit</td><td class="ok">auto</td></tr>
+  <tr><td>AC6</td><td>Opt-out (disable/clear/delete-account) removes server copy; local remains</td><td>DELETE + account-delete cascade + disable-retains-local</td><td class="ok">auto</td></tr>
+  <tr><td>AC7</td><td>No-opt-in users unaffected</td><td>signed-out/no-key no-op; existing suites green</td><td class="ok">auto</td></tr>
+  <tr><td>AC8</td><td>Honest copy; sync-ON says "can decrypt — not E2E"</td><td>exact-string + stale-string regression</td><td class="ok">auto</td></tr>
+  <tr><td>AC9</td><td>Build green; crypto/handler/cross-user/delete covered; beta ships</td><td>§ all + beta panel (pipeline gate)</td><td class="ok">auto</td></tr>
+</table>
+<div class="note"><b>Green for Gate-2 build sign-off =</b> <code>go vet</code> + <code>go test -race ./...</code> pass; <code>xcodebuild test</code> passes; every automatable point green; the manual checklist (two-Mac round-trip, DB/<code>deploy.env</code> inspection, prod-log grep, disable-removes-copy, wrong/rotated-key fails-closed) executed + signed off. Any failing automatable test or any false on-screen privacy string is a <b>blocker</b>. Coverage target ≥ 80% (ECC); new crypto + <code>/secret/*</code> ≈ 100% of new lines.</div>
+
+<!-- ===================== 6 DECISIONS ===================== -->
+<h2 id="decisions">6 · Technical decisions for Gate-2 sign-off</h2>
+<div class="note decide"><b>T1 — Graceful-degrade boot.</b> If <code>SECRET_ENCRYPTION_KEY</code> is absent/invalid, the server still starts and only <code>/secret/*</code> returns 503; the rest (auth, notebook sync) is unaffected. Rationale: this is a shared multi-tenant box — coupling total server uptime to one new env var risks a 502 blast radius on every rollout. <span class="tag">recommend: yes (safer than fail-fast)</span></div>
+<div class="note decide"><b>T2 — Hardening limits.</b> Per-user rate limit 30/min (429); body cap 4 KB (413); adds <code>go-chi/httprate</code>. <span class="tag">recommend: yes</span></div>
+<div class="note decide"><b>T3 — Auto-restore + confirmation surface.</b> Auto-restore silently when the Keychain is empty; confirmation shown on the Account signed-in view + Engine status (no OS-notification permission). Opt-out is the toggle, not clearing the field. <span class="tag">recommend: yes</span></div>
+<div class="note"><b>Also confirming:</b> reuse existing patterns (SecretSyncClient ⇄ SyncClient, append-to-existing-files); LWW on <code>updated_at</code>; <code>name</code> column unconstrained but handler-hardcoded to <code>"openai-key"</code>; container-only redeploy.</div>
+
+<p class="sub" style="margin-top:26px"><b>Gate 2 ask:</b> approve this Tech Document (design + infra + frontend + backend + test plan) and decisions <b>T1–T3</b>, and I'll start a build loop — decomposed into small verified, committed slices (backend crypto+handlers first, then client, then the copy + wiring), each delegated to a Worker, QA-tested, and reviewed — driving to <b>Gate 3</b> (final verification + beta panel). No production code until you say go.</p>
+</div>
+</body>
+</html>
