@@ -116,6 +116,14 @@ final class KeySyncService {
     private let settings: SettingsStore
     private let isSignedInProvider: @MainActor () -> Bool
 
+    /// The latest key an edit wants PUT while sync is ON, coalesced — only the
+    /// last-typed value matters. Read+cleared by the drain loop.
+    private var pendingUploadKey: String?
+    /// The single in-flight edit-upload drain loop, or `nil` when idle. Its
+    /// existence is the single-flight lock: two edit-PUTs are never in flight at
+    /// once, so rapid edits land in order and the server ends with the last one.
+    private var editUploadTask: Task<Void, Never>?
+
     init(
         client: any SecretSyncClientProtocol,
         keychain: KeychainStore = KeychainStore(),
@@ -200,11 +208,43 @@ final class KeySyncService {
     /// Re-upload after an in-place key edit while sync is ON (DESIGN §3). A no-op
     /// when off / signed out (→ no network) or when the field was *cleared* —
     /// clearing the field does NOT delete the server copy (R2).
+    ///
+    /// **Single-flight + coalescing:** a burst of keystrokes never opens
+    /// overlapping PUTs (which could complete out of order and leave the server
+    /// with an older key than the one saved locally). The edit records the latest
+    /// value and a lone drain loop sends them strictly in order, so the server
+    /// ends with the last-typed value.
     func uploadIfEnabled(key: String) async {
         guard isEnabled, isSignedIn else { return }
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        await upload(trimmed)
+
+        pendingUploadKey = trimmed
+        guard editUploadTask == nil else { return }   // a drain is already running
+        editUploadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while let next = self.takePendingUpload() {
+                self.state = .syncing
+                do {
+                    try await self.client.upload(key: next)
+                    self.state = .synced(Date())
+                } catch {
+                    // Stop draining on failure; drop any queued value. The user
+                    // sees `.failed` and a later edit restarts the drain.
+                    self.pendingUploadKey = nil
+                    self.state = .failed(Self.message(for: error))
+                    break
+                }
+            }
+            self.editUploadTask = nil
+        }
+    }
+
+    /// Reads and clears the latest pending edit value (main-actor, no `await`
+    /// between read and clear, so the drain loop coalesces to the newest value).
+    private func takePendingUpload() -> String? {
+        defer { pendingUploadKey = nil }
+        return pendingUploadKey
     }
 
     // MARK: - Sign-in auto-restore (the never-wipe / don't-clobber branch)
@@ -298,16 +338,6 @@ final class KeySyncService {
     }
 
     // MARK: - Helpers
-
-    private func upload(_ key: String) async {
-        state = .syncing
-        do {
-            try await client.upload(key: key)
-            state = .synced(Date())
-        } catch {
-            state = .failed(Self.message(for: error))
-        }
-    }
 
     private func currentLocalKey() -> String {
         (keychain.string(for: KeychainStore.openAIKeyAccount) ?? "")

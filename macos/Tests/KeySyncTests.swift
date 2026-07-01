@@ -53,6 +53,27 @@ private struct FakeSecretAuth: SyncAuthProvider {
     func refreshAccessToken() async -> String? { refreshed }
 }
 
+/// A client that records every uploaded key in order and holds the FIRST upload
+/// suspended until the test releases it — lets a second edit arrive while the
+/// first PUT is in flight, to prove single-flight ordering.
+private actor GatedUploadClient: SecretSyncClientProtocol {
+    private(set) var received: [String] = []
+    private var gate: CheckedContinuation<Void, Never>?
+
+    /// Resumes the held first upload so the drain can proceed to the next value.
+    func releaseFirstUpload() { gate?.resume(); gate = nil }
+
+    func upload(key: String) async throws {
+        received.append(key)
+        if received.count == 1 {
+            await withCheckedContinuation { gate = $0 }   // hold the first PUT
+        }
+    }
+
+    func fetch() async throws -> SecretFetchResult { .notFound }
+    func delete() async throws {}
+}
+
 // MARK: - KeySyncService (the toggle + restore branch)
 
 @Suite("KeySyncService — enable/disable, auto-restore, never-wipe/don't-clobber")
@@ -62,7 +83,7 @@ struct KeySyncServiceTests {
     /// A service over a test-scoped Keychain (unique service) and an isolated
     /// `UserDefaults` suite, plus a fixed sign-in state.
     private func makeService(
-        mock: MockSecretClient,
+        mock: any SecretSyncClientProtocol,
         signedIn: Bool,
         enabled: Bool = false
     ) -> (KeySyncService, KeychainStore, String, SettingsStore) {
@@ -113,9 +134,36 @@ struct KeySyncServiceTests {
         defer { try? kc.delete(acct) }
 
         await svc.enable(key: "sk-1")
-        await svc.uploadIfEnabled(key: "sk-2")
+        await svc.uploadIfEnabled(key: "sk-2")   // edit-upload drains asynchronously
+        var spins = 0
+        while await mock.uploads.count < 2, spins < 1000 { await Task.yield(); spins += 1 }
 
         #expect(await mock.uploads == ["sk-1", "sk-2"])
+    }
+
+    @Test("rapid A-then-B edits are single-flight: sent in order, server ends with B")
+    func rapidEditsAreSingleFlightLastWins() async {
+        let mock = GatedUploadClient()
+        let (svc, kc, acct, _) = makeService(mock: mock, signedIn: true, enabled: true)
+        defer { try? kc.delete(acct) }
+
+        // "A" starts uploading and is held in-flight by the gate.
+        await svc.uploadIfEnabled(key: "A")
+        var spins = 0
+        while await mock.received.isEmpty, spins < 1000 { await Task.yield(); spins += 1 }
+
+        // "B" arrives while "A" is still in flight → coalesced onto the same drain,
+        // NOT a second overlapping PUT.
+        await svc.uploadIfEnabled(key: "B")
+
+        // Let "A" finish; the drain then sends "B".
+        await mock.releaseFirstUpload()
+        spins = 0
+        while await mock.received.count < 2, spins < 1000 { await Task.yield(); spins += 1 }
+
+        let received = await mock.received
+        #expect(received == ["A", "B"])     // strict order, no "A" after "B"
+        #expect(received.last == "B")       // server ends with the last-typed value
     }
 
     @Test("clearing the field while ON neither uploads empty nor deletes (R2)")
