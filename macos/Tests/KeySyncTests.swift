@@ -93,6 +93,19 @@ struct KeySyncServiceTests {
         if case .synced = svc.state {} else { Issue.record("expected .synced, got \(svc.state)") }
     }
 
+    @Test("a failed upload on enable leaves the flag OFF and shows .failed")
+    func enableFailureLeavesFlagOff() async {
+        let mock = MockSecretClient(uploadError: SyncError.server(status: 500))
+        let (svc, kc, acct, settings) = makeService(mock: mock, signedIn: true)
+        defer { try? kc.delete(acct) }
+
+        await svc.enable(key: "sk-abc")
+
+        #expect(!settings.keySyncEnabled)   // never armed — the PUT never succeeded
+        #expect(!svc.isEnabled)
+        if case .failed = svc.state {} else { Issue.record("expected .failed, got \(svc.state)") }
+    }
+
     @Test("editing the key while sync is ON re-uploads")
     func editWhileOnReuploads() async {
         let mock = MockSecretClient()

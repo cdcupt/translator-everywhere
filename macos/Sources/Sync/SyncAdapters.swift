@@ -148,9 +148,13 @@ final class KeySyncService {
 
     // MARK: - Toggle
 
-    /// User turned the toggle ON: PUT the key, confirm 2xx before showing Synced
-    /// (DESIGN §3). Reverts if there is no key / not signed in (defensive — the
-    /// toggle is disabled in those states).
+    /// User turned the toggle ON. **Transactional** (symmetric with `disable`):
+    /// PUT the key FIRST and arm the intent flag only after the upload actually
+    /// succeeds — a failed PUT must NOT leave `keySyncEnabled == true` (which
+    /// would show the sync-ON privacy copy while nothing was ever uploaded).
+    /// Reverts to OFF if there is no key / not signed in (defensive — the toggle
+    /// is disabled in those states). The shared `upload()` helper is left flag-
+    /// free so `uploadIfEnabled` (which only runs while already ON) can reuse it.
     func enable(key: String) async {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, isSignedIn else {
@@ -158,8 +162,15 @@ final class KeySyncService {
             state = .off
             return
         }
-        setEnabled(true)
-        await upload(trimmed)
+        state = .syncing
+        do {
+            try await client.upload(key: trimmed)
+            setEnabled(true)
+            state = .synced(Date())
+        } catch {
+            setEnabled(false)               // never leave the flag armed on failure
+            state = .failed(Self.message(for: error))
+        }
     }
 
     /// User turned the toggle OFF. **Transactional + fail-loud** (privacy opt-out
