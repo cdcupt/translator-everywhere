@@ -285,3 +285,194 @@ struct VocabPullResponse: Decodable {
         case serverTime = "server_time"
     }
 }
+
+// MARK: - Secret sync (OpenAI-key sync, login-only · TECH §3–§4)
+
+/// Outcome of a `GET /secret/openai-key` (TECH §4 wire contract).
+///
+/// `.found` carries the decrypted key + its server `updated_at`; `.notFound`
+/// is a clean 404 (no row); `.unauthorized` means the session couldn't be
+/// refreshed (signed out) — the caller must treat all three as *never wipe the
+/// local key*.
+enum SecretFetchResult: Sendable, Equatable {
+    case found(key: String, updatedAt: Date)
+    case notFound
+    case unauthorized
+}
+
+/// The seam both the app and the tests implement — a tiny PUT/GET/DELETE client
+/// for the single `openai-key` secret. `Sendable` so it can cross into
+/// `KeySyncService`'s `@MainActor` and be swapped for a mock in tests.
+protocol SecretSyncClientProtocol: Sendable {
+    /// PUT the key (encrypt-at-rest server side). Throws on transport / non-2xx
+    /// (incl. `SyncError.server(status: 503)` when the master key is unset).
+    func upload(key: String) async throws
+    /// GET the key. Never throws for 404 / signed-out — those map to
+    /// `.notFound` / `.unauthorized`; only transport / 5xx throw.
+    func fetch() async throws -> SecretFetchResult
+    /// DELETE the server copy (idempotent). Throws on transport / non-2xx.
+    func delete() async throws
+}
+
+/// Talks the `/secret/openai-key` contract, mirroring `SyncClient`: an `actor`
+/// over `URLSession`, reusing the same `SyncAuthProvider` seam and the exact
+/// **401 → refresh once → retry** pattern (see `SyncClient.runCycle`). No client
+/// crypto — the key is sent/received as-is over TLS; the server owns encryption
+/// at rest (DESIGN §2).
+actor SecretSyncClient: SecretSyncClientProtocol {
+
+    private let session: URLSession
+    private let baseURL: URL
+    private let auth: SyncAuthProvider
+
+    /// The single secret slot — the handler hardcodes `"openai-key"`; the client
+    /// never sends a caller-supplied name (TECH §2.1).
+    private static let path = "secret/openai-key"
+
+    init(
+        auth: SyncAuthProvider,
+        session: URLSession = .shared,
+        baseURL: URL = AuthConfig.backendBaseURL
+    ) {
+        self.auth = auth
+        self.session = session
+        self.baseURL = baseURL
+    }
+
+    // MARK: PUT
+
+    func upload(key: String) async throws {
+        guard let token = await auth.currentAccessToken() else { throw SyncError.unauthorized }
+        try await sendUpload(key: key, token: token, didRefresh: false)
+    }
+
+    private func sendUpload(key: String, token: String, didRefresh: Bool) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent(Self.path))
+        request.httpMethod = "PUT"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try Self.encoder.encode(SecretPutRequest(key: key))
+
+        let (_, response) = try await data(for: request)
+        do {
+            try Self.ensureOK(response)
+        } catch SyncError.unauthorized where !didRefresh {
+            guard let fresh = await auth.refreshAccessToken() else { throw SyncError.unauthorized }
+            try await sendUpload(key: key, token: fresh, didRefresh: true)
+        }
+    }
+
+    // MARK: GET
+
+    func fetch() async throws -> SecretFetchResult {
+        guard let token = await auth.currentAccessToken() else { return .unauthorized }
+        return try await sendFetch(token: token, didRefresh: false)
+    }
+
+    private func sendFetch(token: String, didRefresh: Bool) async throws -> SecretFetchResult {
+        var request = URLRequest(url: baseURL.appendingPathComponent(Self.path))
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw SyncError.transport }
+        switch http.statusCode {
+        case 200:
+            let decoded = try decode(SecretGetResponse.self, from: data)
+            return .found(key: decoded.key, updatedAt: decoded.updatedAt)
+        case 404:
+            return .notFound
+        case 401:
+            // 401 → refresh once → retry; a still-failing refresh means signed
+            // out → `.unauthorized` (the caller must NOT wipe the local key).
+            guard !didRefresh, let fresh = await auth.refreshAccessToken() else { return .unauthorized }
+            return try await sendFetch(token: fresh, didRefresh: true)
+        default:
+            throw SyncError.server(status: http.statusCode)
+        }
+    }
+
+    // MARK: DELETE
+
+    func delete() async throws {
+        guard let token = await auth.currentAccessToken() else { throw SyncError.unauthorized }
+        try await sendDelete(token: token, didRefresh: false)
+    }
+
+    private func sendDelete(token: String, didRefresh: Bool) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent(Self.path))
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw SyncError.transport }
+        switch http.statusCode {
+        case 200, 204:
+            return
+        case 401:
+            guard !didRefresh, let fresh = await auth.refreshAccessToken() else { throw SyncError.unauthorized }
+            try await sendDelete(token: fresh, didRefresh: true)
+        default:
+            throw SyncError.server(status: http.statusCode)
+        }
+    }
+
+    // MARK: Transport / coding (self-contained; mirrors SyncClient)
+
+    private func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await session.data(for: request)
+        } catch {
+            throw SyncError.transport
+        }
+    }
+
+    private static func ensureOK(_ response: URLResponse) throws {
+        guard let http = response as? HTTPURLResponse else { throw SyncError.transport }
+        if http.statusCode == 401 { throw SyncError.unauthorized }
+        guard (200..<300).contains(http.statusCode) else {
+            throw SyncError.server(status: http.statusCode)
+        }
+    }
+
+    private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        do { return try Self.decoder.decode(type, from: data) }
+        catch { throw SyncError.decoding }
+    }
+
+    private static let iso8601: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    private static let encoder = JSONEncoder()
+
+    private static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        let withFrac = ISO8601DateFormatter()
+        withFrac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = iso8601
+        d.dateDecodingStrategy = .custom { decoder in
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            if let date = withFrac.date(from: raw) ?? plain.date(from: raw) { return date }
+            throw SyncError.decoding
+        }
+        return d
+    }()
+}
+
+/// `PUT /secret/openai-key` body (TECH §4).
+private struct SecretPutRequest: Encodable {
+    let key: String
+}
+
+/// `GET /secret/openai-key` 200 body (TECH §4).
+private struct SecretGetResponse: Decodable {
+    let key: String
+    let updatedAt: Date
+    enum CodingKeys: String, CodingKey {
+        case key
+        case updatedAt = "updated_at"
+    }
+}

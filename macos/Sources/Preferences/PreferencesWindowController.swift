@@ -14,18 +14,21 @@ final class PreferencesWindowController {
     private let keychain: KeychainStore
     private let launchAtLogin: LaunchAtLogin
     private let accountModel: AccountViewModel
+    private let keySync: KeySyncService
     private var window: NSWindow?
 
     init(
         settings: SettingsStore = SettingsStore(),
         keychain: KeychainStore = KeychainStore(),
         launchAtLogin: LaunchAtLogin = LaunchAtLogin(),
-        accountModel: AccountViewModel
+        accountModel: AccountViewModel,
+        keySync: KeySyncService
     ) {
         self.settings = settings
         self.keychain = keychain
         self.launchAtLogin = launchAtLogin
         self.accountModel = accountModel
+        self.keySync = keySync
     }
 
     /// Brings the Preferences window forward, creating it on first use.
@@ -40,7 +43,8 @@ final class PreferencesWindowController {
             settings: settings,
             keychain: keychain,
             launchAtLogin: launchAtLogin,
-            accountModel: accountModel
+            accountModel: accountModel,
+            keySync: keySync
         )
         let hosting = NSHostingController(rootView: root)
         // See OnboardingWindowController: clearing sizingOptions stops the

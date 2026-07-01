@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// Bridges `AuthClient` to the SyncClient's `SyncAuthProvider`. Lives outside
 /// `AuthClient` so the auth module stays free of sync concerns.
@@ -41,4 +42,322 @@ struct DefaultsCursorStore: SyncCursorStore {
     func saveCursor(_ date: Date) {
         defaults.set(date.timeIntervalSince1970, forKey: Self.key)
     }
+}
+
+// MARK: - OpenAI-key sync (login-only · TECH §3)
+
+/// The Engine-tab status line for key sync (TECH §3.2 state machine).
+enum KeySyncState: Equatable, Sendable {
+    case off
+    case syncing
+    case synced(Date)
+    case failed(String)
+}
+
+/// A restore-time collision: the server has a key but this Mac already holds a
+/// *different* local one. We surface this instead of clobbering (DESIGN §3).
+struct KeyConflict: Equatable, Sendable {
+    let serverKey: String
+    let updatedAt: Date
+}
+
+/// The copy strings shown next to the key field / on the Account tab. Extracted
+/// so QA can assert them verbatim, and so the *stale* pre-sync line can never
+/// silently reappear when sync is ON (DESIGN §5 truth-in-UI, TECH §3.3).
+enum KeySyncCopy {
+    /// Engine tab, sync OFF — the honest local-only promise.
+    static let engineSyncOff =
+        "Stored only in your Mac's Keychain. Never sent anywhere but OpenAI."
+    /// Engine tab, sync ON — explicitly states we can decrypt it (not E2E).
+    static let engineSyncOn =
+        "In your Mac's Keychain, and stored on our server (encrypted) so it's "
+        + "there when you sign in on another Mac. We keep it encrypted at rest — "
+        + "but note we can decrypt it to sync it, so it is not end-to-end encrypted."
+    /// Account tab privacy line.
+    static let accountPrivacy =
+        "We store your saved vocabulary as text rows — never your screen images. "
+        + "If you turn on key sync, we also store your OpenAI key, encrypted, so "
+        + "it follows you across Macs."
+    /// The auto-restore confirmation (R5 — Engine status + Account signed-in).
+    static let restoredToast = "Restored your OpenAI key"
+    /// Disabled-reason when signed out.
+    static let disabledReasonSignedOut =
+        "Sign in on the Account tab to sync your key across your Macs."
+    /// Disabled-reason when no key is present yet.
+    static let disabledReasonNoKey =
+        "Add your OpenAI key above to sync it across your Macs."
+}
+
+/// Drives the Engine-tab "Sync this key across my Macs" toggle and the sign-in
+/// auto-restore (TECH §3, DESIGN §3). `@MainActor @Observable` so the toggle,
+/// status line, conflict alert, and restored toast all re-render on transition.
+///
+/// The *only* mutation of the local Keychain happens in `restoreAfterSignIn`
+/// (write on empty) and conflict adoption — never on fetch failure / empty
+/// server (never-wipe) and never on a differing local key (don't-clobber).
+@MainActor
+@Observable
+final class KeySyncService {
+
+    /// The Engine-tab status line.
+    private(set) var state: KeySyncState = .off
+    /// Mirrors `settings.keySyncEnabled` as an observable so the toggle tracks it
+    /// (including a silent re-arm from `restoreAfterSignIn`).
+    private(set) var isEnabled: Bool
+    /// Set true after a silent auto-restore; the Engine status + Account
+    /// signed-in view show "Restored your OpenAI key" until acknowledged.
+    var showRestoredToast = false
+    /// Non-nil when a restore hit a *different* local key — drives the one-time
+    /// "keep this Mac's key or use the synced one?" alert.
+    var pendingConflict: KeyConflict?
+
+    private let client: any SecretSyncClientProtocol
+    private let keychain: KeychainStore
+    private let settings: SettingsStore
+    private let isSignedInProvider: @MainActor () -> Bool
+
+    /// The latest key an edit wants PUT while sync is ON, coalesced — only the
+    /// last-typed value matters. Read+cleared by the drain loop.
+    private var pendingUploadKey: String?
+    /// The single in-flight edit-upload drain loop, or `nil` when idle. Its
+    /// existence is the single-flight lock: two edit-PUTs are never in flight at
+    /// once, so rapid edits land in order and the server ends with the last one.
+    private var editUploadTask: Task<Void, Never>?
+
+    init(
+        client: any SecretSyncClientProtocol,
+        keychain: KeychainStore = KeychainStore(),
+        settings: SettingsStore = SettingsStore(),
+        isSignedIn: @escaping @MainActor () -> Bool = { false }
+    ) {
+        self.client = client
+        self.keychain = keychain
+        self.settings = settings
+        self.isSignedInProvider = isSignedIn
+        self.isEnabled = settings.keySyncEnabled
+    }
+
+    /// `true` when there is a signed-in session — required to sync at all.
+    var isSignedIn: Bool { isSignedInProvider() }
+
+    /// The one-line reason the toggle is disabled, or `nil` when it can be used.
+    /// `hasKey` is passed from the view (the live key field), not the Keychain,
+    /// so the reason reacts to typing before the key is even persisted.
+    ///
+    /// The reasons gate *turning sync ON only*. When sync is already ON the
+    /// toggle is always interactable so the user can turn it OFF (opt-out →
+    /// DELETE the server copy) even after clearing the key field.
+    func syncDisabledReason(hasKey: Bool) -> String? {
+        if isEnabled { return nil }
+        if !isSignedIn { return KeySyncCopy.disabledReasonSignedOut }
+        if !hasKey { return KeySyncCopy.disabledReasonNoKey }
+        return nil
+    }
+
+    // MARK: - Toggle
+
+    /// User turned the toggle ON. **Transactional** (symmetric with `disable`):
+    /// PUT the key FIRST and arm the intent flag only after the upload actually
+    /// succeeds — a failed PUT must NOT leave `keySyncEnabled == true` (which
+    /// would show the sync-ON privacy copy while nothing was ever uploaded).
+    /// Reverts to OFF if there is no key / not signed in (defensive — the toggle
+    /// is disabled in those states). The shared `upload()` helper is left flag-
+    /// free so `uploadIfEnabled` (which only runs while already ON) can reuse it.
+    func enable(key: String) async {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, isSignedIn else {
+            setEnabled(false)
+            state = .off
+            return
+        }
+        state = .syncing
+        do {
+            try await client.upload(key: trimmed)
+            setEnabled(true)
+            state = .synced(Date())
+        } catch {
+            setEnabled(false)               // never leave the flag armed on failure
+            state = .failed(Self.message(for: error))
+        }
+    }
+
+    /// User turned the toggle OFF. **Transactional + fail-loud** (privacy opt-out
+    /// must never claim success while the key is still on the server): DELETE the
+    /// server copy FIRST, and only clear the intent flag / show `.off` once the
+    /// delete actually succeeds (a `404` is idempotent success). On failure keep
+    /// `keySyncEnabled == true` and surface `.failed` so the user can retry — the
+    /// server copy is still marked present. The local Keychain key is untouched
+    /// either way (AC6). Symmetric with `enable`, where `.synced` is only shown
+    /// after the upload actually succeeds.
+    func disable() async {
+        state = .syncing
+        do {
+            try await client.delete()
+        } catch SyncError.server(status: 404) {
+            // Already absent server-side — idempotent success.
+        } catch {
+            // Do NOT clear the flag — the server copy may still be present.
+            state = .failed(Self.disableFailedMessage)
+            return
+        }
+        setEnabled(false)
+        state = .off
+        pendingConflict = nil
+    }
+
+    /// Re-upload after an in-place key edit while sync is ON (DESIGN §3). A no-op
+    /// when off / signed out (→ no network) or when the field was *cleared* —
+    /// clearing the field does NOT delete the server copy (R2).
+    ///
+    /// **Single-flight + coalescing:** a burst of keystrokes never opens
+    /// overlapping PUTs (which could complete out of order and leave the server
+    /// with an older key than the one saved locally). The edit records the latest
+    /// value and a lone drain loop sends them strictly in order, so the server
+    /// ends with the last-typed value.
+    func uploadIfEnabled(key: String) async {
+        guard isEnabled, isSignedIn else { return }
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        pendingUploadKey = trimmed
+        guard editUploadTask == nil else { return }   // a drain is already running
+        editUploadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while let next = self.takePendingUpload() {
+                self.state = .syncing
+                do {
+                    try await self.client.upload(key: next)
+                    self.state = .synced(Date())
+                } catch {
+                    // Stop draining on failure; drop any queued value. The user
+                    // sees `.failed` and a later edit restarts the drain.
+                    self.pendingUploadKey = nil
+                    self.state = .failed(Self.message(for: error))
+                    break
+                }
+            }
+            self.editUploadTask = nil
+        }
+    }
+
+    /// Reads and clears the latest pending edit value (main-actor, no `await`
+    /// between read and clear, so the drain loop coalesces to the newest value).
+    private func takePendingUpload() -> String? {
+        defer { pendingUploadKey = nil }
+        return pendingUploadKey
+    }
+
+    // MARK: - Sign-in auto-restore (the never-wipe / don't-clobber branch)
+
+    /// After sign-in, GET the server key and branch (TECH §3.2):
+    /// - fetch error / 404 / signed-out → **no-op** (never wipe the local key),
+    /// - local empty → **restore** to the Keychain + toast + arm the flag,
+    /// - same key → **re-arm** the flag silently,
+    /// - different local key → **conflict** (don't clobber; prompt the user).
+    func restoreAfterSignIn() async {
+        let result: SecretFetchResult
+        do {
+            result = try await client.fetch()
+        } catch {
+            // Transport / 5xx (incl. 503 no-master-key) — keep the local key.
+            return
+        }
+
+        switch result {
+        case .notFound, .unauthorized:
+            return
+        case let .found(serverKey, updatedAt):
+            let trimmedServer = serverKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            // An empty / whitespace-only server key is not a real key — treat it
+            // exactly like `.notFound`: never write the Keychain, never raise a
+            // conflict, never wipe or arm anything.
+            guard !trimmedServer.isEmpty else { return }
+            let local = currentLocalKey()
+            if local.isEmpty {
+                try? keychain.set(serverKey, for: KeychainStore.openAIKeyAccount)
+                setEnabled(true)
+                state = .synced(updatedAt)
+                showRestoredToast = true
+            } else if local == trimmedServer {
+                setEnabled(true)
+                state = .synced(updatedAt)
+            } else {
+                pendingConflict = KeyConflict(serverKey: serverKey, updatedAt: updatedAt)
+            }
+        }
+    }
+
+    // MARK: - Conflict resolution
+
+    /// Keep this Mac's existing key (the alert default); leave the server copy
+    /// untouched and dismiss the prompt.
+    func resolveConflictKeepingLocal() {
+        pendingConflict = nil
+    }
+
+    /// Adopt the synced key: overwrite the local Keychain with the server copy,
+    /// arm the flag, and dismiss the prompt.
+    func resolveConflictAdoptingSynced() {
+        guard let conflict = pendingConflict else { return }
+        // Defensive: never overwrite a good local key with an empty/whitespace
+        // one. (The restore branch already makes an empty-key conflict
+        // impossible, so this is belt-and-suspenders.)
+        guard !conflict.serverKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            pendingConflict = nil
+            return
+        }
+        try? keychain.set(conflict.serverKey, for: KeychainStore.openAIKeyAccount)
+        setEnabled(true)
+        state = .synced(conflict.updatedAt)
+        pendingConflict = nil
+    }
+
+    /// Dismiss the restored confirmation (the view calls this once shown).
+    func acknowledgeRestoredToast() {
+        showRestoredToast = false
+    }
+
+    // MARK: - Sign-out / account-delete
+
+    /// Sign-out: sync can't run signed-out, so clear the intent flag. The local
+    /// Keychain key and the server copy are both kept (a later sign-in re-arms).
+    func handleSignOut() {
+        setEnabled(false)
+        state = .off
+        pendingConflict = nil
+        showRestoredToast = false
+    }
+
+    /// Account delete: the server cascades the secret row away; clear the local
+    /// flag/state. The local Keychain key is kept (AC6).
+    func handleAccountDeleted() {
+        setEnabled(false)
+        state = .off
+        pendingConflict = nil
+        showRestoredToast = false
+    }
+
+    // MARK: - Helpers
+
+    private func currentLocalKey() -> String {
+        (keychain.string(for: KeychainStore.openAIKeyAccount) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func setEnabled(_ value: Bool) {
+        settings.keySyncEnabled = value
+        isEnabled = value
+    }
+
+    /// User-facing reason for a failed sync.
+    static func message(for error: Error) -> String {
+        if case SyncError.server(status: 503) = error {
+            return "Sync is temporarily unavailable. Your key stays on this Mac."
+        }
+        return "Couldn't sync your key. It's still saved on this Mac."
+    }
+
+    /// User-facing reason a disable (server-copy removal) failed — the copy is
+    /// still present and sync stays marked ON so the user can retry.
+    static let disableFailedMessage = "Couldn't remove the server copy. Try again."
 }

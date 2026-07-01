@@ -21,6 +21,7 @@ final class SettingsStore {
 
     private enum Key {
         static let enginePreference = "enginePreference"
+        static let keySyncEnabled = "keySyncEnabled"
         static let didOnboard = "didOnboard"
         static let lastSyncedAt = "sync.lastSyncedAt"
         static let lastFromCode = "lastFromCode"
@@ -59,6 +60,16 @@ final class SettingsStore {
         set {
             defaults.set(newValue.rawValue, forKey: Key.enginePreference)
         }
+    }
+
+    /// `true` when the user has opted in to syncing their OpenAI key across
+    /// Macs (login-only, encrypted at rest — see `KeySyncService`). Defaults to
+    /// `false`: no key ever leaves this Mac until the user turns this on. The
+    /// key itself lives in `KeychainStore`, never here — this is only the intent
+    /// flag. Cleared on sign-out / account-delete; re-armed on a matching restore.
+    var keySyncEnabled: Bool {
+        get { defaults.bool(forKey: Key.keySyncEnabled) }
+        set { defaults.set(newValue, forKey: Key.keySyncEnabled) }
     }
 
     /// `true` once the user has finished (or skipped past) first-run onboarding.
