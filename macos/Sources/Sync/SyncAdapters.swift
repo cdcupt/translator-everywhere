@@ -196,8 +196,12 @@ final class KeySyncService {
         case .notFound, .unauthorized:
             return
         case let .found(serverKey, updatedAt):
-            let local = currentLocalKey()
             let trimmedServer = serverKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            // An empty / whitespace-only server key is not a real key — treat it
+            // exactly like `.notFound`: never write the Keychain, never raise a
+            // conflict, never wipe or arm anything.
+            guard !trimmedServer.isEmpty else { return }
+            let local = currentLocalKey()
             if local.isEmpty {
                 try? keychain.set(serverKey, for: KeychainStore.openAIKeyAccount)
                 setEnabled(true)
@@ -224,6 +228,13 @@ final class KeySyncService {
     /// arm the flag, and dismiss the prompt.
     func resolveConflictAdoptingSynced() {
         guard let conflict = pendingConflict else { return }
+        // Defensive: never overwrite a good local key with an empty/whitespace
+        // one. (The restore branch already makes an empty-key conflict
+        // impossible, so this is belt-and-suspenders.)
+        guard !conflict.serverKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            pendingConflict = nil
+            return
+        }
         try? keychain.set(conflict.serverKey, for: KeychainStore.openAIKeyAccount)
         setEnabled(true)
         state = .synced(conflict.updatedAt)

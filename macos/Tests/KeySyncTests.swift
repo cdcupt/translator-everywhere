@@ -197,6 +197,37 @@ struct KeySyncServiceTests {
         #expect(kc.string(for: acct) == "sk-local")
     }
 
+    @Test("empty/whitespace server key on an empty Keychain is a no-op (never write)",
+          arguments: ["", "   "])
+    func emptyServerKeyLocalEmptyNoOp(serverKey: String) async {
+        let mock = MockSecretClient(fetchResult: .found(key: serverKey, updatedAt: Date()))
+        let (svc, kc, acct, settings) = makeService(mock: mock, signedIn: true)
+        defer { try? kc.delete(acct) }
+
+        await svc.restoreAfterSignIn()
+
+        #expect(kc.string(for: acct) == nil)          // never written
+        #expect(svc.pendingConflict == nil)
+        #expect(!svc.showRestoredToast)
+        #expect(!settings.keySyncEnabled)             // not armed
+    }
+
+    @Test("empty/whitespace server key never raises a conflict against a different local key",
+          arguments: ["", "   "])
+    func emptyServerKeyDifferentLocalNoConflict(serverKey: String) async throws {
+        let mock = MockSecretClient(fetchResult: .found(key: serverKey, updatedAt: Date()))
+        let (svc, kc, acct, settings) = makeService(mock: mock, signedIn: true)
+        defer { try? kc.delete(acct) }
+        try kc.set("sk-local", for: acct)
+
+        await svc.restoreAfterSignIn()
+
+        #expect(kc.string(for: acct) == "sk-local")   // local key untouched
+        #expect(svc.pendingConflict == nil)           // no clobber prompt raised
+        #expect(!svc.showRestoredToast)
+        #expect(!settings.keySyncEnabled)
+    }
+
     @Test("the toggle is disabled with a reason when signed out or when there is no key")
     func toggleDisabledReasons() {
         let signedOut = KeySyncService(client: MockSecretClient(), isSignedIn: { false })
