@@ -13,15 +13,18 @@ private actor MockSecretClient: SecretSyncClientProtocol {
     private var fetchResult: SecretFetchResult
     private var fetchError: Error?
     private var uploadError: Error?
+    private var deleteError: Error?
 
     init(
         fetchResult: SecretFetchResult = .notFound,
         fetchError: Error? = nil,
-        uploadError: Error? = nil
+        uploadError: Error? = nil,
+        deleteError: Error? = nil
     ) {
         self.fetchResult = fetchResult
         self.fetchError = fetchError
         self.uploadError = uploadError
+        self.deleteError = deleteError
     }
 
     func setFetchError(_ error: Error) { fetchError = error }
@@ -36,7 +39,10 @@ private actor MockSecretClient: SecretSyncClientProtocol {
         return fetchResult
     }
 
-    func delete() async throws { deleteCount += 1 }
+    func delete() async throws {
+        deleteCount += 1                       // counts the attempt
+        if let deleteError { throw deleteError }
+    }
 }
 
 /// A configurable `SyncAuthProvider` for `SecretSyncClient`'s 401→refresh path.
@@ -123,9 +129,43 @@ struct KeySyncServiceTests {
         await svc.disable()
 
         #expect(await mock.deleteCount == 1)
+        #expect(svc.state == .off)              // only .off after a successful DELETE
         #expect(kc.string(for: acct) == "sk-local")
         #expect(!svc.isEnabled)
         #expect(!settings.keySyncEnabled)
+    }
+
+    @Test("a failed DELETE keeps sync ON, shows .failed, and retains the local key")
+    func disableFailureKeepsSyncOn() async throws {
+        let mock = MockSecretClient(deleteError: SyncError.server(status: 500))
+        let (svc, kc, acct, settings) = makeService(mock: mock, signedIn: true)
+        defer { try? kc.delete(acct) }
+        try kc.set("sk-local", for: acct)
+        await svc.enable(key: "sk-local")       // upload succeeds → ON
+        #expect(settings.keySyncEnabled)
+
+        await svc.disable()                     // DELETE throws
+
+        #expect(await mock.deleteCount == 1)    // attempted
+        #expect(settings.keySyncEnabled)        // still ON — server copy still present
+        #expect(svc.isEnabled)
+        if case .failed = svc.state {} else { Issue.record("expected .failed, got \(svc.state)") }
+        #expect(kc.string(for: acct) == "sk-local")  // local key untouched
+    }
+
+    @Test("disable treats a 404 (already absent) as idempotent success")
+    func disable404IsSuccess() async throws {
+        let mock = MockSecretClient(deleteError: SyncError.server(status: 404))
+        let (svc, kc, acct, settings) = makeService(mock: mock, signedIn: true)
+        defer { try? kc.delete(acct) }
+        try kc.set("sk-local", for: acct)
+        await svc.enable(key: "sk-local")
+
+        await svc.disable()
+
+        #expect(!settings.keySyncEnabled)       // cleared — 404 == success
+        #expect(svc.state == .off)
+        #expect(kc.string(for: acct) == "sk-local")
     }
 
     @Test("auto-restore writes the key + shows the toast when the Keychain is empty")

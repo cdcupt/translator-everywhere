@@ -162,13 +162,28 @@ final class KeySyncService {
         await upload(trimmed)
     }
 
-    /// User turned the toggle OFF: DELETE the server copy; the local Keychain key
-    /// is kept (opt-out removes the cloud copy only — AC6). Best-effort delete.
+    /// User turned the toggle OFF. **Transactional + fail-loud** (privacy opt-out
+    /// must never claim success while the key is still on the server): DELETE the
+    /// server copy FIRST, and only clear the intent flag / show `.off` once the
+    /// delete actually succeeds (a `404` is idempotent success). On failure keep
+    /// `keySyncEnabled == true` and surface `.failed` so the user can retry — the
+    /// server copy is still marked present. The local Keychain key is untouched
+    /// either way (AC6). Symmetric with `enable`, where `.synced` is only shown
+    /// after the upload actually succeeds.
     func disable() async {
+        state = .syncing
+        do {
+            try await client.delete()
+        } catch SyncError.server(status: 404) {
+            // Already absent server-side — idempotent success.
+        } catch {
+            // Do NOT clear the flag — the server copy may still be present.
+            state = .failed(Self.disableFailedMessage)
+            return
+        }
         setEnabled(false)
         state = .off
         pendingConflict = nil
-        try? await client.delete()
     }
 
     /// Re-upload after an in-place key edit while sync is ON (DESIGN §3). A no-op
@@ -300,4 +315,8 @@ final class KeySyncService {
         }
         return "Couldn't sync your key. It's still saved on this Mac."
     }
+
+    /// User-facing reason a disable (server-copy removal) failed — the copy is
+    /// still present and sync stays marked ON so the user can retry.
+    static let disableFailedMessage = "Couldn't remove the server copy. Try again."
 }
