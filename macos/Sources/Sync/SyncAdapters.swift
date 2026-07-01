@@ -135,7 +135,12 @@ final class KeySyncService {
     /// The one-line reason the toggle is disabled, or `nil` when it can be used.
     /// `hasKey` is passed from the view (the live key field), not the Keychain,
     /// so the reason reacts to typing before the key is even persisted.
+    ///
+    /// The reasons gate *turning sync ON only*. When sync is already ON the
+    /// toggle is always interactable so the user can turn it OFF (opt-out →
+    /// DELETE the server copy) even after clearing the key field.
     func syncDisabledReason(hasKey: Bool) -> String? {
+        if isEnabled { return nil }
         if !isSignedIn { return KeySyncCopy.disabledReasonSignedOut }
         if !hasKey { return KeySyncCopy.disabledReasonNoKey }
         return nil

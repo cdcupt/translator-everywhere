@@ -238,6 +238,23 @@ struct KeySyncServiceTests {
         #expect(signedIn.syncDisabledReason(hasKey: true) == nil)
     }
 
+    @Test("sync ON → toggle stays interactable (can disable) even with an empty key field")
+    func toggleEnabledWhenOnEvenWithoutKey() async {
+        let mock = MockSecretClient()
+        let (svc, kc, acct, settings) = makeService(mock: mock, signedIn: true, enabled: true)
+        defer { try? kc.delete(acct) }
+
+        // Sync currently ON, key field empty → the reasons must NOT block OFF.
+        #expect(svc.syncDisabledReason(hasKey: false) == nil)
+
+        // Disabling with an empty key field still DELETEs the server copy + clears
+        // the flag (opt-out stays reachable — AC6).
+        await svc.disable()
+        #expect(await mock.deleteCount == 1)
+        #expect(!svc.isEnabled)
+        #expect(!settings.keySyncEnabled)
+    }
+
     @Test("signed out → uploadIfEnabled makes no network call")
     func signedOutNoNetwork() async {
         let mock = MockSecretClient()
