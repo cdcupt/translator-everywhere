@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The live state of an OpenAI key Test (DESIGN §2d, Fig 7).
@@ -23,6 +24,9 @@ struct EngineTab: View {
     @State private var preference: EnginePreference
     @State private var apiKey: String
     @State private var testState: EngineTestState = .idle
+    /// Drives the key field's focus ring so committing (⏎) or clicking away drops
+    /// it — the standard "click-outside-deselects" behavior (FIX 1).
+    @FocusState private var keyFieldFocused: Bool
 
     /// Sample text for the live Test call.
     private static let testSample = "Hello"
@@ -61,6 +65,9 @@ struct EngineTab: View {
                 Section("OpenAI API key") {
                     SecureField("Paste your key (sk-…)", text: $apiKey)
                         .textFieldStyle(.roundedBorder)
+                        .focused($keyFieldFocused)
+                        // Committing the field (⏎) drops the focus ring too.
+                        .onSubmit { keyFieldFocused = false }
                         .onChange(of: apiKey) { _, newValue in
                             persistKey()
                             testState = .idle
@@ -79,6 +86,11 @@ struct EngineTab: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    // Field-level "reached the server" confirmation (FIX 2). Only
+                    // rendered while sync is ON — that's the only time the key is
+                    // uploaded; when OFF it stays local-only (Keychain).
+                    accountSaveStatusView
+
                     syncControls
 
                     HStack {
@@ -90,6 +102,9 @@ struct EngineTab: View {
             }
         }
         .formStyle(.grouped)
+        // Click-outside-deselects: a window-level mouse-down monitor drops the key
+        // field's focus ring when the click lands anywhere but a text field (FIX 1).
+        .background(FocusResignOnOutsideClick())
         // Don't-clobber prompt: a restore found a *different* local key.
         .alert(
             "Use this Mac's key or the synced one?",
@@ -111,7 +126,8 @@ struct EngineTab: View {
     }
 
     /// The sync toggle, its disabled-reason, the context-sensitive privacy copy,
-    /// the status line, and the restored-key confirmation (TECH §3.3, R5).
+    /// and the restored-key confirmation (TECH §3.3, R5). The live save status is
+    /// now surfaced at the field itself via `accountSaveStatusView` (FIX 2).
     @ViewBuilder
     private var syncControls: some View {
         Toggle("Sync this key across my Macs", isOn: Binding(
@@ -137,8 +153,6 @@ struct EngineTab: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
-        if keySync.isEnabled { syncStatusView }
-
         if keySync.showRestoredToast {
             Label(KeySyncCopy.restoredToast, systemImage: "checkmark.icloud.fill")
                 .font(.caption)
@@ -151,22 +165,27 @@ struct EngineTab: View {
         keySync.syncDisabledReason(hasKey: !trimmedKey.isEmpty)
     }
 
+    /// A field-level "reached the server" confirmation (FIX 2). Renders only when
+    /// sync is ON — mapping via the pure `accountSaveStatus` so the copy is unit-
+    /// tested and can never claim a server save while the key is local-only.
     @ViewBuilder
-    private var syncStatusView: some View {
-        switch keySync.state {
-        case .syncing:
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text("Syncing…").font(.caption).foregroundStyle(.secondary)
+    private var accountSaveStatusView: some View {
+        if let status = Self.accountSaveStatus(state: keySync.state, syncEnabled: keySync.isEnabled) {
+            switch status.kind {
+            case .saving:
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(status.text).font(.caption).foregroundStyle(.secondary)
+                }
+            case .saved:
+                Label(status.text, systemImage: "icloud.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            case .failed:
+                Label(status.text, systemImage: "exclamationmark.icloud")
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
-        case .synced, .off:
-            Label("Synced", systemImage: "checkmark.icloud.fill")
-                .font(.caption)
-                .foregroundStyle(.green)
-        case .failed(let message):
-            Label(message, systemImage: "exclamationmark.icloud")
-                .font(.caption)
-                .foregroundStyle(.orange)
         }
     }
 
@@ -230,5 +249,110 @@ struct EngineTab: View {
             }
         }
         return error.localizedDescription
+    }
+
+    // MARK: - Account save status (FIX 2, testable mapping)
+
+    /// The field-level save-status line, derived purely from the sync state so QA
+    /// can assert the copy without mounting the view.
+    ///
+    /// Returns `nil` when sync is OFF: the key is then stored only in this Mac's
+    /// Keychain, so we must NOT claim it reached the server ("…to your account"
+    /// wording is only honest while sync is ON). `now` is injectable for tests.
+    static func accountSaveStatus(
+        state: KeySyncState,
+        syncEnabled: Bool,
+        now: Date = Date()
+    ) -> AccountSaveStatus? {
+        guard syncEnabled else { return nil }
+        switch state {
+        case .off:
+            return nil
+        case .syncing:
+            return AccountSaveStatus(kind: .saving, text: "Saving…")
+        case .synced(let date):
+            return AccountSaveStatus(
+                kind: .saved,
+                text: "Saved to your account ✓ · \(savedTimeDescription(date, now: now))"
+            )
+        case .failed(let message):
+            return AccountSaveStatus(
+                kind: .failed,
+                text: "Couldn't save to your account — \(message)"
+            )
+        }
+    }
+
+    /// A short, non-ticking timestamp for the "Saved" line: "just now" within the
+    /// last minute, otherwise a short clock time (e.g. "10:42 AM").
+    private static func savedTimeDescription(_ date: Date, now: Date) -> String {
+        if now.timeIntervalSince(date) < 60 { return "just now" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    // MARK: - Click-outside-deselects (FIX 1)
+
+    /// Whether a left-click resolving to `hitView` should drop keyboard focus.
+    /// Clicks inside an editable text field (the key field or its field editor)
+    /// keep focus; clicks anywhere else — labels, the toggle, buttons, blank Form
+    /// space — resign it. Walks the ancestry so a hit on a field's internal
+    /// subview still counts as "inside the text". Mirrors `ResultPanel`'s v1.2.3
+    /// deselect precedent.
+    static func clickShouldResignFocus(forHit hitView: NSView?) -> Bool {
+        var view = hitView
+        while let current = view {
+            if current is NSTextView || current is NSTextField { return false }
+            view = current.superview
+        }
+        return true
+    }
+}
+
+/// The visual kind + copy of the field-level save-status line (FIX 2). A plain
+/// value so the state→string mapping is unit-testable without mounting the view.
+struct AccountSaveStatus: Equatable {
+    enum Kind: Equatable { case saving, saved, failed }
+    let kind: Kind
+    let text: String
+}
+
+/// Drops keyboard focus (and the SecureField's focus ring) when the user clicks
+/// anywhere in the Preferences window that isn't a text field — the standard
+/// macOS "click-outside-deselects" behavior (FIX 1). A SwiftUI `.onTapGesture`
+/// on a grouped Form's background is unreliable because the Form's backing
+/// `NSScrollView` swallows blank-area clicks, so we watch the window's
+/// left-mouse-downs with a local event monitor and resign at the AppKit level.
+private struct FocusResignOnOutsideClick: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { MonitorView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    final class MonitorView: NSView {
+        private var monitor: Any?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            // Re-arm per window move; tear down when the tab leaves the hierarchy.
+            if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+                guard let self,
+                      let window = self.window,
+                      event.window === window,
+                      let contentView = window.contentView
+                else { return event }
+                let point = contentView.convert(event.locationInWindow, from: nil)
+                if EngineTab.clickShouldResignFocus(forHit: contentView.hitTest(point)) {
+                    window.makeFirstResponder(nil)
+                }
+                return event   // never consume — normal dispatch is untouched
+            }
+        }
+
+        deinit {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+        }
     }
 }

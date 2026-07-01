@@ -331,10 +331,24 @@ struct KeySyncServiceTests {
 
     @Test("the toggle is disabled with a reason when signed out or when there is no key")
     func toggleDisabledReasons() {
-        let signedOut = KeySyncService(client: MockSecretClient(), isSignedIn: { false })
+        // Isolated settings (keySyncEnabled == false) so the test never reads the
+        // real app's `.standard` domain — once a dev has turned sync ON there,
+        // isEnabled would be true and the disabled reasons would be skipped.
+        func service(signedIn: Bool) -> KeySyncService {
+            let suite = "KeySyncToggleReasons-\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: suite)!
+            defaults.removePersistentDomain(forName: suite)
+            return KeySyncService(
+                client: MockSecretClient(),
+                settings: SettingsStore(defaults: defaults),
+                isSignedIn: { signedIn }
+            )
+        }
+
+        let signedOut = service(signedIn: false)
         #expect(signedOut.syncDisabledReason(hasKey: true) != nil)
 
-        let signedIn = KeySyncService(client: MockSecretClient(), isSignedIn: { true })
+        let signedIn = service(signedIn: true)
         #expect(signedIn.syncDisabledReason(hasKey: false) != nil)
         #expect(signedIn.syncDisabledReason(hasKey: true) == nil)
     }
@@ -483,6 +497,57 @@ struct SecretSyncClientTests {
             session: MockURLProtocol.makeSession(), baseURL: baseURL
         )
         await #expect(throws: SyncError.server(status: 503)) { try await client.fetch() }
+    }
+}
+
+// MARK: - Account save status (FIX 2 — field-level "reached the server" line)
+
+@Suite("EngineTab.accountSaveStatus — field-level save confirmation (FIX 2)")
+struct AccountSaveStatusTests {
+
+    @Test("syncing maps to a 'Saving…' in-progress line")
+    func syncingMapsToSaving() {
+        let status = EngineTab.accountSaveStatus(state: .syncing, syncEnabled: true)
+        #expect(status?.kind == .saving)
+        #expect(status?.text == "Saving…")
+    }
+
+    @Test("synced maps to a 'Saved to your account' confirmation ('just now' fresh)")
+    func syncedMapsToSaved() {
+        let now = Date()
+        let status = EngineTab.accountSaveStatus(state: .synced(now), syncEnabled: true, now: now)
+        #expect(status?.kind == .saved)
+        #expect(status?.text.contains("Saved to your account") == true)
+        #expect(status?.text.contains("just now") == true)
+    }
+
+    @Test("an older synced time renders a clock time, not 'just now'")
+    func olderSyncedShowsClock() {
+        let saved = Date(timeIntervalSince1970: 1_700_000_000)
+        let now = saved.addingTimeInterval(3600)   // an hour later
+        let status = EngineTab.accountSaveStatus(state: .synced(saved), syncEnabled: true, now: now)
+        #expect(status?.kind == .saved)
+        #expect(status?.text.contains("Saved to your account") == true)
+        #expect(status?.text.contains("just now") == false)
+    }
+
+    @Test("failed surfaces the underlying message clearly")
+    func failedSurfacesMessage() {
+        let status = EngineTab.accountSaveStatus(state: .failed("network down"), syncEnabled: true)
+        #expect(status?.kind == .failed)
+        #expect(status?.text.contains("Couldn't save to your account") == true)
+        #expect(status?.text.contains("network down") == true)
+    }
+
+    @Test("the account-save line is gated to sync-ON — nil for every state when OFF",
+          arguments: [KeySyncState.off, .syncing, .synced(Date()), .failed("x")])
+    func gatedToSyncOnReturnsNilWhenOff(state: KeySyncState) {
+        #expect(EngineTab.accountSaveStatus(state: state, syncEnabled: false) == nil)
+    }
+
+    @Test("an .off state while ON also produces no line (never a false claim)")
+    func offStateWhileOnIsNil() {
+        #expect(EngineTab.accountSaveStatus(state: .off, syncEnabled: true) == nil)
     }
 }
 
