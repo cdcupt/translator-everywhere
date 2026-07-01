@@ -6,13 +6,17 @@ package api
 
 import (
 	"context"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/httprate"
 
 	"github.com/cdcupt/translator-everywhere/server/internal/auth"
 	"github.com/cdcupt/translator-everywhere/server/internal/db"
+	"github.com/cdcupt/translator-everywhere/server/internal/secrets"
 )
 
 // IdentityVerifier verifies a provider identity token. ProviderVerifier
@@ -53,6 +57,30 @@ type Server struct {
 
 	// MaxBatch caps the number of rows accepted by POST /vocab.
 	MaxBatch int
+
+	// Sealer encrypts/decrypts user secrets for the /secret/* endpoints. It may
+	// be nil when SECRET_ENCRYPTION_KEY is absent/invalid (T1 graceful-degrade):
+	// the server still boots and only /secret/* returns 503.
+	Sealer *secrets.Sealer
+
+	// Logger receives handler-side error logs (user_id only — never the key or
+	// blob). nil falls back to the standard logger; tests point it at a buffer to
+	// assert no plaintext ever leaks.
+	Logger *log.Logger
+}
+
+// secretRateLimit is the per-user request cap on /secret/* (T2 hardening).
+const (
+	secretRateLimit  = 30
+	secretRateWindow = time.Minute
+)
+
+// logger returns the configured logger or the process default.
+func (s *Server) logger() *log.Logger {
+	if s.Logger != nil {
+		return s.Logger
+	}
+	return log.Default()
 }
 
 // MaxBatchDefault is the default batch-size cap for POST /vocab.
@@ -101,6 +129,18 @@ func (s *Server) Router() http.Handler {
 		r.Get("/vocab", s.handleVocabPull)
 		r.Post("/vocab", s.handleVocabPush)
 		r.Delete("/account", s.handleDeleteAccount)
+
+		// Encrypted key-sync endpoints. Rate limit is per-user (keyed on the JWT
+		// subject) and scoped to this subgroup only.
+		r.Group(func(r chi.Router) {
+			r.Use(httprate.Limit(
+				secretRateLimit, secretRateWindow,
+				httprate.WithKeyFuncs(secretRateKey),
+			))
+			r.Put("/secret/openai-key", s.handlePutSecret)
+			r.Get("/secret/openai-key", s.handleGetSecret)
+			r.Delete("/secret/openai-key", s.handleDeleteSecret)
+		})
 	})
 
 	return r

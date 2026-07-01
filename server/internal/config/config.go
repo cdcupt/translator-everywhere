@@ -12,8 +12,8 @@ import (
 // Defaults for the public (non-secret) identifiers, taken from
 // docs/pipeline/macos-app/CONFIG.md. Overridable via env for staging/testing.
 const (
-	DefaultAppleAud  = "com.cdcupt.translator-everywhere"
-	DefaultAppleIss  = "https://appleid.apple.com"
+	DefaultAppleAud = "com.cdcupt.translator-everywhere"
+	DefaultAppleIss = "https://appleid.apple.com"
 	// The Translator-Everywhere Desktop OAuth client (TE GCP project 524726675699).
 	// GOOGLE_AUD may carry a comma-separated set; during the client cutover the
 	// deployed env is set to "<old-billmind-client>,<this>" so both verify, then
@@ -53,6 +53,13 @@ type Config struct {
 	GoogleAud   string
 	Port        string
 	BindAddr    string
+
+	// EncryptionKey is the base64-encoded 32-byte master key for the secrets
+	// Sealer (SECRET_ENCRYPTION_KEY). It is OPTIONAL at boot: when absent or
+	// invalid the server still starts and only /secret/* returns 503 (T1
+	// graceful-degrade). Validation happens where the Sealer is built (main.go),
+	// not here, so a bad value never blocks startup of the rest of the API.
+	EncryptionKey string
 
 	// Google sign-in — Desktop loopback + PKCE. The app captures the auth code on
 	// localhost and POSTs it here; the server does the token exchange (Google
@@ -106,6 +113,8 @@ func Load() (Config, error) {
 
 		GoogleClientID:     envOr("GOOGLE_CLIENT_ID", DefaultGoogleClientID),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+
+		EncryptionKey: os.Getenv("SECRET_ENCRYPTION_KEY"),
 
 		AppleServicesID:   envOr("APPLE_SERVICES_ID", DefaultAppleServicesID),
 		AppleKeyID:        os.Getenv("APPLE_KEY_ID"),

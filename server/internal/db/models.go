@@ -48,6 +48,26 @@ type RefreshToken struct {
 	CreatedAt time.Time
 }
 
+// UserSecret is one encrypted secret row: an opaque AES-256-GCM envelope
+// (key_id ‖ nonce ‖ ciphertext+tag) keyed by (UserID, Name). The plaintext key
+// never touches this struct — only Blob, which is meaningless without the
+// process-held master key.
+type UserSecret struct {
+	UserID    uuid.UUID
+	Name      string
+	Blob      []byte
+	UpdatedAt time.Time
+}
+
+// UpsertSecretParams is one encrypted secret write. UpdatedAt drives
+// last-write-wins so an out-of-order/stale write cannot overwrite a newer row.
+type UpsertSecretParams struct {
+	UserID    uuid.UUID
+	Name      string
+	Blob      []byte
+	UpdatedAt time.Time
+}
+
 // UpsertUserParams identifies an account at sign-in.
 type UpsertUserParams struct {
 	Provider        string

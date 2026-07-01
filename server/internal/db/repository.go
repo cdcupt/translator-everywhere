@@ -44,4 +44,18 @@ type Repository interface {
 
 	// DeleteRefreshToken revokes a refresh token (best-effort signout).
 	DeleteRefreshToken(ctx context.Context, tokenHash string) error
+
+	// UpsertSecret writes an encrypted secret with last-write-wins semantics on
+	// UpdatedAt: an incoming write only overwrites the stored row when its
+	// UpdatedAt is >= the stored one, so a stale (older) write is ignored.
+	// Returns the authoritative stored row.
+	UpsertSecret(ctx context.Context, p UpsertSecretParams) (UserSecret, error)
+
+	// GetSecret fetches the encrypted secret for (userID, name). Returns
+	// ErrNotFound when the user has no such row.
+	GetSecret(ctx context.Context, userID uuid.UUID, name string) (UserSecret, error)
+
+	// DeleteSecret removes the secret for (userID, name). Idempotent — deleting a
+	// missing row is not an error.
+	DeleteSecret(ctx context.Context, userID uuid.UUID, name string) error
 }

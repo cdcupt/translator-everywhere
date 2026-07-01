@@ -21,6 +21,7 @@ import (
 	"github.com/cdcupt/translator-everywhere/server/internal/auth"
 	"github.com/cdcupt/translator-everywhere/server/internal/config"
 	"github.com/cdcupt/translator-everywhere/server/internal/db"
+	"github.com/cdcupt/translator-everywhere/server/internal/secrets"
 	"github.com/cdcupt/translator-everywhere/server/migrations"
 )
 
@@ -61,6 +62,17 @@ func run() error {
 
 	srv := api.NewServer(repo, sessions, appleOAuth, google)
 	srv.AppCallbackScheme = cfg.AppCallbackScheme
+
+	// Secret-sync encryption (T1 graceful-degrade). A present, valid master key
+	// enables /secret/*; an absent/invalid one leaves srv.Sealer nil so those
+	// routes return 503 while auth + vocab sync keep serving — no boot failure on
+	// the shared box.
+	if sealer, err := secrets.NewSealer(cfg.EncryptionKey); err != nil {
+		log.Printf("server: secret sync DISABLED — %v (/secret/* returns 503)", err)
+	} else {
+		srv.Sealer = sealer
+		log.Printf("server: secret sync enabled (encrypted at rest)")
+	}
 
 	// Google Desktop-loopback code exchange (server-side, so the client_secret
 	// never ships in the app). Present only when GOOGLE_CLIENT_SECRET is set;

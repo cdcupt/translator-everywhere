@@ -176,3 +176,49 @@ func (r *PostgresRepository) DeleteRefreshToken(ctx context.Context, tokenHash s
 	_, err := r.pool.Exec(ctx, `DELETE FROM refresh_tokens WHERE token_hash = $1`, tokenHash)
 	return err
 }
+
+func (r *PostgresRepository) UpsertSecret(ctx context.Context, p UpsertSecretParams) (UserSecret, error) {
+	// LWW: the update only fires when the incoming updated_at is at least as new
+	// as the stored one. On an older (stale) write the guard suppresses the
+	// update, RETURNING yields no rows, and we fetch the authoritative current
+	// row instead so the caller sees the winning value.
+	const q = `
+INSERT INTO user_secrets (user_id, name, blob, updated_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (user_id, name) DO UPDATE SET
+    blob       = EXCLUDED.blob,
+    updated_at = EXCLUDED.updated_at
+WHERE EXCLUDED.updated_at >= user_secrets.updated_at
+RETURNING user_id, name, blob, updated_at`
+	var s UserSecret
+	err := r.pool.QueryRow(ctx, q, p.UserID, p.Name, p.Blob, p.UpdatedAt).
+		Scan(&s.UserID, &s.Name, &s.Blob, &s.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return r.GetSecret(ctx, p.UserID, p.Name)
+	}
+	if err != nil {
+		return UserSecret{}, err
+	}
+	return s, nil
+}
+
+func (r *PostgresRepository) GetSecret(ctx context.Context, userID uuid.UUID, name string) (UserSecret, error) {
+	const q = `
+SELECT user_id, name, blob, updated_at
+FROM user_secrets WHERE user_id = $1 AND name = $2`
+	var s UserSecret
+	err := r.pool.QueryRow(ctx, q, userID, name).
+		Scan(&s.UserID, &s.Name, &s.Blob, &s.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UserSecret{}, ErrNotFound
+	}
+	if err != nil {
+		return UserSecret{}, err
+	}
+	return s, nil
+}
+
+func (r *PostgresRepository) DeleteSecret(ctx context.Context, userID uuid.UUID, name string) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM user_secrets WHERE user_id = $1 AND name = $2`, userID, name)
+	return err
+}
