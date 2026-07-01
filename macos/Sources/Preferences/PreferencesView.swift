@@ -9,19 +9,20 @@ struct PreferencesView: View {
     let keychain: KeychainStore
     let launchAtLogin: LaunchAtLogin
     let accountModel: AccountViewModel
+    let keySync: KeySyncService
 
     var body: some View {
         TabView {
             GeneralTab(launchAtLogin: launchAtLogin)
                 .tabItem { Label("General", systemImage: "gearshape") }
 
-            EngineTab(settings: settings, keychain: keychain)
+            EngineTab(settings: settings, keychain: keychain, keySync: keySync)
                 .tabItem { Label("Engine", systemImage: "globe") }
 
             LanguagesTab(settings: settings)
                 .tabItem { Label("Languages", systemImage: "character.bubble") }
 
-            AccountTab(model: accountModel)
+            AccountTab(model: accountModel, keySync: keySync)
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
 
             AboutTab()

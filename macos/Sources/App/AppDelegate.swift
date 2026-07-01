@@ -70,20 +70,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    /// Encrypted-at-rest OpenAI-key sync (login-only · TECH §3). Reuses the auth
+    /// seam (`AuthClientSyncProvider`) and the shared `settings` so the Engine-tab
+    /// toggle and this service observe the same intent flag.
+    private lazy var keySyncService = KeySyncService(
+        client: SecretSyncClient(auth: AuthClientSyncProvider(authClient)),
+        keychain: KeychainStore(),
+        settings: settings,
+        isSignedIn: { [weak self] in self?.authClient.currentSession != nil }
+    )
+
     /// Account-tab state machine; sign-in triggers a full push+pull.
     private lazy var accountModel = AccountViewModel(
         auth: authClient,
         onSignedIn: { [weak self] in
             // A fresh sign-in resets the cursor so the first pull is full.
             self?.settings.lastSyncedAt = nil
-            return await self?.syncClient?.sync(trigger: .signIn) ?? nil
+            let synced = await self?.syncClient?.sync(trigger: .signIn) ?? nil
+            // Then auto-restore the OpenAI key (never wipes / never clobbers).
+            await self?.keySyncService.restoreAfterSignIn()
+            return synced
         },
-        onSignedOut: { /* tokens already cleared; nothing local to undo */ }
+        onSignedOut: { [weak self] in
+            // Sign-out and account-delete both route here; sync can't run
+            // signed-out, so clear the intent flag (local key + server copy kept;
+            // account-delete cascades the server row away server-side).
+            self?.keySyncService.handleSignOut()
+        }
     )
 
     /// The Preferences window (General / Engine / Account / About).
     private lazy var preferencesWindow =
-        PreferencesWindowController(settings: settings, accountModel: accountModel)
+        PreferencesWindowController(
+            settings: settings, accountModel: accountModel, keySync: keySyncService
+        )
 
     /// First-run onboarding window; also the ungranted-hotkey destination.
     private lazy var onboardingWindow =

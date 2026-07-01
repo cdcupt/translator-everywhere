@@ -9,9 +9,13 @@ import SwiftUI
 struct AccountTab: View {
 
     @State private var model: AccountViewModel
+    /// Surfaces the "Restored your OpenAI key" confirmation on the signed-in view
+    /// (R5 — the restore fires on this surface, at sign-in).
+    let keySync: KeySyncService
 
-    init(model: AccountViewModel) {
+    init(model: AccountViewModel, keySync: KeySyncService) {
         _model = State(initialValue: model)
+        self.keySync = keySync
     }
 
     var body: some View {
@@ -51,9 +55,12 @@ struct AccountTab: View {
                 .foregroundStyle(.green)
             Text("Your notebook already works on this Mac")
                 .font(.headline)
-            Text("Sign in only to sync your vocabulary across your Macs. "
-                 + "We only ever store text rows — never your screen images.")
+            Text("Sign in only to sync your vocabulary across your Macs.")
                 .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Text(KeySyncCopy.accountPrivacy)
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -112,6 +119,11 @@ struct AccountTab: View {
             Text(syncStatusText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if keySync.showRestoredToast {
+                Label(KeySyncCopy.restoredToast, systemImage: "checkmark.icloud.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
         }
 
         if case let .error(message) = model.phase {
