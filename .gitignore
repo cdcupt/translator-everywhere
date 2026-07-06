@@ -4,6 +4,7 @@
 # Commit project.yml + Sources only; never the generated project or build output.
 /macos/*.xcodeproj/
 /macos/.build/
+/macos/build/
 /macos/DerivedData/
 # xcodegen-generated Info.plist (from project.yml `info:` block) is build output.
 /macos/Generated/

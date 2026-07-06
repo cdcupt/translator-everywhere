@@ -116,13 +116,23 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     /// real `AVSpeechSynthesizer`-backed service.
     private let speech: SpeechSynthesizing
 
-    // `speech` defaults to `nil` (not `SpeechService()`): a default-argument
-    // expression is evaluated in a nonisolated context, but `SpeechService` is
-    // main-actor isolated, so it's constructed inside this `@MainActor` init body.
+    /// IPA phonetic lookup behind the per-pane phonetic line (音标). Injected for
+    /// testability; defaults to the real bundled-dictionary service.
+    private let phonetic: PhoneticProviding
+
+    // `speech`/`phonetic` default to `nil` (not their concrete types): a
+    // default-argument expression is evaluated in a nonisolated context, but the
+    // services are actor/main-actor isolated, so they're constructed inside this
+    // `@MainActor` init body.
     @MainActor
-    init(settings: SettingsStore = SettingsStore(), speech: SpeechSynthesizing? = nil) {
+    init(
+        settings: SettingsStore = SettingsStore(),
+        speech: SpeechSynthesizing? = nil,
+        phonetic: PhoneticProviding? = nil
+    ) {
         self.settings = settings
         self.speech = speech ?? SpeechService()
+        self.phonetic = phonetic ?? PhoneticService()
         super.init()
         // Reset the active speaker icon when an utterance ends on its own.
         self.speech.onFinish = { [weak self] in self?.handleSpeechFinished() }
@@ -174,6 +184,17 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     /// The pane currently being read aloud, or `nil` when silent. Drives which
     /// button shows the "stop" icon and lets a re-tap on the active pane stop it.
     private var activeSpeakSection: SpeakSection?
+
+    /// The dim IPA phonetic line under each pane (音标), shown only when the pane's
+    /// language is English. Weak: the view hierarchy owns them.
+    private weak var translationPhoneticLabel: NSTextField?
+    private weak var sourcePhoneticLabel: NSTextField?
+
+    /// Bumped whenever the result body changes (fresh build / retranslate /
+    /// teardown). The async IPA fill captures the value at launch and only applies
+    /// its result if still current — so a slow lookup for a superseded result can't
+    /// paint onto the new one.
+    private var phoneticGeneration = 0
 
     /// True while the instant loading body (spinner + "Translating…") is mounted,
     /// from the moment a region is captured until the result/error supersedes it.
@@ -317,6 +338,7 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         }
         sourceTextView?.string = source
         languageBarController?.update(pair: pair, detected: detected)
+        refreshPhonetics(translation: translation, source: source)
     }
 
     /// In-place "translating…" feedback for the gap between a language pick and
@@ -397,6 +419,10 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         sourceSpeakerButton = nil
         translationLangCode = nil
         sourceLangCode = nil
+        // Invalidate any in-flight phonetic fill so it can't paint onto a rebuilt body.
+        phoneticGeneration += 1
+        translationPhoneticLabel = nil
+        sourcePhoneticLabel = nil
         tearDownLoading()
     }
 
@@ -481,26 +507,33 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
             translation, fontSize: 18, dim: false, minHeight: Layout.minSectionHeight
         )
         translationTextView = translationView.documentView as? NSTextView
+        let translationPhonetic = makePhoneticLabel()
+        translationPhoneticLabel = translationPhonetic
 
         let sourceCaption = captionRow("Recognized", section: .source, code: sourceLangCode)
         let sourceView = scrollableText(
             source, fontSize: 14, dim: true, minHeight: Layout.minSectionHeight
         )
         sourceTextView = sourceView.documentView as? NSTextView
+        let sourcePhonetic = makePhoneticLabel()
+        sourcePhoneticLabel = sourcePhonetic
 
-        let stack = verticalStack([
-            header, barController.view,
-            translationCaption, translationView, sourceCaption, sourceView,
-        ])
+        // Each pane is its own sub-stack (caption → text → phonetic) so hiding the
+        // phonetic line collapses only *inside* the pane — the inter-section gap is
+        // set between the two sub-stacks and stays put whether or not a phonetic
+        // line shows.
+        let translationSection = paneStack([translationCaption, translationView, translationPhonetic])
+        let sourceSection = paneStack([sourceCaption, sourceView, sourcePhonetic])
+
+        let stack = verticalStack([header, barController.view, translationSection, sourceSection])
         stack.setCustomSpacing(10, after: header)
         stack.setCustomSpacing(12, after: barController.view)
-        // Tight caption→content pairing; breathing room between the two sections.
-        stack.setCustomSpacing(2, after: translationCaption)
-        stack.setCustomSpacing(14, after: translationView)
-        stack.setCustomSpacing(2, after: sourceCaption)
-        return wrap(stack, stretching: [
-            barController.view, translationCaption, translationView, sourceCaption, sourceView,
-        ])
+        stack.setCustomSpacing(14, after: translationSection)
+
+        // Fill the phonetic lines (async; English-only, hidden otherwise).
+        refreshPhonetics(translation: translation, source: source)
+
+        return wrap(stack, stretching: [barController.view, translationSection, sourceSection])
     }
 
     /// The instant loading body shown the moment a region is captured: a spinning
@@ -766,6 +799,67 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         button.setAccessibilityLabel(reading ? "Stop reading" : "Read aloud")
     }
 
+    // MARK: - Phonetics (IPA)
+
+    /// A dim, wrapping, selectable label for the IPA phonetic line under a pane.
+    /// Starts hidden; the async fill reveals it only when there's a transcription.
+    /// Capped at 3 lines so a long transcription truncates cleanly instead of
+    /// growing unbounded and overflowing the fixed-size panel.
+    @MainActor
+    private func makePhoneticLabel() -> NSTextField {
+        let label = NSTextField(labelWithString: "")
+        label.font = .systemFont(ofSize: 12)
+        label.textColor = .tertiaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        label.maximumNumberOfLines = 3
+        label.cell?.truncatesLastVisibleLine = true
+        label.isSelectable = true
+        label.isHidden = true
+        label.setAccessibilityLabel("Phonetic transcription")
+        return label
+    }
+
+    /// Recomputes both phonetic lines for the current result. Bumps the generation
+    /// so any in-flight fill for a superseded result is discarded when it returns.
+    @MainActor
+    private func refreshPhonetics(translation: String, source: String) {
+        phoneticGeneration += 1
+        let generation = phoneticGeneration
+        loadPhonetic(.translation, text: translation, code: translationLangCode, generation: generation)
+        loadPhonetic(.source, text: source, code: sourceLangCode, generation: generation)
+    }
+
+    /// English panes get an async IPA lookup; everything else is hidden outright
+    /// (no dictionary, no line). The result is applied only if the generation is
+    /// still current.
+    @MainActor
+    private func loadPhonetic(_ section: SpeakSection, text: String, code: String?, generation: Int) {
+        guard PhoneticLanguage.isEnglish(code) else {
+            renderPhonetic(section, ipa: nil)
+            return
+        }
+        Task { [weak self, phonetic] in
+            let ipa = await phonetic.ipa(for: text, languageCode: code)
+            guard let self, self.phoneticGeneration == generation else { return }
+            self.renderPhonetic(section, ipa: ipa)
+        }
+    }
+
+    /// Shows the pane's phonetic line wrapped in `/ … /`, or hides it when there's
+    /// no transcription.
+    @MainActor
+    private func renderPhonetic(_ section: SpeakSection, ipa: String?) {
+        let label = section == .translation ? translationPhoneticLabel : sourcePhoneticLabel
+        guard let label else { return }
+        if let ipa, !ipa.isEmpty {
+            label.stringValue = "/\(ipa)/"
+            label.isHidden = false
+        } else {
+            label.stringValue = ""
+            label.isHidden = true
+        }
+    }
+
     // MARK: - Read-aloud test seams
 
     // Internal (not private) so `@testable` tests can drive the speaker wiring
@@ -788,6 +882,18 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
 
     @MainActor func tapTranslationSpeakerForTests() { toggleSpeak(.translation) }
     @MainActor func tapSourceSpeakerForTests() { toggleSpeak(.source) }
+
+    /// Applies an IPA string to a pane's phonetic line as the async fill would,
+    /// so the render (wrap in `/ … /`, show/hide) is testable without awaiting a
+    /// fire-and-forget Task. `which`: `true` = translation, `false` = source.
+    @MainActor func renderPhoneticForTests(translation which: Bool, ipa: String?) {
+        renderPhonetic(which ? .translation : .source, ipa: ipa)
+    }
+
+    @MainActor var translationPhoneticTextForTests: String? { translationPhoneticLabel?.stringValue }
+    @MainActor var sourcePhoneticTextForTests: String? { sourcePhoneticLabel?.stringValue }
+    @MainActor var translationPhoneticHiddenForTests: Bool? { translationPhoneticLabel?.isHidden }
+    @MainActor var sourcePhoneticHiddenForTests: Bool? { sourcePhoneticLabel?.isHidden }
 
     @MainActor var translationSpeakerIsHiddenForTests: Bool? { translationSpeakerButton?.isHidden }
     @MainActor var sourceSpeakerIsHiddenForTests: Bool? { sourceSpeakerButton?.isHidden }
@@ -883,6 +989,25 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         stack.spacing = 8
         stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
         stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }
+
+    /// One result pane as a vertical sub-stack: `[caption, text, phonetic]` with
+    /// tight internal spacing (2 after the caption, 4 elsewhere) and every child
+    /// pinned to the sub-stack's width so captions, text, and the phonetic line all
+    /// span the pane. Grouping the pane lets a hidden phonetic line collapse inside
+    /// it without touching the gap between panes.
+    @MainActor
+    private func paneStack(_ views: [NSView]) -> NSStackView {
+        let stack = NSStackView(views: views)
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 4
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        if let caption = views.first { stack.setCustomSpacing(2, after: caption) }
+        for view in views {
+            view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
         return stack
     }
 
