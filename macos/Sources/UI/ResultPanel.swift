@@ -111,9 +111,21 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     /// testable). Defaults to a real store for older call sites / tests.
     private let settings: SettingsStore
 
-    init(settings: SettingsStore = SettingsStore()) {
+    /// Read-aloud engine behind the Translation / Recognized speaker buttons.
+    /// Injected so the speaker wiring is testable with a spy; defaults to the
+    /// real `AVSpeechSynthesizer`-backed service.
+    private let speech: SpeechSynthesizing
+
+    // `speech` defaults to `nil` (not `SpeechService()`): a default-argument
+    // expression is evaluated in a nonisolated context, but `SpeechService` is
+    // main-actor isolated, so it's constructed inside this `@MainActor` init body.
+    @MainActor
+    init(settings: SettingsStore = SettingsStore(), speech: SpeechSynthesizing? = nil) {
         self.settings = settings
+        self.speech = speech ?? SpeechService()
         super.init()
+        // Reset the active speaker icon when an utterance ends on its own.
+        self.speech.onFinish = { [weak self] in self?.handleSpeechFinished() }
     }
 
     /// Strong reference to the current result's Save-button controller, if any.
@@ -140,6 +152,28 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     /// The current result's retranslate hook, captured so the bar's pick handler
     /// can fire it after showing in-place "translating…" feedback.
     private var currentOnRetranslate: (@MainActor (LanguagePair) -> Void)?
+
+    /// Which pane the read-aloud feature can speak. Drives the per-section speaker
+    /// button (which text view to read, which language voice to use, and whether a
+    /// button is offered at all).
+    private enum SpeakSection { case translation, source }
+
+    /// The BCP-47 codes to voice each pane in: the translation in the target
+    /// language, the recognized text in the detected/source language. Updated on
+    /// a retranslate so a re-tap reads the *current* result in the *current*
+    /// language. `nil` (unknown source) falls back to the system default voice.
+    private var translationLangCode: String?
+    private var sourceLangCode: String?
+
+    /// The live speaker buttons, held so their icon can toggle (speaker ⇄ stop)
+    /// and their visibility can track voice availability across a retranslate.
+    /// Weak: the view hierarchy owns them.
+    private weak var translationSpeakerButton: NSButton?
+    private weak var sourceSpeakerButton: NSButton?
+
+    /// The pane currently being read aloud, or `nil` when silent. Drives which
+    /// button shows the "stop" icon and lets a re-tap on the active pane stop it.
+    private var activeSpeakSection: SpeakSection?
 
     /// True while the instant loading body (spinner + "Translating…") is mounted,
     /// from the moment a region is captured until the result/error supersedes it.
@@ -265,6 +299,14 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         onRetranslate: (@MainActor (LanguagePair) -> Void)?
     ) {
         currentOnRetranslate = onRetranslate
+        // The result is changing under any in-progress read-aloud — stop it, then
+        // re-point the speakers at the new languages and hide any that the system
+        // can't voice for the retranslated pair.
+        haltSpeech()
+        translationLangCode = pair.to.code
+        sourceLangCode = detected.languageCode ?? pair.from?.code
+        translationSpeakerButton?.isHidden = !speech.canSpeak(languageCode: translationLangCode)
+        sourceSpeakerButton?.isHidden = !speech.canSpeak(languageCode: sourceLangCode)
         if let headerStack {
             populateHeader(headerStack, badge: badge, copied: copied,
                            viaGoogleFallback: viaGoogleFallback, onSave: onSave)
@@ -284,6 +326,9 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     @MainActor
     func setRetranslating() {
         guard let translationTextView else { return }
+        // The result is about to change — silence any read-aloud now (and reset the
+        // "stop" icon) rather than letting stale audio run until the new result lands.
+        haltSpeech()
         translationTextView.string = "Translating…"
         translationTextView.textColor = .tertiaryLabelColor
     }
@@ -314,6 +359,16 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         dropResultBody()
     }
 
+    /// `NSWindowDelegate`: the native title-bar close button doesn't route through
+    /// `close()` (nothing calls that in production), so stop any read-aloud here.
+    /// Dismissing the surface must silence it — matching every other dismissal
+    /// path (new capture, error, message) and Google-Translate behavior, where the
+    /// only stop control (the speaker button) is gone once the window closes.
+    @MainActor
+    func windowWillClose(_ notification: Notification) {
+        haltSpeech()
+    }
+
     // MARK: - Presentation
 
     /// Orders the panel front, centering it only on a fresh presentation. An
@@ -331,12 +386,17 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     /// running spinner.
     @MainActor
     private func dropResultBody() {
+        haltSpeech()
         saveButtonController = nil
         languageBarController = nil
         translationTextView = nil
         sourceTextView = nil
         headerStack = nil
         currentOnRetranslate = nil
+        translationSpeakerButton = nil
+        sourceSpeakerButton = nil
+        translationLangCode = nil
+        sourceLangCode = nil
         tearDownLoading()
     }
 
@@ -405,13 +465,24 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         }
         languageBarController = barController
 
-        let translationCaption = sectionCaption("Translation")
+        // Read-aloud languages: the translation in the target language, the
+        // recognized text in the detected source (falling back to the explicit
+        // From). Stored so a retranslate's re-tap reads the current result. Stop
+        // any lingering utterance so a fresh body starts silent.
+        speech.stop()
+        activeSpeakSection = nil
+        translationLangCode = pair.to.code
+        sourceLangCode = detected.languageCode ?? pair.from?.code
+
+        let translationCaption = captionRow(
+            "Translation", section: .translation, code: translationLangCode
+        )
         let translationView = scrollableText(
             translation, fontSize: 18, dim: false, minHeight: Layout.minSectionHeight
         )
         translationTextView = translationView.documentView as? NSTextView
 
-        let sourceCaption = sectionCaption("Recognized")
+        let sourceCaption = captionRow("Recognized", section: .source, code: sourceLangCode)
         let sourceView = scrollableText(
             source, fontSize: 14, dim: true, minHeight: Layout.minSectionHeight
         )
@@ -427,7 +498,9 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         stack.setCustomSpacing(2, after: translationCaption)
         stack.setCustomSpacing(14, after: translationView)
         stack.setCustomSpacing(2, after: sourceCaption)
-        return wrap(stack, stretching: [barController.view, translationView, sourceView])
+        return wrap(stack, stretching: [
+            barController.view, translationCaption, translationView, sourceCaption, sourceView,
+        ])
     }
 
     /// The instant loading body shown the moment a region is captured: a spinning
@@ -553,7 +626,8 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
 
     /// A small semibold section caption (e.g. "Translation", "Recognized") in
     /// `.secondaryLabelColor` — legible enough to label a section without
-    /// competing with its content.
+    /// competing with its content. Used by the loading body; the result body uses
+    /// `captionRow`, which adds a read-aloud speaker button.
     @MainActor
     private func sectionCaption(_ text: String) -> NSView {
         let label = NSTextField(labelWithString: text)
@@ -561,6 +635,164 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         label.textColor = .secondaryLabelColor
         return label
     }
+
+    // MARK: - Read aloud
+
+    /// A section caption with a trailing read-aloud speaker button (mirroring
+    /// Google Translate). The button is hidden when the system has no voice for
+    /// `code` — an offered button that stays silent is worse than none. The button
+    /// reads the pane's *live* text (so a retranslate reads the new result) in the
+    /// pane's language; a second tap on a reading pane stops it.
+    @MainActor
+    private func captionRow(_ title: String, section: SpeakSection, code: String?) -> NSView {
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let button = makeSpeakerButton(section: section)
+        button.isHidden = !speech.canSpeak(languageCode: code)
+        switch section {
+        case .translation: translationSpeakerButton = button
+        case .source: sourceSpeakerButton = button
+        }
+
+        let row = NSStackView(views: [label, spacer(), button])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 6
+        return row
+    }
+
+    /// A borderless SF Symbol speaker button wired to the pane's speak action.
+    @MainActor
+    private func makeSpeakerButton(section: SpeakSection) -> NSButton {
+        let button = NSButton()
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.setButtonType(.momentaryChange)
+        button.imageScaling = .scaleProportionallyDown
+        button.contentTintColor = .secondaryLabelColor
+        button.image = speakerIcon(speaking: false)
+        button.toolTip = "Read aloud"
+        button.setAccessibilityLabel("Read aloud")
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.target = self
+        button.action = section == .translation
+            ? #selector(speakTranslationTapped)
+            : #selector(speakSourceTapped)
+        return button
+    }
+
+    /// The speaker glyph: a stop square while that pane is being read, else the
+    /// speaker wave. Sized down to sit quietly beside the 11pt caption.
+    @MainActor
+    private func speakerIcon(speaking: Bool) -> NSImage? {
+        let name = speaking ? "stop.fill" : "speaker.wave.2.fill"
+        let description = speaking ? "Stop reading" : "Read aloud"
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+        return NSImage(systemSymbolName: name, accessibilityDescription: description)?
+            .withSymbolConfiguration(config)
+    }
+
+    @objc private func speakTranslationTapped() { toggleSpeak(.translation) }
+    @objc private func speakSourceTapped() { toggleSpeak(.source) }
+
+    /// Starts reading a pane, or stops it if it's already the one being read.
+    /// Switching panes interrupts the first. Reads the text view's current string
+    /// so an in-place retranslate is spoken correctly; no-op on empty text.
+    @MainActor
+    private func toggleSpeak(_ section: SpeakSection) {
+        if activeSpeakSection == section {
+            speech.stop()
+            activeSpeakSection = nil
+            refreshSpeakerIcons()
+            return
+        }
+
+        let text: String?
+        let code: String?
+        switch section {
+        case .translation:
+            text = translationTextView?.string
+            code = translationLangCode
+        case .source:
+            text = sourceTextView?.string
+            code = sourceLangCode
+        }
+
+        let trimmed = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        speech.speak(trimmed, languageCode: code)
+        activeSpeakSection = section
+        refreshSpeakerIcons()
+    }
+
+    /// Reset the speaker state when an utterance ends on its own.
+    @MainActor
+    private func handleSpeechFinished() {
+        activeSpeakSection = nil
+        refreshSpeakerIcons()
+    }
+
+    /// Stops any read-aloud in progress and resets the icons — called when the
+    /// shown result changes out from under it (retranslate / new capture / close).
+    @MainActor
+    private func haltSpeech() {
+        guard activeSpeakSection != nil else { return }
+        speech.stop()
+        activeSpeakSection = nil
+        refreshSpeakerIcons()
+    }
+
+    /// Repaints both speaker buttons for the current `activeSpeakSection` (the
+    /// reading pane shows "stop", the others "speaker").
+    @MainActor
+    private func refreshSpeakerIcons() {
+        applySpeakerState(translationSpeakerButton, reading: activeSpeakSection == .translation)
+        applySpeakerState(sourceSpeakerButton, reading: activeSpeakSection == .source)
+    }
+
+    /// Syncs a speaker button's icon, tooltip, and — crucially — its VoiceOver
+    /// label to the reading state. The accessibility label must flip too: an
+    /// explicitly-set `NSButton` label overrides the image's description, so
+    /// without this VoiceOver would keep announcing "Read aloud" on a button that
+    /// now stops playback.
+    @MainActor
+    private func applySpeakerState(_ button: NSButton?, reading: Bool) {
+        guard let button else { return }
+        button.image = speakerIcon(speaking: reading)
+        button.toolTip = reading ? "Stop" : "Read aloud"
+        button.setAccessibilityLabel(reading ? "Stop reading" : "Read aloud")
+    }
+
+    // MARK: - Read-aloud test seams
+
+    // Internal (not private) so `@testable` tests can drive the speaker wiring
+    // headlessly: build a result body (which sets up the text views + speaker
+    // buttons), trigger a pane's speaker, and inspect the resulting state —
+    // without presenting an `NSPanel`. Not part of the production surface.
+
+    /// Builds and returns a result body without presenting a window. The caller
+    /// must retain the returned view (the panel holds only weak references into
+    /// it, mirroring the live view hierarchy).
+    @MainActor
+    func buildResultBodyForTests(
+        translation: String, source: String, pair: LanguagePair, detected: DetectedSource
+    ) -> NSView {
+        makeResultContent(
+            translation: translation, source: source, badge: "AI", copied: false,
+            pair: pair, detected: detected, viaGoogleFallback: false, onSave: nil
+        )
+    }
+
+    @MainActor func tapTranslationSpeakerForTests() { toggleSpeak(.translation) }
+    @MainActor func tapSourceSpeakerForTests() { toggleSpeak(.source) }
+
+    @MainActor var translationSpeakerIsHiddenForTests: Bool? { translationSpeakerButton?.isHidden }
+    @MainActor var sourceSpeakerIsHiddenForTests: Bool? { sourceSpeakerButton?.isHidden }
+    @MainActor var isReadingTranslationForTests: Bool { activeSpeakSection == .translation }
+    @MainActor var isReadingSourceForTests: Bool { activeSpeakSection == .source }
 
     @MainActor
     private func copiedLabel() -> NSView {
