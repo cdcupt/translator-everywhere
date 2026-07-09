@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DESIGN — Contextual Selection Translate · Translator Everywhere</title>
+<style>
+  :root{
+    --ink:#111418; --ink-soft:#4a5361; --paper:#fbfaf7; --card:#ffffff;
+    --accent:#4338ca; --accent-soft:#eef2ff; --new:#0d9488; --new-soft:#f0fdfa;
+    --warn:#b45309; --warn-soft:#fffbeb; --line:#e5e2da;
+    --mono:ui-monospace,'SF Mono',Menlo,monospace;
+    /* macOS light approximations used by the mockup */
+    --mac-win:#ececec; --mac-label:rgba(0,0,0,.85); --mac-sec:rgba(0,0,0,.5);
+    --mac-ter:rgba(0,0,0,.26); --mac-blue:#007aff; --mac-purple:#af52de;
+    --mac-sel:#b3d7ff; --mac-border:rgba(0,0,0,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:0 0 6rem}
+  .wrap{max-width:960px;margin:0 auto;padding:0 1.25rem}
+  header.doc{border-bottom:3px solid var(--ink);padding:2.5rem 0 1.5rem;margin-bottom:2rem}
+  .kicker{font:600 .78rem/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:clamp(1.6rem,4vw,2.4rem);line-height:1.15;letter-spacing:-.02em;margin:.5rem 0 .75rem}
+  .meta{display:flex;flex-wrap:wrap;gap:.4rem .5rem;font:500 .78rem/1 var(--mono)}
+  .meta span{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:.35rem .7rem;color:var(--ink-soft)}
+  .meta span b{color:var(--ink);font-weight:600}
+  h2{font-size:1.25rem;letter-spacing:-.01em;margin:2.75rem 0 .75rem;display:flex;align-items:baseline;gap:.6rem}
+  h2 .n{font:700 .8rem/1 var(--mono);color:var(--accent)}
+  h3{font-size:1rem;margin:1.5rem 0 .5rem}
+  p{margin:.6rem 0;max-width:72ch}
+  p.soft{color:var(--ink-soft)}
+  .fig{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1rem;margin:1rem 0;overflow-x:auto}
+  .fig svg{display:block;min-width:700px;max-width:100%;height:auto;margin:0 auto}
+  .fig.master svg{min-width:820px}
+  .cap{font:500 .75rem/1.5 var(--mono);color:var(--ink-soft);margin-top:.6rem;text-align:center}
+  .tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);margin:1rem 0}
+  table{border-collapse:collapse;width:100%;min-width:680px;font-size:.88rem}
+  th{background:var(--ink);color:#fff;text-align:left;padding:.55rem .85rem;font:600 .72rem/1.3 var(--mono);letter-spacing:.05em;text-transform:uppercase}
+  td{padding:.55rem .85rem;border-top:1px solid var(--line);vertical-align:top}
+  td:first-child{font:600 .78rem/1.5 var(--mono);color:var(--accent);white-space:nowrap}
+  code{font:.85em var(--mono);background:var(--accent-soft);color:var(--accent);padding:.1em .4em;border-radius:5px}
+  .decision{background:var(--warn-soft);border:1px solid #fde68a;border-radius:12px;padding:.85rem 1.1rem;margin:.75rem 0;font-size:.93rem}
+  .decision b{color:var(--warn)}
+  ul.notes{margin:.6rem 0 .6rem 1.2rem}
+  ul.notes li{margin:.45rem 0;font-size:.94rem}
+  /* ---------- interactive mockup ---------- */
+  .mock-scroll{overflow-x:auto;background:linear-gradient(180deg,#dde3ea,#cfd6df);border:1px solid var(--line);border-radius:12px;padding:1.5rem;margin:1rem 0}
+  .mock-stage{min-width:480px;display:flex;justify-content:center}
+  .mac-panel{width:440px;background:var(--mac-win);border-radius:10px;border:1px solid rgba(0,0,0,.18);box-shadow:0 18px 44px rgba(0,0,0,.28);font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;color:var(--mac-label);flex:0 0 auto;user-select:none}
+  .titlebar{display:flex;align-items:center;height:28px;padding:0 9px;border-bottom:1px solid rgba(0,0,0,.09);background:linear-gradient(#f5f5f5,#e9e9e9);border-radius:10px 10px 0 0;position:relative}
+  .tl{width:12px;height:12px;border-radius:50%;margin-right:8px}
+  .tl.r{background:#ff5f57}.tl.y{background:#febc2e}.tl.g{background:#28c840}
+  .titlebar .title{position:absolute;left:0;right:0;text-align:center;font-size:12px;font-weight:600;color:rgba(0,0,0,.6);pointer-events:none}
+  .panel-body{padding:16px}
+  .hdr-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .badge-ai{background:var(--mac-purple);color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:2px 6px;line-height:1.2}
+  .hdr-spacer{flex:1}
+  .mac-btn{font:500 11px/1 -apple-system,sans-serif;background:#fff;border:1px solid var(--mac-border);border-radius:5px;padding:4px 9px;box-shadow:0 .5px 1px rgba(0,0,0,.08);color:var(--mac-label);cursor:default}
+  .lang-bar{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:9px;background:rgba(0,122,255,.06);border:1px solid rgba(0,122,255,.22)}
+  .lang-bar .mac-btn{font-size:12px;font-weight:600;padding:4px 10px}
+  .lang-bar .to{flex:1;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .detected{font-size:11px;color:var(--mac-sec);margin:5px 0 12px}
+  .caption-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+  .caption-row span{font-size:11px;font-weight:600;color:var(--mac-sec)}
+  .caption-row svg{display:block;color:var(--mac-sec)}
+  .pane{border-radius:4px;padding:2px;min-height:40px}
+  .pane.translation{font-size:18px;color:var(--mac-label);margin-bottom:14px;user-select:text}
+  .pane.recognized{font-size:14px;color:var(--mac-sec);cursor:text}
+  .pane.recognized .w{padding:1px 0;border-radius:2px}
+  .pane.recognized .w.sel{background:var(--mac-sel);color:var(--mac-label)}
+  .phonetic{font-size:12px;color:var(--mac-ter);margin-top:4px;user-select:text}
+  .card-slot{max-height:0;overflow:hidden;transition:max-height .18s ease-out}
+  .card-slot.open{max-height:320px;margin-top:12px}
+  @media (prefers-reduced-motion: reduce){.card-slot{transition:none}}
+  .ctx-card{background:#fff;border:1px solid var(--mac-border);border-radius:9px;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:12px 14px}
+  .cc-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .cc-span{font-size:13px;font-weight:600;color:var(--mac-label);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:150px}
+  .cc-chip{font-size:10px;font-weight:600;border-radius:999px;padding:2px 8px;white-space:nowrap}
+  .cc-chip.ai{color:var(--mac-purple);background:rgba(175,82,222,.12)}
+  .cc-chip.free{color:var(--mac-sec);background:rgba(0,0,0,.07)}
+  .cc-gap{flex:1}
+  .cc-save,.cc-x{font-size:11px;background:none;border:none;color:var(--mac-sec);cursor:pointer;padding:2px 4px;border-radius:4px}
+  .cc-save:hover,.cc-x:hover{background:rgba(0,0,0,.06)}
+  .cc-save.saved{color:var(--mac-purple)}
+  .cc-trans{font-size:17px;font-weight:600;color:var(--mac-label);margin-bottom:6px;user-select:text}
+  .cc-trans.plain{font-weight:400;font-size:15px}
+  .cc-meta{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+  .cc-pos{font-size:10px;font-weight:700;color:var(--mac-sec);background:rgba(0,0,0,.07);border-radius:4px;padding:2px 6px;text-transform:lowercase;flex:0 0 auto}
+  .cc-sense{font-size:12px;color:var(--mac-sec);line-height:1.45}
+  .cc-ex{border-top:1px solid rgba(0,0,0,.08);padding-top:8px;font-size:12px;color:var(--mac-sec);line-height:1.5;user-select:text}
+  .cc-ex b{color:var(--mac-label)}
+  .cc-note{font-size:11px;color:var(--mac-ter);margin-top:6px}
+  .cc-err{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mac-sec)}
+  .cc-err button{font-size:12px;color:var(--mac-blue);background:none;border:none;cursor:pointer;padding:0}
+  .sk{height:12px;border-radius:6px;background:linear-gradient(90deg,#eceff2 25%,#f7f9fa 45%,#eceff2 65%);background-size:200% 100%;animation:sh 1.2s linear infinite;margin-bottom:9px}
+  @media (prefers-reduced-motion: reduce){.sk{animation:none;background:#eceff2}}
+  @keyframes sh{from{background-position:180% 0}to{background-position:-20% 0}}
+  .scenario-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.75rem 0 0;font:500 .78rem/1 var(--mono);color:var(--ink-soft)}
+  .scenario-bar button{font:600 .75rem/1 var(--mono);border:1px solid var(--line);background:var(--card);color:var(--ink-soft);border-radius:999px;padding:.4rem .8rem;cursor:pointer}
+  .scenario-bar button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="kicker">Design Document · SDD Workflow · Step 2</div>
+  <h1>Contextual Selection Translate — Interaction &amp; UI Design</h1>
+  <div class="meta">
+    <span>Product <b>Translator Everywhere (macOS)</b></span>
+    <span>PRD <b>docs/workflow/contextual-selection/PRD.html</b></span>
+    <span>Branch <b>feat/contextual-selection</b></span>
+    <span>Date <b>2026-07-09</b></span>
+    <span>Status <b>Draft → Gate 1</b></span>
+  </div>
+</header>
+
+<h2><span class="n">★</span> At a glance</h2>
+<div class="fig master">
+<svg viewBox="0 0 1220 656" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5361"/></marker>
+    <marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0d9488"/></marker>
+  </defs>
+  <!-- ============ LEFT: panel anatomy (grown state) ============ -->
+  <text x="20" y="26" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">PANEL ANATOMY — CARD ACTIVE</text>
+  <rect x="20" y="40" width="350" height="470" rx="10" fill="#ececec" stroke="#9ca3af"/>
+  <rect x="20" y="40" width="350" height="24" rx="10" fill="#f2f2f2" stroke="#c9c9c9"/>
+  <circle cx="36" cy="52" r="5" fill="#ff5f57"/><circle cx="52" cy="52" r="5" fill="#febc2e"/><circle cx="68" cy="52" r="5" fill="#28c840"/>
+  <text x="195" y="56" text-anchor="middle" font-size="10" font-weight="600" fill="#6b7280">Translator Everywhere</text>
+  <!-- header row -->
+  <rect x="36" y="76" width="24" height="14" rx="3" fill="#af52de"/><text x="48" y="87" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">AI</text>
+  <rect x="250" y="74" width="104" height="18" rx="4" fill="#fff" stroke="#c9c9c9"/><text x="302" y="87" text-anchor="middle" font-size="9.5" fill="#374151">Save to Notebook</text>
+  <!-- language bar -->
+  <rect x="36" y="100" width="318" height="28" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+  <rect x="44" y="105" width="86" height="18" rx="4" fill="#fff" stroke="#c9c9c9"/><text x="87" y="118" text-anchor="middle" font-size="9.5" font-weight="600" fill="#374151">From: Auto ▾</text>
+  <rect x="136" y="105" width="26" height="18" rx="4" fill="#fff" stroke="#c9c9c9"/><text x="149" y="118" text-anchor="middle" font-size="10" fill="#374151">⇄</text>
+  <rect x="168" y="105" width="178" height="18" rx="4" fill="#fff" stroke="#c9c9c9"/><text x="257" y="118" text-anchor="middle" font-size="9.5" font-weight="600" fill="#374151">To: 中文（简体） ▾</text>
+  <text x="36" y="144" font-size="9.5" fill="#6b7280">Detected: English</text>
+  <!-- translation pane -->
+  <text x="36" y="166" font-size="10" font-weight="700" fill="#6b7280">Translation</text><text x="345" y="166" text-anchor="end" font-size="10" fill="#6b7280">🔊</text>
+  <text x="36" y="190" font-size="15" fill="#111418">梅西攻入了最后一球。</text>
+  <!-- recognized pane -->
+  <text x="36" y="222" font-size="10" font-weight="700" fill="#6b7280">Recognized</text><text x="345" y="222" text-anchor="end" font-size="10" fill="#6b7280">🔊</text>
+  <rect x="74" y="232" width="45" height="16" rx="2" fill="#b3d7ff"/>
+  <text x="36" y="245" font-size="12" fill="#4b5563">Messi <tspan fill="#111418">scored</tspan> the final goal.</text>
+  <text x="36" y="264" font-size="10" fill="#9ca3af">/ˈmɛsi skɔrd ðə ˈfaɪnəl ɡoʊl/</text>
+  <!-- THE CARD -->
+  <rect x="36" y="282" width="318" height="130" rx="9" fill="#fff" stroke="#0d9488" stroke-width="2"/>
+  <text x="50" y="304" font-size="11" font-weight="700" fill="#111418">scored</text>
+  <rect x="98" y="293" width="76" height="15" rx="8" fill="#f3e8ff"/><text x="136" y="304" text-anchor="middle" font-size="8.5" font-weight="700" fill="#af52de">In context · AI</text>
+  <text x="300" y="304" text-anchor="end" font-size="9.5" fill="#6b7280">☆ Save ⌘S</text><text x="340" y="304" text-anchor="end" font-size="10" fill="#6b7280">✕</text>
+  <text x="50" y="330" font-size="15" font-weight="700" fill="#111418">攻入（进球）</text>
+  <rect x="50" y="340" width="30" height="13" rx="3" fill="#f3f4f6"/><text x="65" y="350" text-anchor="middle" font-size="8.5" font-weight="700" fill="#6b7280">verb</text>
+  <text x="88" y="350" font-size="10" fill="#4b5563">“score”的过去式 — 此处指把球踢进球门</text>
+  <line x1="50" y1="362" x2="340" y2="362" stroke="#e5e7eb"/>
+  <text x="50" y="380" font-size="10" fill="#4b5563">Messi <tspan font-weight="700" fill="#111418">scored</tspan> the final goal.</text>
+  <text x="50" y="396" font-size="10" fill="#4b5563">梅西<tspan font-weight="700" fill="#111418">攻入</tspan>了最后一球。</text>
+  <!-- growth arrow -->
+  <path d="M 385 420 L 385 505" stroke="#0d9488" stroke-width="1.5" marker-end="url(#arg)"/>
+  <text x="392" y="450" font-size="10.5" fill="#0f766e">panel grows downward</text>
+  <text x="392" y="465" font-size="10.5" fill="#0f766e">to fit the card (top edge</text>
+  <text x="392" y="480" font-size="10.5" fill="#0f766e">fixed, growth ≤ 200 pt)</text>
+  <!-- callouts -->
+  <g font-size="11.5" fill="#374151">
+    <circle cx="392" cy="83" r="9" fill="#fff" stroke="#9ca3af"/><text x="392" y="87" text-anchor="middle" font-size="10" font-weight="700" fill="#4a5361">1</text>
+    <text x="408" y="87">header + Save — unchanged</text>
+    <circle cx="392" cy="114" r="9" fill="#fff" stroke="#9ca3af"/><text x="392" y="118" text-anchor="middle" font-size="10" font-weight="700" fill="#4a5361">2</text>
+    <text x="408" y="118">language bar — unchanged</text>
+    <circle cx="392" cy="186" r="9" fill="#fff" stroke="#9ca3af"/><text x="392" y="190" text-anchor="middle" font-size="10" font-weight="700" fill="#4a5361">3</text>
+    <text x="408" y="190">whole-text translation never replaced</text>
+    <circle cx="392" cy="240" r="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/><text x="392" y="244" text-anchor="middle" font-size="10" font-weight="700" fill="#0d9488">4</text>
+    <text x="408" y="244" fill="#0f766e" font-weight="600">NEW trigger: select in Recognized pane</text>
+    <circle cx="392" cy="300" r="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/><text x="392" y="304" text-anchor="middle" font-size="10" font-weight="700" fill="#0d9488">5</text>
+    <text x="408" y="304" fill="#0f766e" font-weight="600">NEW card slot docked below Recognized</text>
+    <circle cx="392" cy="330" r="9" fill="#fff" stroke="#9ca3af"/><text x="392" y="334" text-anchor="middle" font-size="10" font-weight="700" fill="#4a5361">6</text>
+    <text x="408" y="334">speakers / IPA still act on whole panes</text>
+  </g>
+  <!-- ============ RIGHT TOP: mode fork ============ -->
+  <text x="700" y="26" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">MODE FORK</text>
+  <rect x="700" y="42" width="132" height="44" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <text x="766" y="61" text-anchor="middle" font-size="12" font-weight="600">selection settles</text>
+  <text x="766" y="77" text-anchor="middle" font-size="10.5" fill="#4a5361">mouse-up + 300 ms</text>
+  <polygon points="920,42 990,64 920,86 850,64" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <text x="920" y="61" text-anchor="middle" font-size="11" font-weight="600" fill="#b45309">AI engine?</text>
+  <text x="920" y="76" text-anchor="middle" font-size="10" fill="#b45309">(OpenAI key)</text>
+  <line x1="832" y1="64" x2="844" y2="64" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ar)"/>
+  <polygon points="1105,42 1180,64 1105,86 1030,64" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <text x="1105" y="61" text-anchor="middle" font-size="11" font-weight="600" fill="#b45309">word / phrase?</text>
+  <text x="1105" y="76" text-anchor="middle" font-size="10" fill="#b45309">≤ 4 words</text>
+  <line x1="990" y1="64" x2="1024" y2="64" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ar)"/>
+  <text x="1000" y="56" font-size="10" fill="#4a5361">yes</text>
+  <rect x="1040" y="120" width="130" height="40" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="1105" y="138" text-anchor="middle" font-size="11.5" font-weight="700" fill="#0d9488">Dictionary card</text>
+  <text x="1105" y="152" text-anchor="middle" font-size="9.5" fill="#0f766e">translation·POS·sense·example</text>
+  <path d="M 1105 86 L 1105 114" stroke="#0d9488" stroke-width="2" marker-end="url(#arg)"/>
+  <text x="1112" y="104" font-size="10" fill="#0d9488">yes</text>
+  <rect x="1040" y="176" width="130" height="40" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="1105" y="194" text-anchor="middle" font-size="11.5" font-weight="700" fill="#0d9488">Long-span block</text>
+  <text x="1105" y="208" text-anchor="middle" font-size="9.5" fill="#0f766e">contextual translation only</text>
+  <path d="M 1180 64 L 1200 64 L 1200 196 L 1176 196" fill="none" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ar)"/>
+  <text x="1204" y="120" font-size="10" fill="#4a5361" text-anchor="end">no</text>
+  <rect x="855 " y="176" width="130" height="40" rx="9" fill="#fff" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <text x="920" y="194" text-anchor="middle" font-size="11.5" font-weight="600" fill="#4a5361">Degraded card</text>
+  <text x="920" y="208" text-anchor="middle" font-size="9.5" fill="#6b7280">Google · “Context-free” chip</text>
+  <path d="M 920 86 L 920 170" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ar)"/>
+  <text x="927" y="120" font-size="10" fill="#4a5361">no</text>
+  <!-- RIGHT MIDDLE: timing strip -->
+  <text x="700" y="266" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">TIMING</text>
+  <line x1="700" y1="300" x2="1180" y2="300" stroke="#9ca3af" stroke-width="1.5"/>
+  <circle cx="712" cy="300" r="5" fill="#111418"/><text x="712" y="322" text-anchor="middle" font-size="10.5" fill="#374151">mouse-up</text>
+  <circle cx="850" cy="300" r="5" fill="#4338ca"/><text x="850" y="322" text-anchor="middle" font-size="10.5" fill="#4338ca">+300 ms quiet → fire</text>
+  <circle cx="1000" cy="300" r="5" fill="#0d9488"/><text x="1000" y="322" text-anchor="middle" font-size="10.5" fill="#0f766e">skeleton mounts</text>
+  <circle cx="1140" cy="300" r="5" fill="#0d9488"/><text x="1140" y="322" text-anchor="middle" font-size="10.5" fill="#0f766e">card ≤ ~3 s</text>
+  <text x="700" y="348" font-size="10.5" fill="#6b7280">drag in progress = never fires · a newer selection cancels the timer and the in-flight request</text>
+  <!-- BOTTOM: compact state strip -->
+  <text x="20" y="556" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">STATES (COMPACT — FULL DIAGRAM IN §03)</text>
+  <g font-size="11.5">
+    <rect x="20" y="574" width="90" height="34" rx="17" fill="#fff" stroke="#111418" stroke-width="1.5"/><text x="65" y="595" text-anchor="middle" font-weight="600">idle</text>
+    <line x1="110" y1="591" x2="152" y2="591" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ar)"/><text x="131" y="584" text-anchor="middle" font-size="9" fill="#4a5361">drag</text>
+    <rect x="158" y="574" width="100" height="34" rx="17" fill="#fff" stroke="#111418" stroke-width="1.5"/><text x="208" y="595" text-anchor="middle" font-weight="600">selecting</text>
+    <line x1="258" y1="591" x2="308" y2="591" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ar)"/><text x="283" y="584" text-anchor="middle" font-size="9" fill="#4a5361">up+300ms</text>
+    <rect x="314" y="574" width="100" height="34" rx="17" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/><text x="364" y="595" text-anchor="middle" font-weight="600" fill="#4338ca">pending</text>
+    <line x1="414" y1="591" x2="462" y2="591" stroke="#0d9488" stroke-width="2" marker-end="url(#arg)"/><text x="438" y="584" text-anchor="middle" font-size="9" fill="#0d9488">resolve</text>
+    <rect x="468" y="574" width="290" height="34" rx="17" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/><text x="613" y="595" text-anchor="middle" font-weight="600" fill="#0d9488">card · long-span · degraded · error</text>
+    <line x1="758" y1="591" x2="812" y2="591" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ar)"/><text x="785" y="584" text-anchor="middle" font-size="9" fill="#4a5361">Esc · click-out</text>
+    <rect x="818" y="574" width="110" height="34" rx="17" fill="#fff" stroke="#111418" stroke-width="1.5"/><text x="873" y="595" text-anchor="middle" font-weight="600">dismissed</text>
+    <path d="M 873 574 Q 873 540 480 540 Q 65 540 65 570" fill="none" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+    <text x="480" y="534" text-anchor="middle" font-size="9.5" fill="#6b7280">slot collapses → back to idle · retranslate / new capture dismiss from any state</text>
+  </g>
+</svg>
+<div class="cap">Fig. 0 — The whole design on one screen: panel anatomy with the card docked below the Recognized pane, the mode fork, the trigger timing, and the state ring.</div>
+</div>
+
+<h2><span class="n">01</span> Interaction model</h2>
+<p><b>Trigger:</b> the card fires only when a selection <em>settles</em> — mouse released (or keyboard selection idle) and unchanged for <b>300 ms</b>, span non-empty after trimming. Dragging never fires; every selection change during flight cancels and supersedes (generation token, mirroring <code>phoneticGeneration</code>). Re-selecting the identical span is a no-op — the existing card stays.</p>
+<div class="fig">
+<svg viewBox="0 0 1150 560" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <defs><marker id="sa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#374151"/></marker>
+  <marker id="sg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0d9488"/></marker></defs>
+  <g font-weight="700" font-size="12" text-anchor="middle">
+    <rect x="40" y="16" width="110" height="30" rx="8" fill="#111418"/><text x="95" y="36" fill="#fff">User</text>
+    <rect x="270" y="16" width="150" height="30" rx="8" fill="#fff" stroke="#111418" stroke-width="1.5"/><text x="345" y="36">Recognized pane</text>
+    <rect x="520" y="16" width="170" height="30" rx="8" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/><text x="605" y="36" fill="#4338ca">SelectionController</text>
+    <rect x="790" y="16" width="120" height="30" rx="8" fill="#fff" stroke="#111418" stroke-width="1.5"/><text x="850" y="36">AI engine</text>
+    <rect x="990" y="16" width="120" height="30" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/><text x="1050" y="36" fill="#0d9488">Card slot</text>
+  </g>
+  <g stroke="#c9c9c9" stroke-dasharray="4 4"><line x1="95" y1="46" x2="95" y2="540"/><line x1="345" y1="46" x2="345" y2="540"/><line x1="605" y1="46" x2="605" y2="540"/><line x1="850" y1="46" x2="850" y2="540"/><line x1="1050" y1="46" x2="1050" y2="540"/></g>
+  <g fill="#374151">
+    <line x1="95" y1="78" x2="341" y2="78" stroke="#374151" stroke-width="1.5" marker-end="url(#sa)"/><text x="110" y="72">mouse-down + drag over “scored”</text>
+    <line x1="345" y1="104" x2="601" y2="104" stroke="#374151" stroke-width="1.5" marker-end="url(#sa)"/><text x="360" y="98">selectionDidChange ×n — ignored while mouse is down</text>
+    <line x1="95" y1="134" x2="341" y2="134" stroke="#374151" stroke-width="1.5" marker-end="url(#sa)"/><text x="110" y="128">mouse-up</text>
+    <line x1="345" y1="158" x2="601" y2="158" stroke="#374151" stroke-width="1.5" marker-end="url(#sa)"/><text x="360" y="152">final selection</text>
+    <path d="M 605 172 h 46 v 22 h -42" fill="none" stroke="#4338ca" stroke-width="1.5" marker-end="url(#sa)"/><text x="660" y="188" fill="#4338ca">start 300 ms quiet timer</text>
+    <rect x="510" y="208" width="190" height="24" rx="6" fill="#eef2ff"/><text x="605" y="224" text-anchor="middle" fill="#4338ca" font-weight="600">fires · span ok · gen := 7</text>
+    <line x1="605" y1="252" x2="1044" y2="252" stroke="#0d9488" stroke-width="1.5" marker-end="url(#sg)"/><text x="620" y="246" fill="#0f766e">mount skeleton · grow panel (once)</text>
+    <line x1="605" y1="278" x2="846" y2="278" stroke="#374151" stroke-width="1.5" marker-end="url(#sa)"/><text x="620" y="272">translate(span, context: full recognized text) · gen 7</text>
+    <line x1="95" y1="312" x2="341" y2="312" stroke="#374151" stroke-width="1.5" marker-end="url(#sa)"/><text x="110" y="306">re-selects “final goal” mid-flight</text>
+    <rect x="480" y="328" width="250" height="24" rx="6" fill="#eef2ff"/><text x="605" y="344" text-anchor="middle" fill="#4338ca" font-weight="600">gen := 8 · cancel task 7 · debounce again</text>
+    <line x1="605" y1="376" x2="846" y2="376" stroke="#374151" stroke-width="1.5" marker-end="url(#sa)"/><text x="620" y="370">translate(“final goal”, context) · gen 8</text>
+    <line x1="850" y1="404" x2="609" y2="404" stroke="#b45309" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#sa)"/><text x="620" y="398" fill="#b45309">late response gen 7 → discarded (stale)</text>
+    <line x1="850" y1="432" x2="609" y2="432" stroke="#374151" stroke-width="1.5" marker-end="url(#sa)"/><text x="620" y="426">response gen 8 ✓</text>
+    <line x1="605" y1="458" x2="1044" y2="458" stroke="#0d9488" stroke-width="1.5" marker-end="url(#sg)"/><text x="620" y="452" fill="#0f766e">render card in slot (skeleton → content, no jump)</text>
+    <line x1="95" y1="492" x2="601" y2="492" stroke="#374151" stroke-width="1.5" marker-end="url(#sa)"/><text x="110" y="486">Esc / click outside the text views</text>
+    <line x1="605" y1="518" x2="1044" y2="518" stroke="#374151" stroke-width="1.5" marker-end="url(#sa)"/><text x="620" y="512">collapse selection · dismiss card · panel shrinks back</text>
+  </g>
+</svg>
+<div class="cap">Fig. 1 — Sequence: settle-then-fire, one in-flight request, generation token discards stale responses (PRD AC-7).</div>
+</div>
+
+<h3>Coexistence with the panel's existing affordances</h3>
+<div class="fig">
+<svg viewBox="0 0 810 330" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <rect x="20" y="20" width="380" height="290" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <rect x="20" y="20" width="380" height="22" rx="10" fill="#e5e7eb"/><text x="210" y="35" text-anchor="middle" font-size="10" fill="#6b7280">title bar · header · Save · language bar · captions · speakers</text>
+  <rect x="36" y="86" width="348" height="52" rx="5" fill="#dcfce7" stroke="#16a34a"/><text x="210" y="115" text-anchor="middle" fill="#166534" font-weight="600">Translation text view (+ scroller)</text>
+  <rect x="36" y="152" width="348" height="52" rx="5" fill="#dcfce7" stroke="#16a34a"/><text x="210" y="181" text-anchor="middle" fill="#166534" font-weight="600">Recognized text view (+ scroller)</text>
+  <rect x="36" y="218" width="348" height="70" rx="9" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="210" y="248" text-anchor="middle" fill="#166534" font-weight="700">Contextual card (NEW whitelist entry)</text>
+  <text x="210" y="268" text-anchor="middle" fill="#166534" font-size="10.5">clicks here keep the selection + card</text>
+  <text x="210" y="62" text-anchor="middle" fill="#6b7280" font-size="10.5">gray = collapses selection → dismisses card (existing behavior, unchanged)</text>
+  <g font-size="12" fill="#374151">
+    <rect x="430" y="30" width="14" height="14" rx="3" fill="#dcfce7" stroke="#16a34a"/><text x="452" y="42">keeps selection &amp; card — <tspan font-family="ui-monospace,Menlo,monospace" font-size="10.5">shouldClearSelection == false</tspan></text>
+    <rect x="430" y="58" width="14" height="14" rx="3" fill="#f3f4f6" stroke="#9ca3af"/><text x="452" y="70">collapses selection → card dismisses with it</text>
+    <text x="430" y="110" font-weight="700" fill="#111418">One rule, one exception:</text>
+    <text x="430" y="130">the card joins the existing whitelist walk in</text>
+    <text x="430" y="148"><tspan font-family="ui-monospace,Menlo,monospace" font-size="10.5">ResultPanel.shouldClearSelection</tspan> (line 89);</text>
+    <text x="430" y="166">card lifetime is otherwise <tspan font-weight="600">exactly</tspan> the</text>
+    <text x="430" y="184">selection's lifetime. No second dismissal system.</text>
+    <text x="430" y="216" font-weight="700" fill="#111418">Speakers &amp; IPA don't fight:</text>
+    <text x="430" y="236">🔊 buttons keep reading the <tspan font-weight="600">whole pane</tspan> text;</text>
+    <text x="430" y="254">the IPA line keeps transcribing the whole pane.</text>
+    <text x="430" y="272">Clicking either is a chrome click → collapses the</text>
+    <text x="430" y="290">selection and the card — consistent with today.</text>
+  </g>
+</svg>
+<div class="cap">Fig. 2 — Click map. The card becomes the third "safe" zone in the existing outside-click collapse; everything else behaves exactly as v1.2.10.</div>
+</div>
+<ul class="notes">
+  <li><b>⌘S routing:</b> while a card is active, ⌘S saves <em>the card</em> (span → <code>source</code>, contextual translation → <code>translation</code>, FR-7); the header button visually stays but the key equivalent moves to the card's "☆ Save ⌘S" control, and moves back on dismissal. One shortcut, context-dependent target — matching what the user is looking at.</li>
+  <li><b>Retranslate / new capture / error / close:</b> all funnel through the existing teardown paths (<code>dropResultBody</code>, <code>setRetranslating</code>) — each cancels the in-flight span request and clears the slot before content changes, so a stale card can never sit over new content (FR-6).</li>
+  <li><b>Selection in the Translation pane:</b> not a trigger (out of scope) and dismisses an active card — one active lookup at a time.</li>
+</ul>
+
+<h2><span class="n">02</span> Card design</h2>
+<div class="decision"><b>Anchoring — fixed slot docked below the Recognized pane; the panel grows downward (top edge fixed, growth ≤ 200 pt, clamped to the screen's visible frame).</b> A selection-anchored popover inside a 440-pt panel would routinely cover the very words being examined or clip at the panel edge; a fixed slot never occludes anything, lands directly under the pane the user is already looking at, and gives VoiceOver a stable landmark. Growth animates 180 ms ease-out; instant under Reduce Motion.</div>
+<div class="fig">
+<svg viewBox="0 0 1290 520" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif">
+  <!-- A: dictionary card -->
+  <text x="24" y="24" font-size="13" font-weight="700" fill="#0d9488" letter-spacing="1">A · DICTIONARY CARD (≤ 4 WORDS)</text>
+  <rect x="24" y="40" width="300" height="168" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <text x="38" y="66" font-size="12" font-weight="700" fill="#111418">scored</text>
+  <rect x="92" y="54" width="78" height="16" rx="8" fill="#f3e8ff"/><text x="131" y="66" text-anchor="middle" font-size="9" font-weight="700" fill="#af52de">In context · AI</text>
+  <text x="266" y="66" text-anchor="end" font-size="10" fill="#6b7280">☆ Save ⌘S</text><text x="308" y="66" text-anchor="end" font-size="11" fill="#6b7280">✕</text>
+  <text x="38" y="96" font-size="16" font-weight="700" fill="#111418">攻入（进球）</text>
+  <rect x="38" y="108" width="32" height="14" rx="3" fill="#f3f4f6"/><text x="54" y="119" text-anchor="middle" font-size="9" font-weight="700" fill="#6b7280">verb</text>
+  <text x="78" y="119" font-size="10.5" fill="#4b5563">“score”的过去式 — 此处指把球踢进球门</text>
+  <line x1="38" y1="134" x2="310" y2="134" stroke="#e5e7eb"/>
+  <text x="38" y="154" font-size="10.5" fill="#4b5563">Messi <tspan font-weight="700" fill="#111418">scored</tspan> the final goal.</text>
+  <text x="38" y="172" font-size="10.5" fill="#4b5563">梅西<tspan font-weight="700" fill="#111418">攻入</tspan>了最后一球。</text>
+  <!-- measurements -->
+  <g font-size="9.5" fill="#4338ca" font-family="ui-monospace,Menlo,monospace">
+    <line x1="24" y1="222" x2="324" y2="222" stroke="#c7d2fe"/><text x="174" y="236" text-anchor="middle">insets 12 top/bottom · 14 sides · radius 9 · row gap 8</text>
+    <text x="174" y="252" text-anchor="middle">rows omit when a field is missing — never faked (FR-3)</text>
+  </g>
+  <g font-size="9.5" fill="#4338ca" font-family="ui-monospace,Menlo,monospace" text-anchor="start">
+    <text x="340" y="66">span echo 13 semibold · chip 10/600</text>
+    <text x="340" y="96">translation 17 semibold labelColor</text>
+    <text x="340" y="119">POS chip 10 bold · sense 12 secondary</text>
+    <text x="340" y="154">example 12 secondary, span bolded,</text>
+    <text x="340" y="168">hairline separator above</text>
+  </g>
+  <!-- B: long span -->
+  <text x="560" y="24" font-size="13" font-weight="700" fill="#0d9488" letter-spacing="1">B · LONG-SPAN (&gt; 4 WORDS)</text>
+  <rect x="560" y="40" width="300" height="110" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <text x="574" y="66" font-size="12" font-weight="700" fill="#111418">Messi scored the fi…</text>
+  <rect x="712" y="54" width="78" height="16" rx="8" fill="#f3e8ff"/><text x="751" y="66" text-anchor="middle" font-size="9" font-weight="700" fill="#af52de">In context · AI</text>
+  <text x="822" y="66" text-anchor="end" font-size="10" fill="#6b7280">☆ ⌘S</text><text x="844" y="66" text-anchor="end" font-size="11" fill="#6b7280">✕</text>
+  <text x="574" y="98" font-size="13.5" fill="#111418">梅西攻入了最后一球。</text>
+  <text x="574" y="130" font-size="9.5" fill="#4338ca" font-family="ui-monospace,Menlo,monospace">plain translation 15 regular · no POS/sense/example</text>
+  <!-- C: degraded -->
+  <text x="560" y="196" font-size="13" font-weight="700" fill="#6b7280" letter-spacing="1">C · DEGRADED (GOOGLE-ONLY, FR-5)</text>
+  <rect x="560" y="212" width="300" height="118" rx="9" fill="#fff" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <text x="574" y="238" font-size="12" font-weight="700" fill="#111418">the final goal</text>
+  <rect x="668" y="226" width="104" height="16" rx="8" fill="#f3f4f6"/><text x="720" y="238" text-anchor="middle" font-size="9" font-weight="600" fill="#6b7280">Context-free · Google</text>
+  <text x="822" y="238" text-anchor="end" font-size="10" fill="#6b7280">☆ ⌘S</text><text x="844" y="238" text-anchor="end" font-size="11" fill="#6b7280">✕</text>
+  <text x="574" y="268" font-size="14" fill="#111418">最终目标</text>
+  <text x="574" y="292" font-size="10" fill="#9ca3af">Translated without sentence context — add an AI key</text>
+  <text x="574" y="306" font-size="10" fill="#9ca3af">in Preferences for in-context results.</text>
+  <!-- D: loading + error -->
+  <text x="24" y="290" font-size="13" font-weight="700" fill="#4338ca" letter-spacing="1">D · LOADING (SKELETON)</text>
+  <rect x="24" y="306" width="300" height="96" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <rect x="38" y="322" width="96" height="11" rx="5.5" fill="#e9edf0"/>
+  <rect x="38" y="346" width="200" height="13" rx="6.5" fill="#e9edf0"/>
+  <rect x="38" y="372" width="150" height="11" rx="5.5" fill="#e9edf0"/>
+  <text x="24" y="424" font-size="9.5" fill="#4338ca" font-family="ui-monospace,Menlo,monospace">shimmer 1.2 s linear · static bars under Reduce Motion</text>
+  <text x="24" y="438" font-size="9.5" fill="#4338ca" font-family="ui-monospace,Menlo,monospace">slot height reserved once — content swap causes no jump</text>
+  <text x="24" y="474" font-size="13" font-weight="700" fill="#b45309" letter-spacing="1">E · ERROR (QUIET, INLINE)</text>
+  <rect x="24" y="484" width="300" height="34" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <text x="38" y="506" font-size="11" fill="#4b5563">Couldn’t translate the selection · <tspan fill="#007aff">Try again</tspan></text>
+  <g font-size="11.5" fill="#374151">
+    <text x="920" y="212" font-weight="700" fill="#111418">Shared frame, three fills:</text>
+    <text x="920" y="234">all variants use the same surface —</text>
+    <text x="920" y="252">textBackgroundColor, 1 px separator</text>
+    <text x="920" y="270">border, radius 9, shadow 0 2 8 @12%.</text>
+    <text x="920" y="288">Degraded swaps only the chip + a dashed</text>
+    <text x="920" y="306">border; the purple chip mirrors the</text>
+    <text x="920" y="324">existing AI badge (systemPurple), so</text>
+    <text x="920" y="342">engine identity reads consistently.</text>
+    <text x="920" y="374" font-weight="700" fill="#111418">Dismissal affordances:</text>
+    <text x="920" y="396">✕ button · Esc · click outside the</text>
+    <text x="920" y="414">text views/card · new selection replaces</text>
+    <text x="920" y="432">in place · retranslate + new capture clear.</text>
+    <text x="920" y="464" font-weight="700" fill="#111418">Error stays quiet:</text>
+    <text x="920" y="486">inline row, secondary color, retry link —</text>
+    <text x="920" y="504">never a dialog (a lookup is a side quest).</text>
+  </g>
+</svg>
+<div class="cap">Fig. 3 — Card anatomy and variants. One frame, one hierarchy; variants differ only in chip, border style, and which rows exist.</div>
+</div>
+
+<h2><span class="n">03</span> State machine</h2>
+<div class="fig">
+<svg viewBox="0 0 1160 450" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <defs><marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#374151"/></marker>
+  <marker id="mg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0d9488"/></marker></defs>
+  <g font-weight="600" text-anchor="middle">
+    <rect x="30" y="60" width="110" height="40" rx="20" fill="#fff" stroke="#111418" stroke-width="1.5"/><text x="85" y="85">idle</text>
+    <rect x="230" y="60" width="120" height="40" rx="20" fill="#fff" stroke="#111418" stroke-width="1.5"/><text x="290" y="85">selecting</text>
+    <rect x="460" y="60" width="120" height="40" rx="20" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/><text x="520" y="85" fill="#4338ca">pending</text>
+    <rect x="760" y="24" width="130" height="38" rx="19" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/><text x="825" y="48" fill="#0d9488">card</text>
+    <rect x="760" y="96" width="130" height="38" rx="19" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/><text x="825" y="120" fill="#0d9488">long-span</text>
+    <rect x="760" y="168" width="130" height="38" rx="19" fill="#fff" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3"/><text x="825" y="192" fill="#4a5361">degraded</text>
+    <rect x="460" y="220" width="120" height="38" rx="19" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/><text x="520" y="244" fill="#b45309">error</text>
+    <rect x="230" y="330" width="130" height="40" rx="20" fill="#fff" stroke="#111418" stroke-width="1.5"/><text x="295" y="355">dismissed</text>
+  </g>
+  <g fill="#374151">
+    <line x1="140" y1="80" x2="224" y2="80" stroke="#374151" stroke-width="1.5" marker-end="url(#ma)"/><text x="182" y="72" text-anchor="middle" font-size="10">mouse-down in Recognized</text>
+    <path d="M 290 60 q -24 -34 0 -38 q 24 4 6 34" fill="none" stroke="#374151" stroke-width="1.2" marker-end="url(#ma)"/><text x="290" y="10" text-anchor="middle" font-size="10">selection changes (drag) — no requests</text>
+    <line x1="350" y1="80" x2="454" y2="80" stroke="#374151" stroke-width="1.5" marker-end="url(#ma)"/><text x="402" y="72" text-anchor="middle" font-size="10">mouse-up + 300 ms · span ≠ ∅</text>
+    <path d="M 290 100 L 290 330" fill="none" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ma)"/><text x="286" y="220" text-anchor="end" font-size="10" fill="#6b7280">empty span</text>
+    <path d="M 520 60 q -24 -34 0 -38 q 24 4 6 34" fill="none" stroke="#4338ca" stroke-width="1.2" marker-end="url(#ma)"/><text x="524" y="10" text-anchor="middle" font-size="10" fill="#4338ca">re-selection: gen++ · cancel · re-debounce</text>
+    <line x1="580" y1="70" x2="754" y2="46" stroke="#0d9488" stroke-width="2" marker-end="url(#mg)"/><text x="665" y="44" text-anchor="middle" font-size="10" fill="#0f766e">AI · ≤ 4 words</text>
+    <line x1="580" y1="90" x2="754" y2="112" stroke="#0d9488" stroke-width="2" marker-end="url(#mg)"/><text x="672" y="94" text-anchor="middle" font-size="10" fill="#0f766e">AI · &gt; 4 words (or parse fallback)</text>
+    <line x1="580" y1="100" x2="754" y2="182" stroke="#374151" stroke-width="1.5" marker-end="url(#ma)"/><text x="640" y="120" font-size="10">no AI engine → Google</text>
+    <line x1="520" y1="100" x2="520" y2="214" stroke="#b45309" stroke-width="1.5" marker-end="url(#ma)"/><text x="527" y="160" font-size="10" fill="#b45309">network / timeout</text>
+    <path d="M 466 246 q -60 10 -18 -120" fill="none" stroke="#b45309" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ma)"/><text x="415" y="180" text-anchor="end" font-size="10" fill="#b45309">Try again</text>
+    <path d="M 825 62 L 825 90" stroke="#9ca3af" stroke-width="1" marker-end="url(#ma)"/>
+    <path d="M 890 44 q 90 40 60 150 q -30 120 -584 156 L 362 350" fill="none" stroke="#374151" stroke-width="1.5" marker-end="url(#ma)"/>
+    <text x="920" y="240" font-size="10.5" font-weight="600">Esc · click-outside ·</text>
+    <text x="920" y="256" font-size="10.5" font-weight="600">✕ · retranslate ·</text>
+    <text x="920" y="272" font-size="10.5" font-weight="600">new capture · close</text>
+    <path d="M 762 30 C 706 2 634 12 588 54" fill="none" stroke="#4338ca" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ma)"/><text x="686" y="26" text-anchor="middle" font-size="10" fill="#4338ca">new selection → pending</text>
+    <path d="M 230 350 q -145 0 -145 -230 L 85 104" fill="none" stroke="#374151" stroke-width="1.5" marker-end="url(#ma)"/><text x="96" y="236" font-size="10">slot collapses (instant)</text>
+    <path d="M 580 239 q 140 60 -230 104" fill="none" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ma)"/>
+  </g>
+</svg>
+<div class="cap">Fig. 4 — Full state machine. Dismissal is a single sink: every content-changing event (retranslate, new capture, error/message body) routes through it before anything new renders.</div>
+</div>
+
+<h2><span class="n">04</span> Interactive mockup</h2>
+<p class="soft">A faithful HTML replica of the live panel (fonts, spacing, and colors transcribed from <code>ResultPanel.swift</code> / <code>LanguageBarView.swift</code>). <b>Click a word</b> (stands in for the app's double-click) or <b>drag across words</b> in the Recognized pane. <b>Esc</b> or a click on panel chrome dismisses — exactly the shipped rule. Timing is real: 300 ms debounce + simulated ~900 ms engine latency.</p>
+<div class="scenario-bar" id="scenarioBar">
+  Engine:
+  <button id="btnAI" aria-pressed="true">AI (OpenAI)</button>
+  <button id="btnGoogle" aria-pressed="false">Google-only</button>
+  ·
+  <button id="btnErr" aria-pressed="false">Force error</button>
+  <button id="btnLong" aria-pressed="false">Demo: long span</button>
+</div>
+<div class="mock-scroll"><div class="mock-stage">
+  <div class="mac-panel" id="mockPanel">
+    <div class="titlebar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="title">Translator Everywhere</span></div>
+    <div class="panel-body">
+      <div class="hdr-row"><span class="badge-ai">AI</span><span class="hdr-spacer"></span><button class="mac-btn" type="button">Save to Notebook</button></div>
+      <div class="lang-bar"><button class="mac-btn" type="button">From: Auto ▾</button><button class="mac-btn" type="button">⇄</button><button class="mac-btn to" type="button">To: 中文（简体） ▾</button></div>
+      <div class="detected">Detected: English</div>
+      <div class="caption-row"><span>Translation</span><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg></div>
+      <div class="pane translation">梅西攻入了最后一球。</div>
+      <div class="caption-row"><span>Recognized</span><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg></div>
+      <div class="pane recognized" id="rec"><span class="w">Messi</span> <span class="w">scored</span> <span class="w">the</span> <span class="w">final</span> <span class="w">goal.</span></div>
+      <div class="phonetic">/ˈmɛsi skɔrd ðə ˈfaɪnəl ɡoʊl/</div>
+      <div class="card-slot" id="cardSlot"></div>
+    </div>
+  </div>
+</div></div>
+<div class="cap">Fig. 5 — Live mockup. Try: “scored” → dictionary card · drag all five words (or “Demo: long span”) → long-span block · “Google-only” + “the final goal” → the classic 最终目标 mistranslation the feature exists to fix.</div>
+
+<script>
+(function(){
+  const W=[...document.querySelectorAll('#rec .w')];
+  const slot=document.getElementById('cardSlot');
+  const panel=document.getElementById('mockPanel');
+  let anchor=-1,dragging=false,deb=null,lat=null,gen=0;
+  let engine='ai',forceErr=false;
+  const DICT={
+    'scored':{t:'攻入（进球）',pos:'verb',sense:'“score”的过去式 — 此处指把球踢进球门',e1:'Messi <b>scored</b> the final goal.',e2:'梅西<b>攻入</b>了最后一球。',g:'得分'},
+    'the final goal':{t:'最后一球（制胜球）',pos:'noun phrase',sense:'此处指比赛中的最后一个进球，而非“最终目标”',e1:'Messi scored <b>the final goal</b>.',e2:'梅西攻入了<b>最后一球</b>。',g:'最终目标'},
+    'messi':{t:'梅西',pos:'proper noun',sense:'阿根廷足球运动员 Lionel Messi 的中文译名',e1:'<b>Messi</b> scored the final goal.',e2:'<b>梅西</b>攻入了最后一球。',g:'梅西'},
+    'the':{t:'（定冠词，此处不单独翻译）',pos:'article',sense:'限定后文的 “final goal”',e1:'Messi scored <b>the</b> final goal.',e2:'梅西攻入了最后一球。',g:'这'},
+    'final':{t:'最后的',pos:'adjective',sense:'此处修饰 “goal”，指比赛的最后一个进球',e1:'Messi scored the <b>final</b> goal.',e2:'梅西攻入了<b>最后</b>一球。',g:'最终'},
+    'goal':{t:'进球',pos:'noun',sense:'此处指足球比赛中的进球，而非“目标”',e1:'Messi scored the final <b>goal</b>.',e2:'梅西攻入了最后一<b>球</b>。',g:'目标'}
+  };
+  const norm=s=>s.toLowerCase().replace(/[.,!?]+$/,'');
+  const selIdx=()=>W.reduce((a,w,i)=>(w.classList.contains('sel')&&a.push(i),a),[]);
+  const clearSel=()=>W.forEach(w=>w.classList.remove('sel'));
+  function setRange(a,b){clearSel();for(let i=Math.min(a,b);i<=Math.max(a,b);i++)W[i].classList.add('sel');}
+  function cancelPending(){clearTimeout(deb);clearTimeout(lat);gen++;}
+  function dismiss(){cancelPending();slot.classList.remove('open');slot.replaceChildren();}
+  function schedule(){cancelPending();const g=gen;deb=setTimeout(()=>{if(g!==gen)return;request(g);},300);}
+  function request(g){
+    slot.innerHTML='<div class="ctx-card" aria-busy="true"><div class="sk" style="width:34%"></div><div class="sk" style="width:70%"></div><div class="sk" style="width:52%;margin-bottom:0"></div></div>';
+    slot.classList.add('open');
+    lat=setTimeout(()=>{if(g!==gen)return;render();},900);
+  }
+  function top(span,chip,chipCls){return '<div class="cc-top"><span class="cc-span">'+span+'</span><span class="cc-chip '+chipCls+'">'+chip+'</span><span class="cc-gap"></span><button class="cc-save" type="button">☆ Save ⌘S</button><button class="cc-x" type="button" aria-label="Dismiss contextual translation">✕</button></div>';}
+  function render(){
+    const idx=selIdx(); if(!idx.length){dismiss();return;}
+    const words=idx.map(i=>W[i].textContent), span=words.join(' '), key=norm(span);
+    let html;
+    if(forceErr){
+      html='<div class="ctx-card"><div class="cc-err">Couldn’t translate the selection · <button type="button" id="ccRetry">Try again</button></div></div>';
+    }else if(engine==='google'){
+      const d=DICT[key];
+      html='<div class="ctx-card" style="border-style:dashed">'+top(span,'Context-free · Google','free')
+        +'<div class="cc-trans plain">'+(d?d.g:'（谷歌逐词直译）')+'</div>'
+        +'<div class="cc-note">Translated without sentence context — add an AI key in Preferences for in-context results.</div></div>';
+    }else if(words.length>4){
+      html='<div class="ctx-card">'+top(span,'In context · AI','ai')
+        +'<div class="cc-trans plain">梅西攻入了最后一球。</div></div>';
+    }else{
+      const d=DICT[key]||{t:'（示例词典无此条目）',pos:'—',sense:'mock data only',e1:span,e2:''};
+      html='<div class="ctx-card" role="group" aria-label="Contextual translation for '+span+'">'+top(span,'In context · AI','ai')
+        +'<div class="cc-trans">'+d.t+'</div>'
+        +'<div class="cc-meta"><span class="cc-pos">'+d.pos+'</span><span class="cc-sense">'+d.sense+'</span></div>'
+        +(d.e1?'<div class="cc-ex"><div>'+d.e1+'</div><div>'+d.e2+'</div></div>':'')+'</div>';
+    }
+    slot.innerHTML=html; slot.classList.add('open');
+    const x=slot.querySelector('.cc-x'); if(x)x.addEventListener('click',e=>{e.stopPropagation();clearSel();dismiss();});
+    const sv=slot.querySelector('.cc-save'); if(sv)sv.addEventListener('click',e=>{e.stopPropagation();sv.textContent='★ Saved';sv.classList.add('saved');});
+    const rt=slot.querySelector('#ccRetry'); if(rt)rt.addEventListener('click',e=>{e.stopPropagation();schedule();});
+  }
+  W.forEach((w,i)=>{
+    w.addEventListener('mousedown',e=>{e.preventDefault();e.stopPropagation();dragging=true;anchor=i;setRange(i,i);cancelPending();});
+    w.addEventListener('mouseenter',()=>{if(dragging)setRange(anchor,i);});
+  });
+  document.addEventListener('mouseup',()=>{if(!dragging)return;dragging=false;schedule();});
+  panel.addEventListener('mousedown',e=>{ // mimics KeyablePanel.sendEvent + shouldClearSelection
+    if(e.target.closest('.pane')||e.target.closest('#cardSlot'))return;
+    if(selIdx().length){clearSel();dismiss();}
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){clearSel();dismiss();}});
+  const btnAI=document.getElementById('btnAI'),btnG=document.getElementById('btnGoogle'),
+        btnE=document.getElementById('btnErr'),btnL=document.getElementById('btnLong');
+  function setEngine(v){engine=v;btnAI.setAttribute('aria-pressed',String(v==='ai'));btnG.setAttribute('aria-pressed',String(v==='google'));if(selIdx().length)schedule();}
+  btnAI.addEventListener('click',()=>setEngine('ai'));
+  btnG.addEventListener('click',()=>setEngine('google'));
+  btnE.addEventListener('click',()=>{forceErr=!forceErr;btnE.setAttribute('aria-pressed',String(forceErr));if(selIdx().length)schedule();});
+  btnL.addEventListener('click',()=>{setRange(0,4);schedule();});
+})();
+</script>
+
+<h2><span class="n">05</span> Design tokens &amp; specs</h2>
+<div class="tbl">
+<table>
+  <tr><th>Token</th><th>Value</th><th>Source / rationale</th></tr>
+  <tr><td>panel.size</td><td>440 × 420 pt; card growth ≤ +200 pt downward, top edge fixed, clamped to <code>visibleFrame</code></td><td>ResultPanel.swift:444; growth keeps sections readable (minSectionHeight 56, :103)</td></tr>
+  <tr><td>slot.spacing</td><td>12 pt above card (custom spacing after the source pane)</td><td>matches existing custom spacings 10/12/14 (ResultPanel.swift:529-531)</td></tr>
+  <tr><td>card.surface</td><td><code>textBackgroundColor</code> (≈#FFF light) · 1 px <code>separatorColor</code> border · radius 9 · shadow 0 2 8 @ 12%</td><td>radius matches language-bar box (LanguageBarView.swift:95); degraded variant: dashed border</td></tr>
+  <tr><td>card.insets</td><td>12 top/bottom · 14 sides · 8 row gap · hairline above example row</td><td>tighter than panel insets 16 (ResultPanel.swift:990) — card is subordinate</td></tr>
+  <tr><td>type.spanEcho</td><td>13 semibold <code>labelColor</code>, 1 line, middle-truncated at ~150 pt</td><td>sits between caption 11 and source 14</td></tr>
+  <tr><td>type.cardTranslation</td><td>17 semibold <code>labelColor</code> (long-span/degraded: 15 regular)</td><td>prominent but under the 18 pt main translation (ResultPanel.swift:507)</td></tr>
+  <tr><td>type.pos</td><td>10 bold <code>secondaryLabelColor</code> on <code>quaternaryLabelColor</code>-fill chip, radius 4</td><td>echoes badge construction (ResultPanel.swift:637-657)</td></tr>
+  <tr><td>type.sense / example</td><td>12 regular <code>secondaryLabelColor</code>; span bolded <code>labelColor</code> inside example</td><td>same tier as the IPA line (ResultPanel.swift:811)</td></tr>
+  <tr><td>chip.mode</td><td>10 semibold, pill radius 999: “In context · AI” <code>systemPurple</code>@12% bg / “Context-free · Google” gray@7%</td><td>purple = existing AI badge color (ResultPanel.swift:632-634)</td></tr>
+  <tr><td>note.degraded</td><td>11 regular <code>tertiaryLabelColor</code>, one sentence, no icon</td><td>FR-5 “subtle, not alarming”</td></tr>
+  <tr><td>error.row</td><td>12 <code>secondaryLabelColor</code> + “Try again” link-button in accent</td><td>quieter than “Couldn’t save” red (ResultPanel.swift:1119-1121) — lookup failure is low-stakes</td></tr>
+  <tr><td>controls</td><td>✕ and ☆ Save ⌘S: borderless 11 pt, <code>secondaryLabelColor</code>, hover fill 6%; ⌘S key equivalent moves card↔header on card show/dismiss</td><td>mirrors borderless speaker buttons (ResultPanel.swift:702-718)</td></tr>
+  <tr><td>selection.keep</td><td>Recognized text view stays first responder while card is shown (selection renders accent, not gray)</td><td>selection is the card’s visual anchor</td></tr>
+  <tr><td>timing.debounce</td><td>300 ms quiet after last selection change, mouse up; identical-span dedupe</td><td>&lt;250 ms fires on double-click-then-extend; &gt;400 ms feels laggy</td></tr>
+  <tr><td>timing.motion</td><td>slot grow 180 ms ease-out; shimmer 1.2 s linear; dismissal instant; Reduce Motion → all instant/static</td><td>compositor-friendly (height via slot max constraint animation)</td></tr>
+  <tr><td>threshold.wordMode</td><td>spaced scripts: ≤ 4 whitespace tokens → card; unspaced (CJK) selections: ≤ 8 graphemes → card; else long-span</td><td>FR-3/FR-4 + AC-9; tunable constants</td></tr>
+  <tr><td>request</td><td>fire on settle only · 1 in-flight · generation token (mirror of <code>phoneticGeneration</code>, ResultPanel.swift:197) · timeout ≈ 8 s → error row</td><td>AC-7 race; cost guard (PRD §08)</td></tr>
+</table>
+</div>
+
+<h2><span class="n">06</span> Accessibility &amp; edge notes</h2>
+<ul class="notes">
+  <li><b>VoiceOver:</b> card is one accessibility group (“Contextual translation”), children in reading order: span → mode chip → translation → POS → sense → example. On render, post an announcement: “scored — 攻入, verb”. ✕ is labeled “Dismiss contextual translation”; Save mirrors the header button’s labeling. The skeleton sets <code>aria-busy</code>-equivalent (AX busy) so VO doesn’t read placeholder bars.</li>
+  <li><b>Keyboard:</b> selection via ⇧←/→ works — same settle debounce. Esc collapses selection + card from any first responder in the panel. ⌘S targets the card while active (see §01).</li>
+  <li><b>Reduce Motion:</b> no shimmer (static bars), no grow animation (instant height), no announcement change.</li>
+  <li><b>Very long words / spans:</b> span echo is single-line, middle-truncated; card translation wraps up to 3 lines then truncates (like the IPA cap, ResultPanel.swift:814); card max height 200 pt, internal content never scrolls — long content belongs to long-span mode’s plain block, which wraps freely.</li>
+  <li><b>zh selections (no spaces):</b> word/phrase mode by grapheme count (≤ 8) since whitespace tokens are always 1; boundaries come from the user’s selection, never a tokenizer (AC-9). POS/example may be absent for zh spans — rows omit, never fake (FR-3).</li>
+  <li><b>Multi-line selections:</b> span is whitespace-normalized (newlines → single space) for both the request and the echo.</li>
+  <li><b>Whitespace/punctuation-only selections:</b> trimmed empty → no request, no slot.</li>
+  <li><b>Panel near screen edge:</b> growth is clamped to the screen’s <code>visibleFrame</code>; if there’s not enough room below, the panel shifts up by the shortfall before growing — the card is inside the panel, so it can never clip offscreen (the popover failure mode this anchoring avoids).</li>
+  <li><b>Google-only + long span:</b> degraded chip + plain block merge (degraded styling wins); still no error.</li>
+</ul>
+
+<h2><span class="n">07</span> Open questions for Gate 1</h2>
+<div class="decision"><b>Q1 · ⌘S routing.</b> While a card is active, ⌘S saves the card instead of the whole result (key equivalent swaps to the card and back on dismissal). Confirm this override is acceptable vs. a separate shortcut.</div>
+<div class="decision"><b>Q2 · CJK threshold.</b> Word/phrase mode for unspaced scripts = ≤ 8 graphemes (tunable). Confirm, or pick a different cap.</div>
+<div class="decision"><b>Q3 · Card read-aloud.</b> The card ships without its own speaker (pane speakers keep reading whole panes). A span-speaker on the card is a cheap fast-follow — in or out of v1?</div>
+
+</div>
+</body>
+</html>
