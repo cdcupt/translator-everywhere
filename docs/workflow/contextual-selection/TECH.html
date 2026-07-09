@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TECH — Contextual Selection Translate · Translator Everywhere</title>
+<style>
+  :root{
+    --ink:#111418; --ink-soft:#4a5361; --paper:#fbfaf7; --card:#ffffff;
+    --accent:#4338ca; --accent-soft:#eef2ff; --new:#0d9488; --new-soft:#f0fdfa;
+    --warn:#b45309; --warn-soft:#fffbeb; --line:#e5e2da; --out:#9ca3af;
+    --mono:ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:0 0 6rem}
+  .wrap{max-width:960px;margin:0 auto;padding:0 1.25rem}
+  header.doc{border-bottom:3px solid var(--ink);padding:2.5rem 0 1.5rem;margin-bottom:2rem}
+  .kicker{font:600 .78rem/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:clamp(1.6rem,4vw,2.4rem);line-height:1.15;letter-spacing:-.02em;margin:.5rem 0 .75rem}
+  .meta{display:flex;flex-wrap:wrap;gap:.4rem .5rem;font:500 .78rem/1 var(--mono)}
+  .meta span{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:.35rem .7rem;color:var(--ink-soft)}
+  .meta span b{color:var(--ink);font-weight:600}
+  h2{font-size:1.25rem;letter-spacing:-.01em;margin:2.75rem 0 .75rem;display:flex;align-items:baseline;gap:.6rem}
+  h2 .n{font:700 .8rem/1 var(--mono);color:var(--accent)}
+  h3{font-size:1rem;margin:1.5rem 0 .5rem}
+  h4{font-size:.95rem;margin:2rem 0 .5rem}
+  p{margin:.6rem 0;color:var(--ink);max-width:72ch}
+  p.soft{color:var(--ink-soft)}
+  .fig{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1rem;margin:1rem 0;overflow-x:auto}
+  .fig svg{display:block;min-width:640px;max-width:100%;height:auto;margin:0 auto}
+  .fig.master svg{min-width:760px}
+  .fig pre{margin:0;overflow-x:auto}
+  .fig pre code{display:block;background:none;color:var(--ink);padding:0;font:12.5px/1.6 var(--mono)}
+  .cap{font:500 .75rem/1.5 var(--mono);color:var(--ink-soft);margin-top:.6rem;text-align:center}
+  p.cap{max-width:none}
+  .tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);margin:1rem 0}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:.9rem}
+  th{background:var(--ink);color:#fff;text-align:left;padding:.6rem .85rem;font:600 .75rem/1.3 var(--mono);letter-spacing:.05em;text-transform:uppercase}
+  td{padding:.65rem .85rem;border-top:1px solid var(--line);vertical-align:top}
+  td:first-child{font:600 .8rem/1.5 var(--mono);color:var(--accent);white-space:nowrap}
+  code{font:.85em var(--mono);background:var(--accent-soft);color:var(--accent);padding:.1em .4em;border-radius:5px;overflow-wrap:anywhere;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+  .decision{background:var(--warn-soft);border:1px solid #fde68a;border-radius:12px;padding:.85rem 1.1rem;margin:.75rem 0;font-size:.93rem}
+  .decision b,.decision strong{color:var(--warn)}
+  .decision ol,.decision ul{margin:.5rem 0 0 1.35rem}
+  .decision li{margin:.3rem 0}
+  .risk{display:grid;grid-template-columns:auto 1fr;gap:.75rem;padding:.7rem 0;border-bottom:1px dashed var(--line);font-size:.93rem}
+  .risk:last-child{border-bottom:none}
+  .sev{font:700 .68rem/1 var(--mono);border-radius:6px;padding:.3rem .5rem;height:fit-content;white-space:nowrap}
+  .sev.m{background:var(--warn-soft);color:var(--warn);border:1px solid #fde68a}
+  .sev.l{background:var(--accent-soft);color:var(--accent);border:1px solid #c7d2fe}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="kicker">Tech Document · SDD Workflow · Steps 4–5</div>
+  <h1>Contextual Selection Translate — Technical Design</h1>
+  <div class="meta">
+    <span>Product <b>Translator Everywhere (macOS)</b></span>
+    <span>Baseline <b>v1.2.10 · main@69f9186</b></span>
+    <span>Branch <b>feat/contextual-selection</b></span>
+    <span>Date <b>2026-07-09</b></span>
+    <span>Status <b>Draft → Gate 2</b></span>
+    <span>Inputs <b>PRD ✓ · DESIGN ✓ (Gate 1)</b></span>
+  </div>
+</header>
+
+<h2><span class="n">★</span> At a glance</h2>
+<div class="fig master">
+<svg viewBox="0 0 1180 545" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif">
+  <defs>
+    <marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5361"/></marker>
+    <marker id="mg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0d9488"/></marker>
+  </defs>
+  <text x="20" y="26" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">END-TO-END FLOW + OWNERSHIP — SELECT → SETTLE → COORDINATE → TRANSLATE → RENDER</text>
+  <!-- flow boxes -->
+  <g font-size="11.5">
+    <rect x="20" y="42" width="150" height="72" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="95" y="64" text-anchor="middle" font-weight="600" font-size="12.5">Select span</text>
+    <text x="95" y="82" text-anchor="middle" fill="#4a5361" font-size="10.5">Recognized pane only</text>
+    <text x="95" y="99" text-anchor="middle" fill="#4a5361" font-size="10.5">mouse-up · ⇧←/→</text>
+
+    <rect x="190" y="42" width="160" height="72" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="270" y="64" text-anchor="middle" font-weight="600" font-size="12.5">Settle 300 ms</text>
+    <text x="270" y="82" text-anchor="middle" fill="#4a5361" font-size="10.5">guards: mid-drag · empty</text>
+    <text x="270" y="99" text-anchor="middle" fill="#4a5361" font-size="10.5">· identical-span dedupe</text>
+
+    <rect x="370" y="42" width="180" height="72" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="460" y="64" text-anchor="middle" font-weight="600" font-size="12.5">Coordinate</text>
+    <text x="460" y="82" text-anchor="middle" fill="#4a5361" font-size="10" font-family="ui-monospace,Menlo,monospace">translateSelectionLatest</text>
+    <text x="460" y="99" text-anchor="middle" fill="#4a5361" font-size="10.5">sGen + gen staleness tokens</text>
+
+    <rect x="570" y="42" width="190" height="72" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="665" y="64" text-anchor="middle" font-weight="600" font-size="12.5">Translate</text>
+    <text x="665" y="82" text-anchor="middle" fill="#4a5361" font-size="10.5">normalize · window ≤ 1500</text>
+    <text x="665" y="99" text-anchor="middle" fill="#4a5361" font-size="10.5">route · 8 s deadline</text>
+
+    <rect x="780" y="42" width="180" height="50" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="870" y="61" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="11.5">OpenAIEngine</text>
+    <text x="870" y="78" text-anchor="middle" fill="#0f766e" font-size="10.5">card JSON · plain span</text>
+
+    <rect x="780" y="100" width="180" height="50" rx="10" fill="#fff" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3"/>
+    <text x="870" y="119" text-anchor="middle" font-weight="600" fill="#4a5361" font-size="11.5">GoogleEngine — degraded</text>
+    <text x="870" y="136" text-anchor="middle" fill="#6b7280" font-size="10.5">span-only · context-free</text>
+
+    <rect x="990" y="42" width="170" height="108" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+    <text x="1075" y="64" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="12">SelectionCardView</text>
+    <text x="1075" y="82" text-anchor="middle" fill="#0f766e" font-size="10.5">fixed slot below Recognized</text>
+    <text x="1075" y="98" text-anchor="middle" fill="#0f766e" font-size="10.5">grows down ≤ 200 pt</text>
+    <text x="1075" y="114" text-anchor="middle" fill="#0f766e" font-size="10.5">card · plain · degraded · error</text>
+    <text x="1075" y="130" text-anchor="middle" fill="#0f766e" font-size="10.5">180 ms grow · instant shrink</text>
+  </g>
+  <!-- flow arrows -->
+  <line x1="170" y1="78" x2="184" y2="78" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ma)"/>
+  <line x1="350" y1="78" x2="364" y2="78" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ma)"/>
+  <line x1="550" y1="78" x2="564" y2="78" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ma)"/>
+  <line x1="760" y1="68" x2="774" y2="64" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ma)"/>
+  <path d="M 760 92 C 768 92 770 120 774 123" fill="none" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ma)"/>
+  <line x1="960" y1="67" x2="984" y2="78" stroke="#0d9488" stroke-width="2" marker-end="url(#mg)"/>
+  <line x1="960" y1="125" x2="984" y2="114" stroke="#4a5361" stroke-width="1.5" marker-end="url(#ma)"/>
+  <!-- file ownership captions -->
+  <g font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#4a5361" text-anchor="middle">
+    <text x="95" y="130">ResultPanel.swift</text>
+    <text x="270" y="130">ResultPanel / KeyablePanel</text>
+    <text x="460" y="130">CaptureCoordinator.swift</text>
+    <text x="665" y="130">TranslationService.swift</text>
+    <text x="665" y="142">SelectionTranslation.swift (NEW)</text>
+    <text x="870" y="166">OpenAIEngine.swift (modified)</text>
+    <text x="870" y="178">GoogleEngine.swift (untouched)</text>
+    <text x="1075" y="166">SelectionCardView.swift (NEW)</text>
+    <text x="1075" y="178">mounted by ResultPanel.swift</text>
+  </g>
+  <!-- key decisions strip -->
+  <text x="20" y="204" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">KEY DECISIONS</text>
+  <g font-size="10.5">
+    <rect x="20" y="214" width="178" height="62" rx="9" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="109" y="234" text-anchor="middle" font-weight="700" fill="#4338ca" font-size="11.5">One-seam contract</text>
+    <text x="109" y="250" text-anchor="middle" fill="#4a5361">translateSelection →</text>
+    <text x="109" y="264" text-anchor="middle" fill="#4a5361">SelectionResult</text>
+    <rect x="213" y="214" width="178" height="62" rx="9" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="302" y="234" text-anchor="middle" font-weight="700" fill="#4338ca" font-size="11.5">Tunable thresholds</text>
+    <text x="302" y="250" text-anchor="middle" fill="#4a5361">≤ 4 tokens · ≤ 8 graphemes</text>
+    <text x="302" y="264" text-anchor="middle" fill="#4a5361">SelectionPolicy constants</text>
+    <rect x="406" y="214" width="178" height="62" rx="9" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="495" y="234" text-anchor="middle" font-weight="700" fill="#4338ca" font-size="11.5">3 staleness guards</text>
+    <text x="495" y="250" text-anchor="middle" fill="#4a5361">task cancel · sGen ·</text>
+    <text x="495" y="264" text-anchor="middle" fill="#4a5361">main generation token</text>
+    <rect x="599" y="214" width="178" height="62" rx="9" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="688" y="234" text-anchor="middle" font-weight="700" fill="#4338ca" font-size="11.5">Degraded by config</text>
+    <text x="688" y="250" text-anchor="middle" fill="#4a5361">no key → Google; never a</text>
+    <text x="688" y="264" text-anchor="middle" fill="#4a5361">runtime AI→Google fallback</text>
+    <rect x="792" y="214" width="178" height="62" rx="9" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="881" y="234" text-anchor="middle" font-weight="700" fill="#4338ca" font-size="11.5">No schema change</text>
+    <text x="881" y="250" text-anchor="middle" fill="#4a5361">VocabItem &amp; sync as-is —</text>
+    <text x="881" y="264" text-anchor="middle" fill="#4a5361">save = span + translation</text>
+    <rect x="985" y="214" width="175" height="62" rx="9" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="1072" y="234" text-anchor="middle" font-weight="700" fill="#4338ca" font-size="11.5">⌘S swap</text>
+    <text x="1072" y="250" text-anchor="middle" fill="#4a5361">card active → saves card;</text>
+    <text x="1072" y="264" text-anchor="middle" fill="#4a5361">dismissal → whole capture</text>
+  </g>
+  <!-- outcomes -->
+  <text x="20" y="308" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">WHAT THE USER GETS</text>
+  <g font-size="10.5">
+    <rect x="20" y="318" width="195" height="72" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="117" y="340" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="11.5">Dictionary card</text>
+    <text x="117" y="356" text-anchor="middle" fill="#0f766e" font-size="10">translation · POS · sense · example</text>
+    <text x="117" y="371" text-anchor="middle" fill="#0f766e" font-size="10">≤ 4 tokens / ≤ 8 CJK graphemes</text>
+    <rect x="230" y="318" width="195" height="72" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="327" y="340" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="11.5">Long-span block</text>
+    <text x="327" y="356" text-anchor="middle" fill="#0f766e" font-size="10">contextual translation only</text>
+    <text x="327" y="371" text-anchor="middle" fill="#0f766e" font-size="10">above threshold — no card fields</text>
+    <rect x="440" y="318" width="195" height="72" rx="9" fill="#fff" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3"/>
+    <text x="537" y="340" text-anchor="middle" font-weight="700" fill="#4a5361" font-size="11.5">Degraded (no AI key)</text>
+    <text x="537" y="356" text-anchor="middle" fill="#6b7280" font-size="10">Google span-only translation</text>
+    <text x="537" y="371" text-anchor="middle" fill="#6b7280" font-size="10">“Context-free · Google” chip</text>
+    <rect x="650" y="318" width="195" height="72" rx="9" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+    <text x="747" y="340" text-anchor="middle" font-weight="700" fill="#b45309" font-size="11.5">Quiet error row</text>
+    <text x="747" y="356" text-anchor="middle" fill="#92610a" font-size="10">timeout · network · parse</text>
+    <text x="747" y="371" text-anchor="middle" fill="#92610a" font-size="10">“Try again” — same span, no dialog</text>
+  </g>
+  <!-- contract bar -->
+  <rect x="20" y="404" width="825" height="38" rx="9" fill="#fff" stroke="#e5e2da"/>
+  <text x="432" y="427" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="10.5" fill="#4338ca">func translateSelection(span: String, context: String, pair: LanguagePair) async throws -&gt; SelectionResult</text>
+  <!-- test pyramid chip -->
+  <text x="900" y="308" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">TEST GATE</text>
+  <g font-size="10.5">
+    <polygon points="1020,318 1050,350 990,350" fill="#fff" stroke="#111418" stroke-width="1.2"/>
+    <polygon points="990,350 1050,350 1080,382 960,382" fill="#fffbeb" stroke="#b45309" stroke-width="1.2"/>
+    <polygon points="960,382 1080,382 1110,414 930,414" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.2"/>
+    <polygon points="930,414 1110,414 1140,446 900,446" fill="#eef2ff" stroke="#4338ca" stroke-width="1.2"/>
+    <text x="1020" y="344" text-anchor="middle" font-weight="700" font-size="10" fill="#111418">15</text>
+    <text x="1020" y="374" text-anchor="middle" font-weight="700" font-size="10.5" fill="#b45309">8</text>
+    <text x="1020" y="406" text-anchor="middle" font-weight="700" font-size="10.5" fill="#0d9488">14</text>
+    <text x="1020" y="438" text-anchor="middle" font-weight="700" font-size="10.5" fill="#4338ca">33</text>
+    <text x="984" y="344" text-anchor="end" fill="#4a5361" font-size="9.5">manual</text>
+    <text x="954" y="374" text-anchor="end" fill="#4a5361" font-size="9.5">UI</text>
+    <text x="924" y="406" text-anchor="end" fill="#4a5361" font-size="9.5">integration</text>
+    <text x="894" y="438" text-anchor="end" fill="#4a5361" font-size="9.5">unit</text>
+    <text x="1020" y="464" text-anchor="middle" fill="#6b7280" font-size="9.5">55 automated + 15 manual · suite ×2 · 0 failures</text>
+  </g>
+  <!-- guarantee -->
+  <rect x="20" y="484" width="1140" height="44" rx="9" fill="#fff" stroke="#e5e2da"/>
+  <text x="40" y="511" font-weight="700" fill="#111418" font-size="12.5">Zero-regression guarantee:</text>
+  <text x="248" y="511" fill="#4a5361" font-size="12">with no selection, every flow is byte-identical to v1.2.10 — new paths are unreachable until a selection fires (P-08 · M-08 · full suite ×2).</text>
+</svg>
+<div class="cap">Fig. 0 — The whole system on one canvas: the six-stage flow with the file that owns each stage, the six decisions that bound the implementation, the four user-visible outcomes riding one shared contract, and the test gate that ships it.</div>
+</div>
+
+<h2><span class="n">01</span> Gate-1 confirmed decisions</h2>
+<p class="soft">Confirmed by the PM at Gate 1 on top of the approved Design (fixed card slot below the Recognized pane, ≤ 200 pt downward growth, 300 ms settle-then-fire, single in-flight request, skeleton shimmer, quiet inline error row, 8 s timeout, 180 ms grow / static under Reduce Motion). These three are binding for Steps 5–6:</p>
+<div class="decision"><b>D-1 · ⌘S swap.</b> While a card is active, ⌘S saves the <em>card</em> — span as <code>source</code>, contextual translation as <code>translation</code> — and reverts to the whole-capture save the moment the card is dismissed. Implemented as a single roaming key equivalent (§02·F-7); saved through the unchanged <code>VocabItem</code> path (§03·4).</div>
+<div class="decision"><b>D-2 · Word/phrase ↔ long-span threshold.</b> ≤ 4 whitespace tokens, or ≤ 8 graphemes for unspaced (CJK) selections — encoded as the tunable constants <code>SelectionPolicy.maxWordTokens</code> / <code>maxUnspacedGraphemes</code> (§03·3), pinned by the parameterized matrix U-01..U-11.</div>
+<div class="decision"><b>D-3 · Card-level read-aloud is deferred.</b> Not in v1: the card mounts no speaker button; the pane speakers, <code>SpeechService</code> and <code>PhoneticService</code> stay untouched — part of the FR-8 frozen surface. A span-level speaker is a fast-follow.</div>
+
+<h2><span class="n">02</span> Frontend — ResultPanel, selection observation &amp; the card slot (AppKit)</h2>
+
+<section id="tech-frontend">
+
+<p>The frontend adds one observed gesture (a settled selection in the Recognized pane), one new view (<code>SelectionCardView</code>, the only new file), and one growth behavior (the panel grows downward to make room for the card). Everything else is wiring into seams that already exist: the <code>ResultPresenting</code> closure-hand-off pattern, the <code>shouldClearSelection</code> whitelist, the <code>phoneticGeneration</code> stale-guard pattern, and the <code>dropResultBody</code> teardown sink. No new window, no popover, no event monitor.</p>
+
+<h4>F-1 · Panel anatomy — where the new pieces live</h4>
+<div class="fig">
+<svg viewBox="0 0 1160 620" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <defs>
+    <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5361"/></marker>
+    <marker id="fg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0d9488"/></marker>
+  </defs>
+  <!-- window -->
+  <text x="20" y="24" font-size="12.5" font-weight="700" fill="#4a5361" letter-spacing="2">RESULT PANEL — GROWN, CARD ACTIVE</text>
+  <rect x="20" y="40" width="345" height="556" rx="10" fill="#f7f7f7" stroke="#9ca3af" stroke-width="1.5"/>
+  <rect x="20" y="40" width="345" height="24" rx="10" fill="#ececec" stroke="#c9c9c9"/>
+  <circle cx="36" cy="52" r="5" fill="#ff5f57"/><circle cx="52" cy="52" r="5" fill="#febc2e"/><circle cx="68" cy="52" r="5" fill="#28c840"/>
+  <text x="192" y="56" text-anchor="middle" font-size="10" fill="#6b7280">KeyablePanel · 440 × (420 + Δ)</text>
+  <!-- existing rows -->
+  <rect x="36" y="78" width="313" height="26" rx="6" fill="#fff" stroke="#d5d5d0"/>
+  <text x="44" y="95" fill="#4a5361">header: badge · via · Copied ✓ · <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">SaveButtonController</tspan> (⌘S)</text>
+  <rect x="36" y="112" width="313" height="26" rx="6" fill="#fff" stroke="#d5d5d0"/>
+  <text x="44" y="129" fill="#4a5361">language bar — <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">LanguageBarController.view</tspan></text>
+  <rect x="36" y="146" width="313" height="88" rx="6" fill="#fff" stroke="#d5d5d0"/>
+  <text x="44" y="163" font-weight="600" fill="#374151">Translation pane</text>
+  <text x="44" y="180" fill="#6b7280" font-size="10.5">caption row · scrollableText 18 pt · phonetic</text>
+  <text x="44" y="197" fill="#9ca3af" font-size="10.5">selection here = NOT a trigger;</text>
+  <text x="44" y="212" fill="#9ca3af" font-size="10.5">non-empty selection dismisses an active card</text>
+  <rect x="36" y="242" width="313" height="96" rx="6" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <text x="44" y="259" font-weight="600" fill="#111418">Recognized pane</text>
+  <text x="44" y="276" fill="#6b7280" font-size="10.5">caption row · scrollableText 14 pt · phonetic</text>
+  <rect x="44" y="286" width="297" height="20" rx="4" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="52" y="300" fill="#4338ca" font-size="10.5" font-family="ui-monospace,Menlo,monospace">sourceTextView.delegate = self  (NEW)</text>
+  <text x="44" y="326" fill="#6b7280" font-size="10.5">the ONLY selection trigger surface</text>
+  <!-- slot -->
+  <rect x="36" y="352" width="313" height="200" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="44" y="372" font-weight="700" fill="#0d9488">SelectionCardView  (NEW file)</text>
+  <text x="44" y="390" fill="#0f766e" font-size="10.5">arranged after the Recognized section,</text>
+  <text x="44" y="405" fill="#0f766e" font-size="10.5">custom spacing 12 · hidden until first fire</text>
+  <rect x="44" y="416" width="297" height="22" rx="5" fill="#fff" stroke="#a7d9d1"/>
+  <text x="52" y="431" fill="#374151" font-size="10.5">span echo · mode chip · spacer · ☆ Save ⌘S · ✕</text>
+  <rect x="44" y="444" width="297" height="22" rx="5" fill="#fff" stroke="#a7d9d1"/>
+  <text x="52" y="459" fill="#374151" font-size="10.5">card translation 17 semibold (plain: 15 regular)</text>
+  <rect x="44" y="472" width="297" height="22" rx="5" fill="#fff" stroke="#a7d9d1"/>
+  <text x="52" y="487" fill="#374151" font-size="10.5">POS chip + sense — row omitted when nil</text>
+  <rect x="44" y="500" width="297" height="22" rx="5" fill="#fff" stroke="#a7d9d1"/>
+  <text x="52" y="515" fill="#374151" font-size="10.5">example pair — hairline above, omitted when nil</text>
+  <text x="44" y="544" fill="#0f766e" font-size="10.5">height ≤ 200 pt · internal content never scrolls</text>
+  <!-- growth arrow -->
+  <path d="M 382 352 L 382 596" stroke="#0d9488" stroke-width="1.5" marker-end="url(#fg)"/>
+  <text x="390" y="386" fill="#0f766e" font-size="10.5">window grows down by Δ =</text>
+  <text x="390" y="401" fill="#0f766e" font-size="10.5">slot height + 12 (top edge fixed)</text>
+  <!-- right: new members -->
+  <text x="560" y="24" font-size="12.5" font-weight="700" fill="#4a5361" letter-spacing="2">NEW STATE ON EXISTING TYPES</text>
+  <rect x="560" y="40" width="285" height="264" rx="10" fill="#fff" stroke="#4338ca" stroke-width="1.5"/>
+  <text x="574" y="62" font-weight="700" fill="#4338ca">ResultPanel — new members</text>
+  <g font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#374151">
+    <text x="574" y="84">weak var selectionCard:</text>
+    <text x="590" y="98">SelectionCardView?</text>
+    <text x="574" y="118">var selectionSettleTask: Task?</text>
+    <text x="574" y="138">var selectionTask: Task?</text>
+    <text x="574" y="158">var selectionUIGeneration = 0</text>
+    <text x="574" y="178">var lastFiredSpan: String?</text>
+    <text x="574" y="198">var currentSelectionHooks:</text>
+    <text x="590" y="212">SelectionHooks?</text>
+    <text x="574" y="236">Layout.maxCardSlotHeight = 200</text>
+    <text x="574" y="252">Layout.cardSlotSpacing   = 12</text>
+    <text x="574" y="268">settle = SelectionPolicy.settleDebounce</text>
+  </g>
+  <text x="574" y="292" fill="#6b7280" font-size="10">mirrors phoneticGeneration + Layout patterns</text>
+  <rect x="560" y="322" width="285" height="150" rx="10" fill="#fff" stroke="#4338ca" stroke-width="1.5"/>
+  <text x="574" y="344" font-weight="700" fill="#4338ca">KeyablePanel — additions</text>
+  <g font-size="10.5" fill="#374151">
+    <text x="574" y="366">· <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">sendEvent</tspan> also notices <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">.leftMouseUp</tspan></text>
+    <text x="584" y="381">→ fires <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">onLeftMouseUp?()</tspan>, always super</text>
+    <text x="574" y="401">· <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">cancelOperation</tspan> → <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">onCancel?()</tspan></text>
+    <text x="584" y="416">consumed ONLY while a card is active,</text>
+    <text x="584" y="431">else super — Esc behavior preserved</text>
+    <text x="574" y="451">· whitelist walk gains</text>
+    <text x="584" y="466"><tspan font-family="ui-monospace,Menlo,monospace" font-size="10">current is SelectionCardView → false</tspan></text>
+  </g>
+  <rect x="875" y="40" width="265" height="264" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+  <text x="889" y="62" font-weight="700" fill="#0d9488">SelectionCardView — API</text>
+  <g font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0f766e">
+    <text x="889" y="84">enum State {</text>
+    <text x="903" y="98">loading(mode:)</text>
+    <text x="903" y="112">dictionary(DictionaryCard)</text>
+    <text x="903" y="126">plain(translation:,degraded:)</text>
+    <text x="903" y="140">error }</text>
+    <text x="889" y="162">render(_ state:, span:)</text>
+    <text x="889" y="178">fittingHeight(for:span:width:)</text>
+    <text x="889" y="194">onDismiss / onRetry / onSave</text>
+    <text x="889" y="210">setSaveKeyEquivalentActive(_:)</text>
+  </g>
+  <text x="889" y="236" fill="#0f766e" font-size="10">one view, four fills — degraded is a</text>
+  <text x="889" y="250" fill="#0f766e" font-size="10">styling flag (dashed border + gray chip</text>
+  <text x="889" y="264" fill="#0f766e" font-size="10">+ note), not a separate state</text>
+  <text x="889" y="288" fill="#0f766e" font-size="10">renders what it is given — no mode logic</text>
+  <rect x="875" y="322" width="265" height="150" rx="10" fill="#fff" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="5 3"/>
+  <text x="889" y="344" font-weight="700" fill="#4a5361">Teardown funnels (unchanged sinks)</text>
+  <g font-size="10.5" fill="#374151">
+    <text x="889" y="368"><tspan font-family="ui-monospace,Menlo,monospace" font-size="10">dropResultBody()</tspan> → dismiss card</text>
+    <text x="903" y="383">(new capture / error / message / close)</text>
+    <text x="889" y="405"><tspan font-family="ui-monospace,Menlo,monospace" font-size="10">setRetranslating()</tspan> → dismiss card</text>
+    <text x="889" y="427"><tspan font-family="ui-monospace,Menlo,monospace" font-size="10">updateResult()</tspan> → dismiss card first</text>
+    <text x="889" y="452" fill="#6b7280">one dismissal system — the card can</text>
+    <text x="889" y="466" fill="#6b7280">never outlive its content (FR-6)</text>
+  </g>
+  <!-- arrows -->
+  <path d="M 349 296 C 430 296 462 262 554 262" fill="none" stroke="#4338ca" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#fa)"/>
+  <text x="398" y="250" fill="#4338ca" font-size="10">textViewDidChangeSelection</text>
+</svg>
+<div class="cap">Fig. F1 — Panel anatomy with the card slot mounted, plus every new member added to existing types. The Recognized pane's <code>NSTextView</code> is the only trigger surface; the loading body's text view gets no delegate (no hooks exist before a result is presented).</div>
+</div>
+
+<h4>F-2 · Selection observation — settle-then-fire, never mid-drag</h4>
+<p>Trigger logic lives in <code>ResultPanel</code> (as <code>NSTextViewDelegate</code> of <code>sourceTextView</code>) plus one line in <code>KeyablePanel.sendEvent</code>. Two event sources feed one 300 ms settle task; the fire decision is a pure static helper so it is unit-testable without a window, exactly like <code>shouldClearSelection</code>.</p>
+<div class="fig">
+<svg viewBox="0 0 1160 470" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <defs>
+    <marker id="fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5361"/></marker>
+    <marker id="fbg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0d9488"/></marker>
+  </defs>
+  <!-- event 1 -->
+  <rect x="20" y="40" width="230" height="52" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <text x="135" y="62" text-anchor="middle" font-weight="600">textViewDidChangeSelection</text>
+  <text x="135" y="80" text-anchor="middle" fill="#6b7280" font-size="10.5">Recognized pane only (mouse or ⇧←/→)</text>
+  <polygon points="360,40 450,66 360,92 270,66" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <text x="360" y="62" text-anchor="middle" fill="#b45309" font-weight="600" font-size="10.5">trimmed span</text>
+  <text x="360" y="78" text-anchor="middle" fill="#b45309" font-size="10.5">empty?</text>
+  <line x1="250" y1="66" x2="264" y2="66" stroke="#4a5361" stroke-width="1.5" marker-end="url(#fb)"/>
+  <rect x="500" y="20" width="280" height="42" rx="9" fill="#fff" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="640" y="38" text-anchor="middle" font-weight="600" fill="#4a5361">dismissSelectionCard() — immediate</text>
+  <text x="640" y="54" text-anchor="middle" fill="#6b7280" font-size="10.5">selection collapse kills the card, no debounce</text>
+  <path d="M 430 52 L 494 41" fill="none" stroke="#4a5361" stroke-width="1.5" marker-end="url(#fb)"/>
+  <text x="452" y="36" fill="#4a5361" font-size="10">yes</text>
+  <polygon points="600,80 725,110 600,140 475,110" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <text x="600" y="106" text-anchor="middle" fill="#b45309" font-weight="600" font-size="10.5">NSEvent.pressedMouseButtons</text>
+  <text x="600" y="122" text-anchor="middle" fill="#b45309" font-size="10.5">&amp; 1 == 1 ? (drag in progress)</text>
+  <path d="M 400 80 C 425 102 440 110 469 110" fill="none" stroke="#4a5361" stroke-width="1.5" marker-end="url(#fb)"/>
+  <text x="436" y="98" fill="#4a5361" font-size="10">no</text>
+  <rect x="760" y="70" width="230" height="40" rx="9" fill="#fff" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="875" y="88" text-anchor="middle" font-weight="600" fill="#4a5361">cancel settle task only</text>
+  <text x="875" y="103" text-anchor="middle" fill="#6b7280" font-size="10.5">never fire mid-drag (FR-1, cost guard)</text>
+  <line x1="725" y1="104" x2="754" y2="94" stroke="#4a5361" stroke-width="1.5" marker-end="url(#fb)"/>
+  <text x="730" y="88" fill="#4a5361" font-size="10">yes</text>
+  <rect x="760" y="126" width="230" height="40" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+  <text x="875" y="144" text-anchor="middle" font-weight="600" fill="#4338ca">restart 300 ms settle task</text>
+  <text x="875" y="159" text-anchor="middle" fill="#6b7280" font-size="10.5">keyboard selection path (⇧←/→)</text>
+  <line x1="725" y1="116" x2="754" y2="140" stroke="#4a5361" stroke-width="1.5" marker-end="url(#fb)"/>
+  <text x="730" y="138" fill="#4a5361" font-size="10">no</text>
+  <!-- event 2 -->
+  <rect x="20" y="196" width="230" height="52" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <text x="135" y="218" text-anchor="middle" font-weight="600">KeyablePanel.sendEvent</text>
+  <text x="135" y="236" text-anchor="middle" fill="#6b7280" font-size="10.5">.leftMouseUp → onLeftMouseUp?()</text>
+  <polygon points="400,196 510,222 400,248 290,222" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <text x="400" y="218" text-anchor="middle" fill="#b45309" font-weight="600" font-size="10.5">non-empty selection</text>
+  <text x="400" y="234" text-anchor="middle" fill="#b45309" font-size="10.5">in Recognized pane?</text>
+  <line x1="250" y1="222" x2="284" y2="222" stroke="#4a5361" stroke-width="1.5" marker-end="url(#fb)"/>
+  <path d="M 510 222 C 640 222 700 170 754 152" fill="none" stroke="#4338ca" stroke-width="1.5" marker-end="url(#fb)"/>
+  <text x="560" y="212" fill="#4338ca" font-size="10">yes — the reliable mouse-up trigger</text>
+  <text x="400" y="268" text-anchor="middle" fill="#6b7280" font-size="10.5">no → nothing (event always forwarded to super)</text>
+  <!-- timer fires -->
+  <rect x="20" y="330" width="230" height="52" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/>
+  <text x="135" y="352" text-anchor="middle" font-weight="600" fill="#4338ca">settle task fires</text>
+  <text x="135" y="370" text-anchor="middle" fill="#6b7280" font-size="10.5">300 ms with no selection change</text>
+  <polygon points="380,330 480,356 380,382 280,356" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <text x="380" y="352" text-anchor="middle" fill="#b45309" font-weight="600" font-size="10.5">mouse down again /</text>
+  <text x="380" y="368" text-anchor="middle" fill="#b45309" font-size="10.5">span empty now?</text>
+  <line x1="250" y1="356" x2="274" y2="356" stroke="#4a5361" stroke-width="1.5" marker-end="url(#fb)"/>
+  <text x="380" y="404" text-anchor="middle" fill="#6b7280" font-size="10.5">yes → stand down (no request)</text>
+  <polygon points="625,326 762,356 625,386 488,356" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <text x="625" y="348" text-anchor="middle" fill="#b45309" font-weight="600" font-size="10.5">normalized span ==</text>
+  <text x="625" y="362" text-anchor="middle" fill="#b45309" font-size="10.5">lastFiredSpan &amp;&amp; slot visible?</text>
+  <text x="625" y="376" text-anchor="middle" fill="#b45309" font-size="10">(identical-span dedupe)</text>
+  <line x1="480" y1="356" x2="483" y2="356" stroke="#4a5361" stroke-width="1.5" marker-end="url(#fb)"/>
+  <text x="625" y="406" text-anchor="middle" fill="#6b7280" font-size="10.5">yes → no-op, existing card stays</text>
+  <rect x="790" y="322" width="350" height="118" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="804" y="344" font-weight="700" fill="#0d9488">FIRE</text>
+  <g font-size="10.5" fill="#0f766e">
+    <text x="804" y="362">1 · selectionUIGeneration += 1 · selectionTask?.cancel()</text>
+    <text x="804" y="378">2 · lastFiredSpan = SpanNormalizer.normalize(span)</text>
+    <text x="804" y="394">3 · mount .loading(mode: SelectionMode.mode(for: span))</text>
+    <text x="804" y="410">4 · grow panel once (Fig. F4) · ⌘S stays on header</text>
+    <text x="804" y="426">5 · selectionTask = Task { await hooks.translate(span) }</text>
+  </g>
+  <line x1="762" y1="356" x2="784" y2="356" stroke="#0d9488" stroke-width="2" marker-end="url(#fbg)"/>
+  <text x="765" y="348" fill="#0d9488" font-size="10">no</text>
+</svg>
+<div class="cap">Fig. F2 — Event wiring. Two sources (delegate callback, panel mouse-up) arm one settle task; three guards make firing impossible mid-drag, on empty spans, and on identical re-selections. The fire decision (<code>ResultPanel.shouldFireSelection(normalizedSpan:lastFired:slotVisible:)</code>, fed by the backend's <code>SpanNormalizer.normalize</code> — one normalizer for dedupe key and service headword alike) is pure/static for headless tests.</div>
+</div>
+
+<h4>F-3 · Coordinator integration — one in-flight request, two-token staleness guard</h4>
+<p><code>CaptureCoordinator</code> gains a <code>selectionGeneration</code> counter (mirror of the existing <code>generation</code> / <code>phoneticGeneration</code> pattern) and one method. The panel never sees the service: at present time the coordinator hands it a <code>SelectionHooks</code> value whose closures capture the recognized text (context), the effective pair, and the notebook codes — exactly how <code>onSave</code>/<code>onRetranslate</code> already work.</p>
+<div class="fig">
+<svg viewBox="0 0 1160 640" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11">
+  <defs>
+    <marker id="fc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#374151"/></marker>
+    <marker id="fcg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0d9488"/></marker>
+  </defs>
+  <g font-weight="700" font-size="12" text-anchor="middle">
+    <rect x="30" y="16" width="100" height="30" rx="8" fill="#111418"/><text x="80" y="36" fill="#fff">User</text>
+    <rect x="230" y="16" width="190" height="30" rx="8" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/><text x="325" y="36" fill="#4338ca">ResultPanel (uiGen)</text>
+    <rect x="540" y="16" width="250" height="30" rx="8" fill="#fff" stroke="#111418" stroke-width="1.5"/><text x="665" y="36">CaptureCoordinator (sGen · gen)</text>
+    <rect x="900" y="16" width="230" height="30" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/><text x="1015" y="36" fill="#0d9488">TranslationService / engine</text>
+  </g>
+  <g stroke="#c9c9c9" stroke-dasharray="4 4"><line x1="80" y1="46" x2="80" y2="560"/><line x1="325" y1="46" x2="325" y2="560"/><line x1="665" y1="46" x2="665" y2="560"/><line x1="1015" y1="46" x2="1015" y2="560"/></g>
+  <g fill="#374151">
+    <line x1="80" y1="76" x2="321" y2="76" stroke="#374151" stroke-width="1.5" marker-end="url(#fc)"/><text x="95" y="70">selects “scored” · settles (Fig. F2)</text>
+    <rect x="230" y="90" width="190" height="22" rx="6" fill="#eef2ff"/><text x="325" y="105" text-anchor="middle" fill="#4338ca" font-weight="600" font-size="10.5">uiGen := 4 · Task A · skeleton up</text>
+    <line x1="325" y1="130" x2="661" y2="130" stroke="#374151" stroke-width="1.5" marker-end="url(#fc)"/><text x="340" y="124">hooks.translate(“scored”)  — context + pair pre-captured</text>
+    <rect x="540" y="144" width="250" height="22" rx="6" fill="#f5f5f4"/><text x="665" y="159" text-anchor="middle" font-weight="600" font-size="10.5">sGen := 7 · capture mainToken = gen (12)</text>
+    <line x1="665" y1="184" x2="1011" y2="184" stroke="#374151" stroke-width="1.5" marker-end="url(#fc)"/><text x="680" y="178">translateSelection(span:“scored”, context: full text, pair)</text>
+    <line x1="80" y1="220" x2="321" y2="220" stroke="#374151" stroke-width="1.5" marker-end="url(#fc)"/><text x="95" y="214">re-selects “final goal” mid-flight (AC-7)</text>
+    <rect x="200" y="234" width="250" height="22" rx="6" fill="#eef2ff"/><text x="325" y="249" text-anchor="middle" fill="#4338ca" font-weight="600" font-size="10.5">Task A cancelled (URLSession aborts) · uiGen := 5</text>
+    <line x1="325" y1="276" x2="661" y2="276" stroke="#374151" stroke-width="1.5" marker-end="url(#fc)"/><text x="340" y="270">hooks.translate(“final goal”)  — after its own 300 ms settle</text>
+    <rect x="540" y="290" width="250" height="22" rx="6" fill="#f5f5f4"/><text x="665" y="305" text-anchor="middle" font-weight="600" font-size="10.5">sGen := 8 · mainToken = 12</text>
+    <line x1="665" y1="330" x2="1011" y2="330" stroke="#374151" stroke-width="1.5" marker-end="url(#fc)"/><text x="680" y="324">translateSelection(“final goal”, …)</text>
+    <line x1="1015" y1="362" x2="669" y2="362" stroke="#b45309" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#fc)"/><text x="680" y="356" fill="#b45309">late return for sGen 7 → 7 ≠ 8 → .superseded (belt over the braces)</text>
+    <line x1="1015" y1="396" x2="669" y2="396" stroke="#374151" stroke-width="1.5" marker-end="url(#fc)"/><text x="680" y="390">SelectionResult for sGen 8 · 8 == sGen · mainToken 12 == gen ✓</text>
+    <line x1="665" y1="424" x2="329" y2="424" stroke="#0d9488" stroke-width="2" marker-end="url(#fcg)"/><text x="345" y="418" fill="#0f766e">.success(SelectionResult)</text>
+    <rect x="210" y="438" width="230" height="22" rx="6" fill="#f0fdfa"/><text x="325" y="453" text-anchor="middle" fill="#0d9488" font-weight="600" font-size="10.5">uiGen still 5 → render card · AX announce</text>
+    <line x1="80" y1="494" x2="321" y2="494" stroke="#374151" stroke-width="1.5" marker-end="url(#fc)"/><text x="95" y="488">new capture (⌃⌥Y) while a lookup is in flight</text>
+    <rect x="480" y="508" width="370" height="22" rx="6" fill="#fffbeb"/><text x="665" y="523" text-anchor="middle" fill="#b45309" font-weight="600" font-size="10.5">gen := 13 — in-flight selection returns → mainToken 12 ≠ 13 → .superseded</text>
+    <rect x="180" y="536" width="290" height="22" rx="6" fill="#fffbeb"/><text x="325" y="551" text-anchor="middle" fill="#b45309" font-weight="600" font-size="10.5">panel side already tore down via dropResultBody()</text>
+  </g>
+  <rect x="30" y="574" width="1100" height="58" rx="9" fill="#fff" stroke="#e5e2da"/>
+  <text x="46" y="593" font-weight="700" fill="#111418" font-size="11.5">Three independent guards, in order of firing:</text>
+  <text x="46" y="610" fill="#4a5361" font-size="11">① panel <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">Task.cancel()</tspan> aborts the HTTP request (real cancellation) · ② coordinator <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">sGen</tspan> drops any A/B race that slips past ①</text>
+  <text x="46" y="626" fill="#4a5361" font-size="11">③ coordinator <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">mainToken == generation</tspan> makes every selection result stale the moment a capture or retranslate starts (FR-6).</text>
+</svg>
+<div class="cap">Fig. F3 — Sequence for rapid re-selection (AC-7) and for a content change racing an in-flight lookup. The 8-second request timeout is enforced in the service layer (backend section); the panel maps any thrown error — timeout included — to the quiet error row.</div>
+</div>
+
+<div class="tbl">
+<table>
+  <tr><th>Direction</th><th>Declaration (exact)</th><th>Owner / file</th></tr>
+  <tr><td>consumed</td><td>The shared contract — <code>Translating.translateSelection(span:context:pair:) → SelectionResult</code>, <code>DictionaryCard</code>, <code>SelectionOutput</code>, <code>SelectionResult</code>, <code>SelectionMode</code>, <code>SelectionPolicy</code>, <code>SpanNormalizer</code> — is defined <b>once</b>, with exact declarations, in the backend section (§03·1). The service alone decides card vs plain vs degraded; the panel renders what it gets.</td><td>Backend · SelectionTranslation.swift / TranslationService.swift (§03)</td></tr>
+  <tr><td>consumed</td><td>Panel-side uses of that contract: <code>SelectionMode.mode(for:)</code> only to size the skeleton; <code>SpanNormalizer.normalize</code> as the dedupe key — the same function the service uses for the headword, so they can never drift; <code>SelectionPolicy.settleDebounce</code> (300 ms) for the settle task.</td><td>Backend types · frontend call sites</td></tr>
+  <tr><td>defined</td><td><code>enum SelectionLookupOutcome { case success(SelectionResult); case failure(Error); case superseded }</code></td><td>Frontend · ResultPanel.swift (beside <code>ResultPresenting</code>)</td></tr>
+  <tr><td>defined</td><td><code>struct SelectionHooks { let translate: @MainActor (String) async -&gt; SelectionLookupOutcome; let save: (@MainActor (_ source: String, _ translation: String, _ servedBy: EngineKind) async -&gt; Bool)? }</code></td><td>Frontend · ResultPanel.swift</td></tr>
+  <tr><td>defined</td><td><code>ResultPresenting.showResult(…)</code> gains a final parameter <code>selection: SelectionHooks?</code> (concrete method defaults it to <code>nil</code>; the test spy adds the parameter)</td><td>Frontend · ResultPanel.swift</td></tr>
+  <tr><td>defined</td><td><code>func translateSelectionLatest(span: String, context: String, pair: LanguagePair) async -&gt; SelectionLookupOutcome</code> + <code>private var selectionGeneration = 0</code></td><td>Frontend · CaptureCoordinator.swift</td></tr>
+  <tr><td>defined</td><td><code>@MainActor func dismissSelectionCard()</code> — the single dismissal sink (internal, doubles as a test seam)</td><td>Frontend · ResultPanel.swift</td></tr>
+</table>
+</div>
+<div class="cap">Table F1 — The cross-layer contract. Everything above the line is authored by the backend section and merely consumed here; everything below is frontend-owned.</div>
+
+<h4>F-4 · Panel growth — top edge fixed, downward, clamped</h4>
+<div class="fig">
+<svg viewBox="0 0 1000 380" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <defs><marker id="fd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0d9488"/></marker></defs>
+  <!-- screen -->
+  <rect x="20" y="30" width="400" height="320" rx="8" fill="#fbfaf7" stroke="#9ca3af" stroke-dasharray="6 4"/>
+  <text x="34" y="52" fill="#6b7280" font-size="10.5">NSScreen.visibleFrame</text>
+  <!-- before -->
+  <rect x="70" y="80" width="130" height="170" rx="6" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <text x="135" y="100" text-anchor="middle" font-weight="600" font-size="10.5">before</text>
+  <text x="135" y="116" text-anchor="middle" fill="#6b7280" font-size="10">440 × 420</text>
+  <!-- after -->
+  <rect x="240" y="80" width="130" height="240" rx="6" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="305" y="100" text-anchor="middle" font-weight="600" fill="#0d9488" font-size="10.5">after</text>
+  <text x="305" y="116" text-anchor="middle" fill="#0f766e" font-size="10">440 × (420 + Δ)</text>
+  <line x1="70" y1="80" x2="370" y2="80" stroke="#4338ca" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="380" y="84" fill="#4338ca" font-size="10">top edge fixed</text>
+  <line x1="305" y1="255" x2="305" y2="314" stroke="#0d9488" stroke-width="1.5" marker-end="url(#fd)"/>
+  <text x="316" y="290" fill="#0f766e" font-size="10.5">Δ grows downward</text>
+  <text x="34" y="340" fill="#b45309" font-size="10.5">if newFrame.minY &lt; visibleFrame.minY → shift the whole frame up by the shortfall first</text>
+  <!-- math box -->
+  <rect x="460" y="40" width="520" height="180" rx="10" fill="#fff" stroke="#4338ca" stroke-width="1.5"/>
+  <text x="476" y="64" font-weight="700" fill="#4338ca">Frame math (AppKit origin = bottom-left)</text>
+  <g font-family="ui-monospace,Menlo,monospace" font-size="11" fill="#374151">
+    <text x="476" y="90">Δ = min(SelectionCardView.fittingHeight(…), 200) + 12</text>
+    <text x="476" y="112">frame.size.height += Δ        frame.origin.y -= Δ</text>
+    <text x="476" y="134">shortfall = max(0, visibleFrame.minY - frame.minY)</text>
+    <text x="476" y="156">frame.origin.y += shortfall   // card never clips offscreen</text>
+  </g>
+  <text x="476" y="188" fill="#6b7280" font-size="10.5">slot height constraint + window frame are set inside ONE NSAnimationContext group,</text>
+  <text x="476" y="204" fill="#6b7280" font-size="10.5">so the slot absorbs Δ exactly and no existing section is stretched or squeezed.</text>
+  <!-- motion box -->
+  <rect x="460" y="240" width="520" height="110" rx="10" fill="#fff" stroke="#e5e2da"/>
+  <text x="476" y="264" font-weight="700" fill="#111418">Motion</text>
+  <g font-size="11" fill="#4a5361">
+    <text x="476" y="286">grow: <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">NSAnimationContext</tspan> 0.18 s ease-out · <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">panel.animator().setFrame(_:display:)</tspan></text>
+    <text x="476" y="306">shrink on dismissal: always instant (duration 0) — per DESIGN §02</text>
+    <text x="476" y="326"><tspan font-family="ui-monospace,Menlo,monospace" font-size="10">accessibilityDisplayShouldReduceMotion</tspan> → duration 0 · shimmer = static bars</text>
+  </g>
+</svg>
+<div class="cap">Fig. F4 — Growth geometry. The skeleton reserves the mode-predicted height at fire time (<code>wordPhrase</code> ≈ full card, <code>longSpan</code>/degraded ≈ short block); when the content lands, the slot re-measures and adjusts only on a real difference (rows omitted, error row) using the same animation — the typical path swaps skeleton → card with no jump. Shimmer is a <code>CAGradientLayer</code> + <code>CABasicAnimation</code> (compositor-friendly), removed when the state changes.</div>
+</div>
+
+<h4>F-5 · Outcome → card state mapping</h4>
+<div class="fig">
+<svg viewBox="0 0 1160 330" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <defs><marker id="fe" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5361"/></marker></defs>
+  <rect x="20" y="30" width="270" height="44" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+  <text x="155" y="49" text-anchor="middle" font-weight="600" fill="#4338ca">fire time (before any outcome)</text>
+  <text x="155" y="65" text-anchor="middle" fill="#6b7280" font-size="10.5">mode = SelectionMode.mode(for: span)</text>
+  <rect x="360" y="30" width="290" height="44" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <text x="505" y="49" text-anchor="middle" font-weight="600">.loading(mode:) — skeleton</text>
+  <text x="505" y="65" text-anchor="middle" fill="#6b7280" font-size="10.5">AX busy · ⌘S still targets the header</text>
+  <line x1="290" y1="52" x2="354" y2="52" stroke="#4a5361" stroke-width="1.5" marker-end="url(#fe)"/>
+  <g font-family="ui-monospace,Menlo,monospace" font-size="10.5" fill="#374151">
+    <text x="20" y="122">.success · output == .card(dc)</text>
+    <text x="20" y="162">.success · .plain(t) · contextUsed == true</text>
+    <text x="20" y="202">.success · .plain(t) · contextUsed == false</text>
+    <text x="20" y="242">.failure(_)   (timeout · network · parse)</text>
+    <text x="20" y="282">.superseded</text>
+  </g>
+  <g stroke="#4a5361" stroke-width="1.5">
+    <line x1="360" y1="118" x2="464" y2="118" marker-end="url(#fe)"/>
+    <line x1="360" y1="158" x2="464" y2="158" marker-end="url(#fe)"/>
+    <line x1="360" y1="198" x2="464" y2="198" marker-end="url(#fe)"/>
+    <line x1="360" y1="238" x2="464" y2="238" marker-end="url(#fe)"/>
+  </g>
+  <rect x="470" y="100" width="420" height="32" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="482" y="121" fill="#0d9488" font-weight="600">.dictionary(dc) — “In context · AI” chip · nil rows omitted (FR-3)</text>
+  <rect x="470" y="140" width="420" height="32" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="482" y="161" fill="#0d9488" font-weight="600">.plain(t, degraded: false) — long-span block (FR-4)</text>
+  <rect x="470" y="180" width="420" height="32" rx="8" fill="#fff" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <text x="482" y="201" fill="#4a5361" font-weight="600">.plain(t, degraded: true) — dashed · “Context-free · Google” + note (FR-5)</text>
+  <rect x="470" y="220" width="420" height="32" rx="8" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <text x="482" y="241" fill="#b45309" font-weight="600">.error — quiet inline row · “Try again” re-fires same span</text>
+  <text x="470" y="286" fill="#6b7280">no render — a newer request owns the slot; nothing to do</text>
+  <rect x="920" y="100" width="220" height="152" rx="9" fill="#fff" stroke="#e5e2da"/>
+  <text x="934" y="122" font-weight="700" fill="#111418" font-size="11">Panel renders, never decides</text>
+  <text x="934" y="142" fill="#4a5361" font-size="10.5">card vs plain vs degraded is fully</text>
+  <text x="934" y="157" fill="#4a5361" font-size="10.5">determined by the SelectionResult;</text>
+  <text x="934" y="172" fill="#4a5361" font-size="10.5">the panel's only mode use is sizing</text>
+  <text x="934" y="187" fill="#4a5361" font-size="10.5">the skeleton. AI structured-parse</text>
+  <text x="934" y="202" fill="#4a5361" font-size="10.5">fallback arrives as .plain with</text>
+  <text x="934" y="217" fill="#4a5361" font-size="10.5">contextUsed == true — it just</text>
+  <text x="934" y="232" fill="#4a5361" font-size="10.5">renders as a long-span block.</text>
+</svg>
+<div class="cap">Fig. F5 — Every <code>SelectionLookupOutcome</code> maps to exactly one <code>SelectionCardView.State</code>. Content states (dictionary / plain) additionally trigger the ⌘S re-target (Fig. F7); loading and error do not.</div>
+</div>
+
+<h4>F-6 · Dismissal — one sink, every path through it</h4>
+<div class="fig">
+<svg viewBox="0 0 1160 400" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <defs><marker id="ff" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#374151"/></marker></defs>
+  <!-- active cluster -->
+  <rect x="20" y="40" width="250" height="130" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+  <text x="145" y="64" text-anchor="middle" font-weight="700" fill="#0d9488">ACTIVE STATES</text>
+  <text x="145" y="86" text-anchor="middle" fill="#0f766e" font-size="10.5">pending (skeleton) · dictionary ·</text>
+  <text x="145" y="102" text-anchor="middle" fill="#0f766e" font-size="10.5">plain · degraded · error</text>
+  <text x="145" y="128" text-anchor="middle" fill="#6b7280" font-size="10.5">card lifetime == source-selection</text>
+  <text x="145" y="143" text-anchor="middle" fill="#6b7280" font-size="10.5">lifetime — no second system</text>
+  <!-- events -->
+  <g font-size="10.5" fill="#374151">
+    <rect x="330" y="24" width="330" height="30" rx="8" fill="#fff" stroke="#c9c9c9"/><text x="342" y="44">Esc — <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">KeyablePanel.cancelOperation → onCancel</tspan> (consumed)</text>
+    <rect x="330" y="62" width="330" height="30" rx="8" fill="#fff" stroke="#c9c9c9"/><text x="342" y="82">✕ button — <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">SelectionCardView.onDismiss</tspan></text>
+    <rect x="330" y="100" width="330" height="30" rx="8" fill="#fff" stroke="#c9c9c9"/><text x="342" y="120">click outside text views / card — <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">clearTextSelection</tspan></text>
+    <rect x="330" y="138" width="330" height="30" rx="8" fill="#fff" stroke="#c9c9c9"/><text x="342" y="158">selection collapse or selection in Translation pane (delegate)</text>
+    <rect x="330" y="176" width="330" height="30" rx="8" fill="#fff" stroke="#c9c9c9"/><text x="342" y="196">retranslate — <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">setRetranslating()</tspan> / <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">updateResult()</tspan> first line</text>
+    <rect x="330" y="214" width="330" height="30" rx="8" fill="#fff" stroke="#c9c9c9"/><text x="342" y="234">new capture · error · message · close — <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">dropResultBody()</tspan></text>
+  </g>
+  <g stroke="#374151" stroke-width="1.2">
+    <path d="M 660 39 C 700 39 710 90 738 108" fill="none" marker-end="url(#ff)"/>
+    <path d="M 660 77 C 700 77 706 100 738 116" fill="none" marker-end="url(#ff)"/>
+    <path d="M 660 115 L 738 124" fill="none" marker-end="url(#ff)"/>
+    <path d="M 660 153 L 738 138" fill="none" marker-end="url(#ff)"/>
+    <path d="M 660 191 C 700 191 710 160 738 148" fill="none" marker-end="url(#ff)"/>
+    <path d="M 660 229 C 700 229 710 175 738 156" fill="none" marker-end="url(#ff)"/>
+  </g>
+  <path d="M 270 105 C 300 105 306 116 326 116" fill="none" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <!-- sink -->
+  <rect x="744" y="60" width="396" height="160" rx="10" fill="#fff" stroke="#111418" stroke-width="2"/>
+  <text x="760" y="86" font-weight="700" fill="#111418">dismissSelectionCard()  — the only sink</text>
+  <g font-size="10.5" fill="#4a5361">
+    <text x="760" y="108">1 · cancel settle task + in-flight selectionTask</text>
+    <text x="760" y="124">2 · selectionUIGeneration += 1 · lastFiredSpan = nil</text>
+    <text x="760" y="140">3 · slot hidden + emptied · window shrinks back (instant)</text>
+    <text x="760" y="156">4 · ⌘S key equivalent reverts to the header Save button</text>
+    <text x="760" y="172">5 · AX: card group removed — VO focus returns to the pane</text>
+    <text x="760" y="196" fill="#6b7280">idempotent — safe to call from every teardown path, twice</text>
+  </g>
+  <!-- back to idle -->
+  <path d="M 940 220 C 940 300 400 310 148 310 C 60 310 40 260 40 174" fill="none" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ff)"/>
+  <text x="500" y="288" text-anchor="middle" fill="#6b7280" font-size="10.5">back to idle — matches DESIGN §03's single dismissal ring; a stale card can never sit over new content (FR-6, AC-5)</text>
+  <rect x="20" y="336" width="1120" height="44" rx="9" fill="#fff" stroke="#e5e2da"/>
+  <text x="36" y="354" font-weight="700" fill="#111418" font-size="11.5">Whitelist change (the one behavioral edit to existing code):</text>
+  <text x="36" y="372" fill="#4a5361" font-size="11"><tspan font-family="ui-monospace,Menlo,monospace" font-size="10">shouldClearSelection</tspan> ancestry walk adds <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">current is SelectionCardView → false</tspan> — clicks on the card keep the selection and the card (DESIGN Fig. 2's third safe zone). Still pure + static + testable.</text>
+</svg>
+<div class="cap">Fig. F6 — All six dismissal triggers funnel into one idempotent sink, which the existing teardown paths (<code>dropResultBody</code>, <code>setRetranslating</code>, <code>updateResult</code>) call before touching content. Esc is consumed only while a card is active; with no card, <code>cancelOperation</code> falls through to <code>super</code> — today's Esc behavior untouched.</div>
+</div>
+
+<h4>F-7 · ⌘S routing — key equivalent moves to the card and back</h4>
+<div class="fig">
+<svg viewBox="0 0 1000 250" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <defs><marker id="fh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4338ca"/></marker></defs>
+  <rect x="30" y="40" width="380" height="120" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <text x="46" y="66" font-weight="700" fill="#111418">Header · SaveButtonController</text>
+  <text x="46" y="88" fill="#4a5361" font-size="10.5">no card / loading / error:</text>
+  <text x="46" y="104" font-family="ui-monospace,Menlo,monospace" font-size="10.5" fill="#374151">button.keyEquivalent = "s" + ⌘   (as today)</text>
+  <text x="46" y="126" fill="#4a5361" font-size="10.5">card content shown:  <tspan font-family="ui-monospace,Menlo,monospace" font-size="10.5">keyEquivalent = ""</tspan></text>
+  <text x="46" y="146" fill="#6b7280" font-size="10.5">button stays visible + clickable → still saves the whole capture</text>
+  <rect x="590" y="40" width="380" height="120" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="606" y="66" font-weight="700" fill="#0d9488">Card · “☆ Save ⌘S” control</text>
+  <text x="606" y="88" fill="#0f766e" font-size="10.5">card content shown (dictionary / plain / degraded):</text>
+  <text x="606" y="104" font-family="ui-monospace,Menlo,monospace" font-size="10.5" fill="#0f766e">setSaveKeyEquivalentActive(true) → "s" + ⌘</text>
+  <text x="606" y="126" fill="#0f766e" font-size="10.5">saves span → source · card translation → translation</text>
+  <text x="606" y="146" fill="#0f766e" font-size="10.5">via <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">hooks.save(span, cardTranslation, result.servedBy)</tspan></text>
+  <path d="M 410 80 L 584 80" stroke="#4338ca" stroke-width="1.5" marker-end="url(#fh)"/>
+  <text x="497" y="72" text-anchor="middle" fill="#4338ca" font-size="10.5">content state renders (FR-7)</text>
+  <path d="M 584 122 L 410 122" stroke="#4338ca" stroke-width="1.5" marker-end="url(#fh)"/>
+  <text x="497" y="140" text-anchor="middle" fill="#4338ca" font-size="10.5">dismissSelectionCard() reverts</text>
+  <rect x="30" y="184" width="940" height="50" rx="9" fill="#fff" stroke="#e5e2da"/>
+  <text x="46" y="204" fill="#4a5361" font-size="11">Mechanism: AppKit's own key-equivalent dispatch — exactly one visible <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">NSButton</tspan> holds <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">"s"+⌘</tspan> at any moment, so there is no ambiguity, no local event monitor, no menu item.</text>
+  <text x="46" y="222" fill="#4a5361" font-size="11">The card's save reuses the async confirm pattern (<tspan font-family="ui-monospace,Menlo,monospace" font-size="10">disable → await → “★ Saved”</tspan> or inline retry); notebook nil → <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">hooks.save == nil</tspan> → no save control on the card either (AC-6).</text>
+</svg>
+<div class="cap">Fig. F7 — The ⌘S swap is two <code>keyEquivalent</code> assignments, driven by the same two moments that already exist: content-state render and the dismissal sink. Loading/error states never move it — ⌘S mid-lookup still saves the whole capture, since there is no card translation to save yet.</div>
+</div>
+
+<p><strong>Card read-aloud is deferred (Gate-1 decision, DESIGN Q3).</strong> The card mounts no speaker button in v1: the pane speakers keep reading whole panes, and <code>SpeechService</code>/<code>PhoneticService</code> are untouched (part of the FR-8 frozen surface). A span-level speaker is a fast-follow, not part of this contract.</p>
+
+<h4>F-8 · Accessibility implementation</h4>
+<div class="tbl">
+<table>
+  <tr><th>Concern</th><th>Implementation</th></tr>
+  <tr><td>Card group</td><td><code>SelectionCardView</code> stays an AX container (no <code>setAccessibilityElement(true)</code> flattening): <code>setAccessibilityRole(.group)</code> + <code>setAccessibilityLabel("Contextual translation")</code>, giving VoiceOver one stable landmark below the Recognized pane (the fixed-slot anchoring's point).</td></tr>
+  <tr><td>Reading order</td><td><code>setAccessibilityChildren</code> ordered: span echo → mode chip → translation → POS → sense → example → Save → ✕. Omitted rows simply aren't in the array.</td></tr>
+  <tr><td>Announcement</td><td>On content render: <code>NSAccessibility.post(element:notification:userInfo:)</code> with <code>.announcementRequested</code>, e.g. “scored — 攻入（进球）, verb” (headword — translation, POS when present). Posted for dictionary, plain, and degraded states; not for loading/error.</td></tr>
+  <tr><td>Busy skeleton</td><td>Loading state: card sets AX label “Translating selection…” and marks the shimmer bars <code>isAccessibilityElement = false</code> — VO never reads placeholder bars (DESIGN §06's <code>aria-busy</code> equivalent).</td></tr>
+  <tr><td>Controls</td><td>✕ → <code>setAccessibilityLabel("Dismiss contextual translation")</code>; card Save mirrors the header button's label pattern; “Try again” is a plain <code>NSButton</code> with its title as label.</td></tr>
+  <tr><td>Keyboard</td><td>⇧←/→ selection drives the same settle path (Fig. F2, keyboard branch). Esc works from any first responder in the panel via <code>cancelOperation</code>. ⌘S targets the card while a content state is up (Fig. F7).</td></tr>
+  <tr><td>Reduce Motion</td><td><code>NSWorkspace.shared.accessibilityDisplayShouldReduceMotion</code>: growth duration 0, static skeleton bars, dismissal already instant. Announcements unchanged.</td></tr>
+  <tr><td>Selection visibility</td><td>The Recognized text view stays first responder while the card is shown, so the selection renders in accent (not gray) — it is the card's visual anchor (DESIGN §05 <code>selection.keep</code>).</td></tr>
+</table>
+</div>
+<div class="cap">Table F2 — Accessibility wiring, matching DESIGN §06 line by line.</div>
+
+<h4>F-9 · Files touched</h4>
+<div class="tbl">
+<table>
+  <tr><th>File</th><th>Status</th><th>Responsibility in this feature</th></tr>
+  <tr><td>macos/Sources/UI/SelectionCardView.swift</td><td><b>NEW</b> (the only new UI source file, ~300 lines)</td><td><code>SelectionCardView</code> + <code>State</code>: renders loading / dictionary / plain / degraded / error fills per DESIGN §02 tokens; shimmer layer; <code>fittingHeight</code>; ✕ / Try-again / Save controls with async-confirm; <code>setSaveKeyEquivalentActive</code>; AX group + announcement.</td></tr>
+  <tr><td>macos/Sources/UI/ResultPanel.swift</td><td>modified (~+220 lines)</td><td>Seam types (<code>SelectionHooks</code>, <code>SelectionLookupOutcome</code>); <code>NSTextViewDelegate</code> on <code>sourceTextView</code>; settle task + pure fire helpers; fire/render/dismiss lifecycle with <code>selectionUIGeneration</code>; slot mount + window growth/shrink; <code>shouldClearSelection</code> whitelist entry; <code>KeyablePanel</code> <code>.leftMouseUp</code>/<code>cancelOperation</code> hooks; ⌘S re-target; teardown calls in <code>dropResultBody</code>/<code>setRetranslating</code>/<code>updateResult</code>; test seams (mirroring the read-aloud ones).</td></tr>
+  <tr><td>macos/Sources/Capture/CaptureCoordinator.swift</td><td>modified (~+60 lines)</td><td><code>selectionGeneration</code>; <code>translateSelectionLatest(span:context:pair:)</code> with the two-token guard; builds <code>SelectionHooks</code> in <code>present(result:source:pair:)</code> capturing context/pair/notebook codes (weak self, like <code>onSave</code>); threads <code>selection:</code> through <code>presentResult</code>.</td></tr>
+  <tr><td>macos/Sources/Translate/SelectionTranslation.swift (new) · TranslationService.swift · OpenAIEngine.swift · EngineResolver.swift</td><td><b>backend-owned</b></td><td>Shared contract types and the <code>translateSelection</code> orchestration — consumed here, specified in §03 (see its files table for per-file responsibilities).</td></tr>
+  <tr><td>macos/Tests/ResultPanelHeaderTests.swift</td><td>modified (tests added)</td><td>Whitelist walk with a card hit; fire-decision pure helpers (normalize, dedupe); headless render of all five card states (nil rows omitted); degraded mapping; ⌘S re-target/revert; stale <code>uiGen</code> render discarded. Added to the existing panel test file — same unit, same seams (backend coverage lands in the feature-scoped files in the backend files table, matching the SummarizeTests/PhoneticTests precedent).</td></tr>
+  <tr><td>macos/Tests/CaptureCoordinatorSaveTests.swift</td><td>modified (tests added)</td><td><code>translateSelectionLatest</code> A/B supersede race (stub <code>Translating</code> with controlled delays); cross-token staleness (capture bumps <code>generation</code> mid-flight → <code>.superseded</code>); card-save payload (span/translation/servedBy + threaded from/to codes).</td></tr>
+</table>
+</div>
+<div class="cap">Table F3 — Complete file inventory. One new UI view file here plus the backend's <code>SelectionTranslation.swift</code>; all other work extends existing files (xcodegen picks new files up from <code>macos/project.yml</code>'s source glob — re-run once, no project edit needed).</div>
+
+<h4>F-10 · Test matrix (frontend scope)</h4>
+<div class="tbl">
+<table>
+  <tr><th>Test</th><th>File</th><th>Verifies</th><th>AC / FR</th></tr>
+  <tr><td>whitelist keeps card clicks</td><td>ResultPanelHeaderTests</td><td><code>shouldClearSelection(forHit:)</code> → <code>false</code> for a view inside <code>SelectionCardView</code>; unchanged for text/scroller/chrome hits</td><td>AC-5 · FR-6</td></tr>
+  <tr><td>fire decision helpers</td><td>ResultPanelHeaderTests</td><td>empty → no fire, identical-span dedupe keyed on <code>SpanNormalizer.normalize</code> (newlines→space, trim), punctuation-only → no fire</td><td>FR-1 · DESIGN §06</td></tr>
+  <tr><td>card state renders (headless)</td><td>ResultPanelHeaderTests</td><td>dictionary omits nil POS/sense/example rows; plain has no dictionary rows; degraded = dashed + “Context-free · Google” + note; error row has Try again</td><td>AC-1/2/3/4 · FR-3/4/5</td></tr>
+  <tr><td>stale UI render discarded</td><td>ResultPanelHeaderTests</td><td>outcome applied only when <code>selectionUIGeneration</code> unchanged (seam-driven, like <code>renderPhoneticForTests</code>)</td><td>AC-7</td></tr>
+  <tr><td>⌘S re-target</td><td>ResultPanelHeaderTests</td><td>content render moves <code>keyEquivalent</code> card-ward; loading/error don't; dismissal sink reverts</td><td>AC-6 · FR-7</td></tr>
+  <tr><td>teardown sink coverage</td><td>ResultPanelHeaderTests</td><td><code>dropResultBody</code> / <code>setRetranslating</code> / <code>updateResult</code> each clear the slot + cancel the in-flight task</td><td>AC-5 · FR-6</td></tr>
+  <tr><td>coordinator A/B race</td><td>CaptureCoordinatorSaveTests</td><td>slow request A + fast request B → A returns <code>.superseded</code>, B <code>.success</code></td><td>AC-7</td></tr>
+  <tr><td>cross-generation staleness</td><td>CaptureCoordinatorSaveTests</td><td><code>runTranslation</code> bumping <code>generation</code> mid-selection-flight → selection returns <code>.superseded</code></td><td>FR-6 · AC-5</td></tr>
+  <tr><td>card save payload</td><td>CaptureCoordinatorSaveTests</td><td><code>hooks.save</code> lands in <code>NotebookStore.add</code> with span as source, card translation, threaded from/to codes, card's <code>servedBy</code></td><td>AC-6 · FR-7</td></tr>
+  <tr><td>no-selection regression</td><td>existing suite, unmodified</td><td>all current tests stay green; with <code>selection: nil</code> the built body contains no <code>SelectionCardView</code></td><td>AC-8 · FR-8</td></tr>
+</table>
+</div>
+<div class="cap">Table F4 — Frontend test plan. Engine-side behavior (structured output, parse fallback, timeout, degraded routing) is covered by the backend section's matrix; QA's end-to-end plan covers the visual/AX pass.</div>
+
+<div class="decision"><b>Zero-regression argument (FR-8 / AC-8).</b> With no selection ever made, every new code path is provably unreachable: the slot view isn't constructed until the first fire (lazy); the delegate and the <code>.leftMouseUp</code> hook only <em>observe</em> and always forward events to <code>super</code>; the settle task is armed only by a non-empty Recognized-pane selection; <code>cancelOperation</code> consumes Esc only while a card is active, otherwise <code>super</code> — today's Esc path bit-for-bit; the <code>shouldClearSelection</code> walk adds a check for a view class that isn't in the hierarchy when no card exists, so it returns identical results; ⌘S's <code>keyEquivalent</code> is never touched before a content state renders; and the coordinator's new members are inert until the panel invokes a hook. The only compile-visible change to existing surfaces is the added <code>selection:</code> parameter on <code>ResultPresenting</code>/<code>showResult</code> (defaulted to <code>nil</code> on the concrete method; the test spy gains the parameter) — passing <code>nil</code> reproduces v1.2.10 behavior exactly, which is what every pre-existing call site and test does.</div>
+
+</section>
+
+<h2><span class="n">03</span> Backend / Engine — the selection-translation service</h2>
+
+<section id="tech-backend">
+<p>
+Everything below the panel: new value types, the <code>translateSelection</code> orchestration inside
+<code>TranslationService</code>, the OpenAI structured-output prompt variant, the mode-threshold helper, and the
+notebook save path. The design rule is the same one the whole app follows: <strong>the UI never touches engines</strong> —
+the panel calls one hook (<code>SelectionHooks.translate</code>, frontend §F-3); behind it <code>CaptureCoordinator</code>
+calls one seam (<code>Translating.translateSelection</code>) and the panel renders whatever <code>SelectionResult</code> comes back. Card vs plain vs degraded is decided entirely on this side of the seam.
+</p>
+
+<h4 id="tb-1">1 · Service architecture — types and the <code>translateSelection</code> flow</h4>
+
+<div class="fig">
+<svg viewBox="0 0 940 645" width="940" font-family="ui-sans-serif, system-ui, sans-serif" role="img" aria-label="Flowchart of translateSelection through TranslationService">
+  <defs>
+    <marker id="tb1-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity="0.7"/>
+    </marker>
+    <marker id="tb1-arr-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ef4444" opacity="0.85"/>
+    </marker>
+  </defs>
+
+  <!-- entry -->
+  <rect x="290" y="14" width="380" height="36" rx="9" fill="#4338ca" fill-opacity="0.10" stroke="#4338ca" stroke-width="1.3"/>
+  <text x="480" y="36" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">Translating.translateSelection(span, context, pair)</text>
+
+  <line x1="480" y1="50" x2="480" y2="72" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb1-arr)"/>
+
+  <!-- normalize -->
+  <rect x="250" y="74" width="460" height="48" rx="9" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.2"/>
+  <text x="480" y="93" text-anchor="middle" font-size="11.5" fill="currentColor"><tspan font-family="ui-monospace, Menlo, monospace">SpanNormalizer.normalize(span)</tspan> — fold whitespace runs → space, trim</text>
+  <text x="480" y="111" text-anchor="middle" font-size="11.5" fill="currentColor">empty → throw <tspan font-family="ui-monospace, Menlo, monospace">.emptyInput</tspan> · <tspan font-family="ui-monospace, Menlo, monospace">ContextWindow.window(context, ≤ 1500 chars)</tspan></text>
+
+  <line x1="480" y1="122" x2="480" y2="148" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb1-arr)"/>
+
+  <!-- resolver decision -->
+  <rect x="290" y="150" width="380" height="52" rx="9" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.4"/>
+  <text x="480" y="171" text-anchor="middle" font-size="12" fill="currentColor">◇ <tspan font-family="ui-monospace, Menlo, monospace">EngineResolver.resolveSelection(for: pair)</tspan></text>
+  <text x="480" y="190" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">AI preferred · key in Keychain · pair.to.aiSupported ?</text>
+
+  <!-- yes edge to mode -->
+  <path d="M 380 202 L 250 202 L 250 266" fill="none" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb1-arr)"/>
+  <text x="255" y="238" font-size="11" fill="#8b5cf6">yes → .contextual(OpenAIEngine)</text>
+
+  <!-- no edge to google -->
+  <path d="M 580 202 L 770 202 L 770 376" fill="none" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb1-arr)"/>
+  <text x="905" y="238" text-anchor="end" font-size="11" fill="#b45309">no → .contextFree(GoogleEngine)</text>
+
+  <!-- mode decision -->
+  <rect x="110" y="268" width="280" height="52" rx="9" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.4"/>
+  <text x="250" y="289" text-anchor="middle" font-size="12" fill="currentColor">◇ <tspan font-family="ui-monospace, Menlo, monospace">SelectionMode.mode(for: span)</tspan></text>
+  <text x="250" y="308" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">≤ 4 tokens / ≤ 8 graphemes → wordPhrase</text>
+
+  <!-- edges from mode -->
+  <path d="M 175 320 L 165 320 L 165 376" fill="none" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb1-arr)"/>
+  <text x="30" y="348" font-size="11" fill="currentColor" opacity="0.75">.wordPhrase</text>
+  <path d="M 340 320 L 455 320 L 455 376" fill="none" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb1-arr)"/>
+  <text x="465" y="348" font-size="11" fill="currentColor" opacity="0.75">.longSpan</text>
+
+  <!-- deadline ring -->
+  <rect x="28" y="366" width="884" height="80" rx="12" fill="none" stroke="#ef4444" stroke-opacity="0.55" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <text x="758" y="361" text-anchor="end" font-size="10.5" fill="#ef4444" opacity="0.9">withDeadline · 8 s → throw .timedOut</text>
+
+  <!-- card engine box -->
+  <rect x="45" y="378" width="245" height="56" rx="9" fill="#8b5cf6" fill-opacity="0.10" stroke="#8b5cf6" stroke-width="1.3"/>
+  <text x="167" y="399" text-anchor="middle" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">OpenAIEngine.translateSpan(…)</text>
+  <text x="167" y="417" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">card prompt · response_format: json_object</text>
+
+  <!-- plain engine box -->
+  <rect x="335" y="378" width="240" height="56" rx="9" fill="#8b5cf6" fill-opacity="0.10" stroke="#8b5cf6" stroke-width="1.3"/>
+  <text x="455" y="399" text-anchor="middle" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">OpenAIEngine.translateSpan(…)</text>
+  <text x="455" y="417" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">plain span prompt · output only the translation</text>
+
+  <!-- google box -->
+  <rect x="640" y="378" width="260" height="56" rx="9" fill="#b45309" fill-opacity="0.10" stroke="#b45309" stroke-width="1.3"/>
+  <text x="770" y="399" text-anchor="middle" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">GoogleEngine.translate(request)</text>
+  <text x="770" y="417" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">span-only — the endpoint has no context param</text>
+
+  <!-- parse ladder -->
+  <line x1="167" y1="434" x2="167" y2="466" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb1-arr)"/>
+  <rect x="45" y="468" width="245" height="66" rx="9" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.2"/>
+  <text x="167" y="486" text-anchor="middle" font-size="11" fill="currentColor"><tspan font-family="ui-monospace, Menlo, monospace">parseCard</tspan> ladder:</text>
+  <text x="167" y="503" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.8">① strict ② fences/braces ③ prose→plain</text>
+  <text x="167" y="521" text-anchor="middle" font-size="10.5" fill="#ef4444">unusable → throw .unexpectedResponse(.ai)</text>
+
+  <!-- result arrows -->
+  <line x1="167" y1="534" x2="167" y2="556" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb1-arr)"/>
+  <path d="M 290 501 L 400 501 L 400 556" fill="none" stroke="#8b5cf6" stroke-opacity="0.7" stroke-dasharray="5 4" marker-end="url(#tb1-arr)"/>
+  <text x="298" y="493" font-size="10.5" fill="#8b5cf6">③ prose fallback</text>
+  <line x1="455" y1="434" x2="455" y2="556" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb1-arr)"/>
+  <line x1="770" y1="434" x2="770" y2="556" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb1-arr)"/>
+
+  <!-- results -->
+  <rect x="20" y="558" width="290" height="56" rx="9" fill="#0d9488" fill-opacity="0.10" stroke="#0d9488" stroke-width="1.3"/>
+  <text x="165" y="579" text-anchor="middle" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="currentColor">SelectionResult(.card(DictionaryCard),</text>
+  <text x="165" y="596" text-anchor="middle" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="currentColor">servedBy: .ai, contextUsed: true)</text>
+
+  <rect x="330" y="558" width="250" height="56" rx="9" fill="#0d9488" fill-opacity="0.10" stroke="#0d9488" stroke-width="1.3"/>
+  <text x="455" y="579" text-anchor="middle" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="currentColor">SelectionResult(.plain(String),</text>
+  <text x="455" y="596" text-anchor="middle" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="currentColor">servedBy: .ai, contextUsed: true)</text>
+
+  <rect x="600" y="558" width="320" height="56" rx="9" fill="#b45309" fill-opacity="0.10" stroke="#b45309" stroke-width="1.3"/>
+  <text x="760" y="579" text-anchor="middle" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="currentColor">SelectionResult(.plain(String),</text>
+  <text x="760" y="596" text-anchor="middle" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="currentColor">servedBy: .free, contextUsed: false)</text>
+  <text x="760" y="631" text-anchor="middle" font-size="10.5" fill="#b45309">degraded — drives the “Context-free · Google” chip (FR-5, AC-4)</text>
+</svg>
+</div>
+<p class="cap">Fig. B1 — <code>translateSelection</code> is stateless and total: every route ends in a <code>SelectionResult</code> or a typed throw. Card vs plain vs degraded is decided here, never in the panel.</p>
+
+<p>New value types live in one new file, <code>macos/Sources/Translate/SelectionTranslation.swift</code>. The shared contract, exact:</p>
+
+<div class="fig">
+<pre><code>struct DictionaryCard: Sendable, Equatable {
+    let headword: String            // ALWAYS the user's normalized span — model echo is ignored
+    let translation: String         // contextual translation (required; parse fails without it)
+    let partOfSpeech: String?       // lowercase English tag ("verb", "noun phrase") — nil = row omitted
+    let sense: String?              // one line, target language, in-context meaning
+    let example: String?            // one NEW source-language sentence, same sense
+    let exampleTranslation: String? // dropped if example == nil (never orphaned)
+}
+
+enum SelectionOutput: Sendable, Equatable {
+    case card(DictionaryCard)       // dictionary card variant
+    case plain(String)              // long-span block AND degraded variant
+}
+
+struct SelectionResult: Sendable, Equatable {
+    let output: SelectionOutput
+    let servedBy: EngineKind        // .ai | .free — chip + notebook engine column
+    let contextUsed: Bool           // false ⇒ "Context-free" chip (FR-5)
+}
+
+protocol Translating {              // existing seam, ONE new requirement
+    func translate(text: String, pair: LanguagePair) async throws -&gt; TranslationResult
+    func translateSelection(span: String, context: String, pair: LanguagePair) async throws -&gt; SelectionResult
+}</code></pre>
+</div>
+<p class="cap">The seam the UI consumes. <code>Translating</code> gains one method; the two test stubs in <code>CaptureCoordinatorSaveTests.swift</code> (<code>GatedService</code>, <code>StubTranslating</code>) get a mechanical one-line conformance update.</p>
+
+<div class="decision">
+<strong>Three deliberate deviations from the whole-capture path</strong> (each keeps the selection request cheap and the approved state machine intact):
+<ol>
+<li><strong>No re-detect, no guard.</strong> A lone span ("scored", "攻入") cannot be reliably language-detected. The selection reuses the capture's already-resolved pair: <code>CaptureCoordinator</code> pins <code>from</code> to the capture's explicit From, else the capture's <em>detected</em> language, else Auto — and <code>to = result.effectiveTo</code>. Saves a network round-trip per selection and cannot flip the target mid-card.</li>
+<li><strong>No runtime AI→Google fallback.</strong> The whole-capture safety net (AI failure → retry on Google) does <em>not</em> apply to selections: DESIGN §03's approved state machine routes network/timeout to the quiet error row with <em>Try again</em>. Degradation to Google is a <em>configuration</em> state (no key), never a runtime one — otherwise a user with AI configured would silently get context-free results exactly when they asked for context.</li>
+<li><strong>Context is windowed, not unbounded.</strong> PRD §08 says "keep prompt small": <code>ContextWindow.window(for:in:maxChars:)</code> passes the full recognized text when ≤ 1500 chars, else a 1500-char window centered on the first occurrence of the span (extended outward to whitespace boundaries; prefix window if the span isn't found verbatim). Pure function, tunable constant.</li>
+</ol>
+</div>
+
+<p>Engine routing is one new method on the existing resolver — the only place that already knows preference + key + <code>aiName</code>:</p>
+
+<div class="fig">
+<pre><code>enum SelectionRoute {
+    case contextual(any SelectionSpanTranslating)   // OpenAI: span + context prompt
+    case contextFree(any TranslationEngine)         // Google: span-only, degraded
+}
+
+protocol SelectionSpanTranslating: Sendable {       // adopted by OpenAIEngine ONLY
+    func translateSpan(span: String, context: String,
+                       pair: LanguagePair, mode: SelectionMode) async throws -&gt; SelectionOutput
+}
+
+extension EngineResolver {
+    /// Same three-branch truth table as resolve(for:): AI preferred + key + to.aiSupported
+    /// → .contextual(OpenAIEngine); otherwise → .contextFree(GoogleEngine).
+    func resolveSelection(for pair: LanguagePair) -&gt; SelectionRoute
+}</code></pre>
+</div>
+<p class="cap"><code>TranslationEngine</code> itself is untouched — Google never needs a context parameter, so the selection capability is a separate protocol only the AI engine adopts. <code>TranslationService</code> keeps its existing injection pattern: the testable initializer gains an optional <code>resolveSelection: ((LanguagePair) -&gt; SelectionRoute)?</code> override (mirroring <code>detect</code> / <code>makeGoogleFallback</code>) so QA can stub the route without Keychain or network.</p>
+
+<h4 id="tb-2">2 · OpenAIEngine structured-output variant — prompts, parsing, timeout</h4>
+
+<div class="fig">
+<svg viewBox="0 0 940 620" width="940" font-family="ui-sans-serif, system-ui, sans-serif" role="img" aria-label="Sequence diagram of a card request through OpenAIEngine">
+  <defs>
+    <marker id="tb2-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity="0.7"/>
+    </marker>
+    <marker id="tb2-err" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ef4444" opacity="0.85"/>
+    </marker>
+  </defs>
+
+  <!-- lifeline headers -->
+  <rect x="20" y="14" width="180" height="30" rx="7" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.5"/>
+  <text x="110" y="34" text-anchor="middle" font-size="11.5" fill="currentColor">CaptureCoordinator</text>
+  <rect x="270" y="14" width="180" height="30" rx="7" fill="#4338ca" fill-opacity="0.10" stroke="#4338ca"/>
+  <text x="360" y="34" text-anchor="middle" font-size="11.5" fill="currentColor">TranslationService</text>
+  <rect x="530" y="14" width="180" height="30" rx="7" fill="#8b5cf6" fill-opacity="0.10" stroke="#8b5cf6"/>
+  <text x="620" y="34" text-anchor="middle" font-size="11.5" fill="currentColor">OpenAIEngine</text>
+  <rect x="780" y="14" width="150" height="30" rx="7" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.5"/>
+  <text x="855" y="34" text-anchor="middle" font-size="11.5" fill="currentColor">api.openai.com</text>
+
+  <line x1="110" y1="44" x2="110" y2="600" stroke="currentColor" stroke-opacity="0.25"/>
+  <line x1="360" y1="44" x2="360" y2="600" stroke="currentColor" stroke-opacity="0.25"/>
+  <line x1="620" y1="44" x2="620" y2="600" stroke="currentColor" stroke-opacity="0.25"/>
+  <line x1="855" y1="44" x2="855" y2="600" stroke="currentColor" stroke-opacity="0.25"/>
+
+  <!-- call -->
+  <line x1="110" y1="80" x2="358" y2="80" stroke="currentColor" stroke-opacity="0.75" marker-end="url(#tb2-arr)"/>
+  <text x="234" y="72" text-anchor="middle" font-size="10.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">translateSelection("scored", context, en→zh)</text>
+
+  <!-- service note -->
+  <rect x="250" y="94" width="220" height="46" rx="7" fill="#4338ca" fill-opacity="0.07" stroke="#4338ca" stroke-opacity="0.6" stroke-dasharray="4 3"/>
+  <text x="360" y="112" text-anchor="middle" font-size="10.5" fill="currentColor">normalize · window(≤1500) · resolveSelection</text>
+  <text x="360" y="128" text-anchor="middle" font-size="10.5" fill="currentColor">→ .contextual · mode(for:) → .wordPhrase</text>
+
+  <!-- deadline band -->
+  <rect x="340" y="152" width="580" height="290" rx="10" fill="none" stroke="#ef4444" stroke-opacity="0.5" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <text x="905" y="168" text-anchor="end" font-size="10.5" fill="#ef4444">withDeadline · 8 s</text>
+
+  <!-- translateSpan -->
+  <line x1="360" y1="186" x2="618" y2="186" stroke="currentColor" stroke-opacity="0.75" marker-end="url(#tb2-arr)"/>
+  <text x="489" y="178" text-anchor="middle" font-size="10.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">translateSpan(span, context, pair, .wordPhrase)</text>
+
+  <!-- engine note: request -->
+  <rect x="505" y="200" width="230" height="60" rx="7" fill="#8b5cf6" fill-opacity="0.07" stroke="#8b5cf6" stroke-opacity="0.6" stroke-dasharray="4 3"/>
+  <text x="620" y="217" text-anchor="middle" font-size="10.5" fill="currentColor">system = cardSystemPrompt(from, to)</text>
+  <text x="620" y="233" text-anchor="middle" font-size="10.5" fill="currentColor">user = PASSAGE + SPAN</text>
+  <text x="620" y="249" text-anchor="middle" font-size="10.5" fill="currentColor">temperature 0.2 · response_format json_object</text>
+
+  <!-- POST -->
+  <line x1="620" y1="282" x2="853" y2="282" stroke="currentColor" stroke-opacity="0.75" marker-end="url(#tb2-arr)"/>
+  <text x="737" y="274" text-anchor="middle" font-size="10.5" fill="currentColor">POST /v1/chat/completions (≤ 3 attempts · 1 s backoff)</text>
+
+  <!-- 200 -->
+  <line x1="855" y1="314" x2="622" y2="314" stroke="currentColor" stroke-opacity="0.6" stroke-dasharray="5 4" marker-end="url(#tb2-arr)"/>
+  <text x="737" y="306" text-anchor="middle" font-size="10.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">200 · choices[0].message.content = "{…}"</text>
+
+  <!-- parse note -->
+  <rect x="505" y="328" width="230" height="60" rx="7" fill="#8b5cf6" fill-opacity="0.07" stroke="#8b5cf6" stroke-opacity="0.6" stroke-dasharray="4 3"/>
+  <text x="620" y="345" text-anchor="middle" font-size="10.5" fill="currentColor">parseCard: ① strict JSONDecoder</text>
+  <text x="620" y="361" text-anchor="middle" font-size="10.5" fill="currentColor">② strip ``` fences · slice first { … last }</text>
+  <text x="620" y="377" text-anchor="middle" font-size="10.5" fill="currentColor">③ no braces at all → prose = .plain(content)</text>
+
+  <!-- returns -->
+  <line x1="620" y1="410" x2="362" y2="410" stroke="currentColor" stroke-opacity="0.6" stroke-dasharray="5 4" marker-end="url(#tb2-arr)"/>
+  <text x="489" y="402" text-anchor="middle" font-size="10.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">SelectionOutput.card(DictionaryCard)</text>
+
+  <line x1="360" y1="462" x2="112" y2="462" stroke="currentColor" stroke-opacity="0.6" stroke-dasharray="5 4" marker-end="url(#tb2-arr)"/>
+  <text x="234" y="454" text-anchor="middle" font-size="10.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">SelectionResult(.card, .ai, contextUsed: true)</text>
+
+  <!-- timeout alt -->
+  <rect x="30" y="486" width="890" height="112" rx="10" fill="#ef4444" fill-opacity="0.04" stroke="#ef4444" stroke-opacity="0.4" stroke-width="1"/>
+  <text x="44" y="506" font-size="11" fill="#ef4444" font-weight="600">alt — 8 s elapsed</text>
+  <text x="60" y="527" font-size="10.5" fill="currentColor">deadline child wins the race → group cancels the engine child → <tspan font-family="ui-monospace, Menlo, monospace">Task.checkCancellation()</tspan> inside <tspan font-family="ui-monospace, Menlo, monospace">fetchWithRetry</tspan> stops further retries</text>
+  <line x1="360" y1="546" x2="112" y2="546" stroke="#ef4444" stroke-opacity="0.8" stroke-dasharray="5 4" marker-end="url(#tb2-err)"/>
+  <text x="234" y="539" text-anchor="middle" font-size="10.5" font-family="ui-monospace, Menlo, monospace" fill="#ef4444">throws TranslationError.timedOut</text>
+  <text x="60" y="570" font-size="10.5" fill="currentColor">UI renders the quiet inline error row — “Couldn’t translate the selection · Try again”.</text>
+  <text x="60" y="588" font-size="10.5" fill="currentColor" opacity="0.75">Distinct case: a superseded selection cancels the panel's task → <tspan font-family="ui-monospace, Menlo, monospace">CancellationError</tspan> is rethrown as-is; the coordinator maps it to <tspan font-family="ui-monospace, Menlo, monospace">.superseded</tspan> — it must never paint an error row.</text>
+</svg>
+</div>
+<p class="cap">Fig. B2 — Card request sequence. The 8-second deadline wraps the engine await inside <code>TranslationService</code> (uniformly on the Google route too); cancellation propagates into the engines' existing retry loops, which already call <code>Task.checkCancellation()</code> between attempts.</p>
+
+<p><strong>Exact prompt design.</strong> Two new static prompt builders on <code>OpenAIEngine</code>, parameterized from the catalog's <code>aiName</code> exactly like the existing <code>systemPrompt(from:to:)</code> (<code>{source}</code> = <code>from.aiName</code>; when the pinned From is nil the lead switches to "Detect the PASSAGE's language and…"; <code>{target}</code> = <code>to.aiName ?? to.englishName</code>):</p>
+
+<div class="fig">
+<pre><code>// cardSystemPrompt(from:to:) — SelectionMode.wordPhrase
+You are a precise bilingual dictionary. The user message contains a PASSAGE and a
+SPAN copied from it. Explain the SPAN exactly as it is used in the PASSAGE,
+translating from {source} into natural, idiomatic {target}.
+
+Respond with exactly ONE JSON object — no markdown fences, no commentary — using
+these keys:
+  "translation"        (required) the {target} translation of the SPAN as used in the PASSAGE
+  "partOfSpeech"       (optional) short lowercase English tag for the SPAN's role in the
+                       PASSAGE, e.g. "verb", "noun phrase", "idiom"
+  "sense"              (optional) one short {target} line: what the SPAN means in this PASSAGE
+  "example"            (optional) one NEW sentence in the PASSAGE's language using the SPAN
+                       in the same sense
+  "exampleTranslation" (optional, only alongside "example") its {target} translation
+
+Omit every optional key you cannot fill with confidence. Never invent, guess, or
+pad a field. Output ONLY the JSON object.</code></pre>
+</div>
+
+<div class="fig">
+<pre><code>// spanSystemPrompt(from:to:) — SelectionMode.longSpan
+You are a precise translator. The user message contains a PASSAGE and a SPAN
+copied from it. Translate ONLY the SPAN from {source} into natural, idiomatic
+{target}, using the PASSAGE solely to resolve meaning, tone and references.
+Preserve technical terms. Do not add quotes or commentary. Output ONLY the
+translation of the SPAN, nothing else.
+
+// selectionUserMessage(span:context:) — both modes
+PASSAGE:
+{windowed context}
+
+SPAN: {normalized span}</code></pre>
+</div>
+<p class="cap">Card mode sets <code>response_format: {"type": "json_object"}</code> (supported by <code>gpt-4o-mini</code>; the word "JSON" the mode requires is present in the system prompt). Long-span mode reuses the existing free-text transport. Both ride <code>makeChatRequest</code>, which gains an optional <code>responseFormat</code> parameter — same key, same retry/backoff, same <code>choices[0].message.content</code> parsing.</p>
+
+<p><strong>JSON parse + fallback strategy.</strong> <code>static func parseCard(_ content: String, span: String) -&gt; DictionaryCard?</code> is a pure, unit-testable ladder:</p>
+<ol>
+<li><strong>Strict:</strong> <code>JSONDecoder</code> straight on the content (payload struct with all-optional fields — camelCase keys match the prompt, no CodingKeys).</li>
+<li><strong>Lenient:</strong> strip <code>```</code> fences, slice first <code>{</code> … last <code>}</code>, decode again.</li>
+<li><strong>Hygiene (both):</strong> trim every field; empty → <code>nil</code>; missing/empty <code>translation</code> → the whole parse fails; <code>exampleTranslation</code> without <code>example</code> is dropped; <code>headword</code> is set from the caller's normalized span — a model-provided headword is ignored (the user's selection is the source of truth; it is also what ⌘S saves).</li>
+</ol>
+<p>In <code>translateSpan</code> card mode: parse success → <code>.card</code>; parse failure with <em>no braces in the content</em> (model answered in prose despite JSON mode) → <code>.plain(content)</code> — the FR-4-shaped fallback the PRD names, no second round-trip, no double billing; parse failure with brace-like content → <code>throw .unexpectedResponse(.ai)</code> (never render half-parsed JSON as a translation).</p>
+
+<p><strong>Error taxonomy.</strong> One new <code>TranslationError</code> case: <code>.timedOut</code> ("The translation timed out. Check your connection and try again."). Everything a selection request can do:</p>
+
+<div class="tbl">
+<table>
+<thead><tr><th>Failure</th><th>Detected in</th><th>Thrown as</th><th>Surfaces as</th></tr></thead>
+<tbody>
+<tr><td>Span empty after trim</td><td><code>translateSelection</code> guard</td><td><code>.emptyInput</code></td><td>Never fires (UI already guards); defensive</td></tr>
+<tr><td>Deadline &gt; 8 s</td><td><code>withDeadline</code> race in service</td><td><code>.timedOut</code> <em>(new case)</em></td><td>Quiet inline error row + <em>Try again</em></td></tr>
+<tr><td>Network, 3 attempts exhausted</td><td>engine <code>fetchWithRetry</code></td><td><code>.network(engine:underlying:)</code></td><td>Same row</td></tr>
+<tr><td>OpenAI error envelope</td><td><code>OpenAIEngine.parse</code></td><td><code>.api(message:)</code></td><td>Same row (message goes to the log, not the row)</td></tr>
+<tr><td>JSON braces present but undecodable / no <code>translation</code></td><td><code>parseCard</code> ladder</td><td><code>.unexpectedResponse(.ai)</code></td><td>Same row</td></tr>
+<tr><td>Prose instead of JSON</td><td><code>parseCard</code> step ③</td><td><em>not an error</em> → <code>.plain(content)</code></td><td>Long-span-shaped block (FR-4 fallback)</td></tr>
+<tr><td>Selection superseded (generation bump)</td><td>panel cancels its <code>Task</code></td><td><code>CancellationError</code> rethrown as-is → coordinator maps it to <code>SelectionLookupOutcome.superseded</code></td><td>Panel ignores <code>.superseded</code> — no UI change (AC-7)</td></tr>
+</tbody>
+</table>
+</div>
+<p class="cap">All thrown cases collapse to the single quiet error row (DESIGN §02 E) — the taxonomy exists so tests can assert causes and so cancellation is provably distinguishable from failure.</p>
+
+<h4 id="tb-3">3 · <code>SelectionMode</code> — the word/phrase ↔ long-span threshold</h4>
+
+<div class="fig">
+<svg viewBox="0 0 900 262" width="900" font-family="ui-sans-serif, system-ui, sans-serif" role="img" aria-label="SelectionMode decision flow">
+  <defs>
+    <marker id="tb3-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity="0.7"/>
+    </marker>
+  </defs>
+  <rect x="16" y="106" width="140" height="46" rx="9" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.45"/>
+  <text x="86" y="126" text-anchor="middle" font-size="11.5" fill="currentColor">span (raw)</text>
+  <text x="86" y="142" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.65">may contain newlines</text>
+
+  <line x1="156" y1="129" x2="192" y2="129" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb3-arr)"/>
+
+  <rect x="194" y="106" width="180" height="46" rx="9" fill="#4338ca" fill-opacity="0.08" stroke="#4338ca"/>
+  <text x="284" y="126" text-anchor="middle" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="currentColor">SpanNormalizer</text>
+  <text x="284" y="142" text-anchor="middle" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="currentColor">.normalize(span)</text>
+
+  <line x1="374" y1="129" x2="410" y2="129" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb3-arr)"/>
+
+  <rect x="412" y="98" width="216" height="62" rx="9" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.4"/>
+  <text x="520" y="118" text-anchor="middle" font-size="11.5" fill="currentColor">◇ any unspaced-script scalar?</text>
+  <text x="520" y="135" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.7">Han · Hiragana · Katakana · Thai</text>
+  <text x="520" y="149" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.7">Lao · Khmer · Myanmar (Hangul is spaced)</text>
+
+  <path d="M 628 112 L 660 112 L 660 56 L 672 56" fill="none" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb3-arr)"/>
+  <text x="648" y="46" font-size="10.5" fill="currentColor" opacity="0.75">yes</text>
+  <path d="M 628 146 L 660 146 L 660 208 L 672 208" fill="none" stroke="currentColor" stroke-opacity="0.6" marker-end="url(#tb3-arr)"/>
+  <text x="648" y="228" font-size="10.5" fill="currentColor" opacity="0.75">no</text>
+
+  <rect x="674" y="28" width="212" height="58" rx="9" fill="#8b5cf6" fill-opacity="0.08" stroke="#8b5cf6"/>
+  <text x="780" y="48" text-anchor="middle" font-size="10.5" fill="currentColor">graphemes ≤ 8 ? (<tspan font-family="ui-monospace, Menlo, monospace">String.count</tspan>,</text>
+  <text x="780" y="62" text-anchor="middle" font-size="10.5" fill="currentColor">whitespace stripped first)</text>
+  <text x="780" y="78" text-anchor="middle" font-size="10.5" fill="currentColor">yes → <tspan font-weight="600">.wordPhrase</tspan> · no → <tspan font-weight="600">.longSpan</tspan></text>
+
+  <rect x="674" y="180" width="212" height="58" rx="9" fill="#0d9488" fill-opacity="0.08" stroke="#0d9488"/>
+  <text x="780" y="200" text-anchor="middle" font-size="10.5" fill="currentColor">whitespace tokens ≤ 4 ?</text>
+  <text x="780" y="214" text-anchor="middle" font-size="10.5" fill="currentColor">(<tspan font-family="ui-monospace, Menlo, monospace">split(whereSeparator:)</tspan>)</text>
+  <text x="780" y="230" text-anchor="middle" font-size="10.5" fill="currentColor">yes → <tspan font-weight="600">.wordPhrase</tspan> · no → <tspan font-weight="600">.longSpan</tspan></text>
+</svg>
+</div>
+<p class="cap">Fig. B3 — <code>SelectionMode.mode(for:)</code>: a pure function of the span string alone. Grapheme counting is Swift's native <code>String.count</code> (extended grapheme clusters), so composed characters and emoji count as one.</p>
+
+<div class="fig">
+<pre><code>enum SelectionPolicy {                                   // Gate-1 tunable constants
+    static let maxWordTokens = 4                         // spaced scripts (FR-3/FR-4)
+    static let maxUnspacedGraphemes = 8                  // CJK / unspaced (AC-9)
+    static let requestTimeout: Duration = .seconds(8)    // DESIGN §05 "request" row
+    static let maxContextChars = 1500                    // PRD §08 "keep prompt small"
+    static let settleDebounce: Duration = .milliseconds(300)  // consumed by the UI layer
+}
+
+enum SelectionMode: Sendable, Equatable {
+    case wordPhrase, longSpan
+
+    static func mode(for span: String) -&gt; SelectionMode {
+        let s = SpanNormalizer.normalize(span)
+        if s.unicodeScalars.contains(where: Self.isUnspacedScript) {
+            let graphemes = s.filter { !$0.isWhitespace }.count      // grapheme clusters
+            return graphemes &lt;= SelectionPolicy.maxUnspacedGraphemes ? .wordPhrase : .longSpan
+        }
+        let tokens = s.split(whereSeparator: \.isWhitespace).count
+        return tokens &lt;= SelectionPolicy.maxWordTokens ? .wordPhrase : .longSpan
+    }
+}</code></pre>
+</div>
+<p class="cap"><code>isUnspacedScript</code> is a named scalar-range set: Han (U+3400–4DBF, U+4E00–9FFF, U+F900–FAFF, U+20000–2EBEF), Hiragana (U+3040–309F), Katakana (U+30A0–30FF, U+31F0–31FF, U+FF66–FF9D), Thai (U+0E00–0E7F), Lao (U+0E80–0EFF), Khmer (U+1780–17FF), Myanmar (U+1000–109F). Hangul is deliberately excluded — Korean is whitespace-delimited.</p>
+
+<div class="tbl">
+<table>
+<thead><tr><th>Span (after normalize)</th><th>Rule applied</th><th>Count</th><th>Mode</th><th>Ref</th></tr></thead>
+<tbody>
+<tr><td><code>scored</code></td><td>tokens</td><td>1</td><td>wordPhrase</td><td>AC-1</td></tr>
+<tr><td><code>the final goal</code></td><td>tokens</td><td>3</td><td>wordPhrase</td><td>AC-2</td></tr>
+<tr><td><code>Messi scored the final goal.</code></td><td>tokens</td><td>5</td><td>longSpan</td><td>AC-3</td></tr>
+<tr><td><code>攻入</code></td><td>graphemes</td><td>2</td><td>wordPhrase</td><td>AC-9</td></tr>
+<tr><td><code>梅西攻入了最后一球</code></td><td>graphemes</td><td>9</td><td>longSpan</td><td>FR-4</td></tr>
+<tr><td><code>iPhone 攻略</code> (mixed script)</td><td>graphemes (Han present)</td><td>8</td><td>wordPhrase</td><td>edge</td></tr>
+<tr><td><code>"  goal \n "</code> → <code>goal</code></td><td>tokens (post-normalize)</td><td>1</td><td>wordPhrase</td><td>DESIGN §06</td></tr>
+</tbody>
+</table>
+</div>
+<p class="cap">Threshold matrix — the exact table the QA plan can lift into a parameterized test.</p>
+
+<h4 id="tb-4">4 · Notebook save path — zero schema change</h4>
+
+<div class="fig">
+<svg viewBox="0 0 900 372" width="900" font-family="ui-sans-serif, system-ui, sans-serif" role="img" aria-label="Card to VocabItem field mapping">
+  <defs>
+    <marker id="tb4-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0d9488" opacity="0.9"/>
+    </marker>
+    <marker id="tb4-arr-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4338ca" opacity="0.9"/>
+    </marker>
+    <marker id="tb4-arr-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ef4444" opacity="0.9"/>
+    </marker>
+  </defs>
+
+  <!-- left: card -->
+  <rect x="24" y="24" width="252" height="256" rx="10" fill="#8b5cf6" fill-opacity="0.06" stroke="#8b5cf6"/>
+  <text x="150" y="46" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor">Active card (⌘S while shown)</text>
+  <text x="150" y="62" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.65">.card fields — or .plain span + text</text>
+  <text x="40" y="92" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">headword / span</text>
+  <text x="40" y="122" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">translation / plain text</text>
+  <text x="40" y="152" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor" opacity="0.6">partOfSpeech</text>
+  <text x="40" y="182" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor" opacity="0.6">sense</text>
+  <text x="40" y="212" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor" opacity="0.6">example</text>
+  <text x="40" y="242" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor" opacity="0.6">exampleTranslation</text>
+  <text x="40" y="268" font-size="10.5" fill="currentColor" opacity="0.65">+ SelectionResult.servedBy</text>
+
+  <!-- middle: coordinator -->
+  <rect x="330" y="60" width="240" height="150" rx="10" fill="#4338ca" fill-opacity="0.06" stroke="#4338ca"/>
+  <text x="450" y="82" text-anchor="middle" font-size="11.5" font-weight="600" fill="currentColor">CaptureCoordinator — existing</text>
+  <text x="450" y="102" text-anchor="middle" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="currentColor">save(source:translation:</text>
+  <text x="450" y="118" text-anchor="middle" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="currentColor">from:to:kind:) → Bool</text>
+  <text x="450" y="144" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.8">captured at present-time:</text>
+  <text x="450" y="162" text-anchor="middle" font-size="10.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">fromCode = From ?? detected ?? "auto"</text>
+  <text x="450" y="178" text-anchor="middle" font-size="10.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">toCode = effectiveTo.code</text>
+  <text x="450" y="196" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.8">same codes as the whole-capture save</text>
+
+  <!-- right: vocabitem -->
+  <rect x="624" y="24" width="252" height="256" rx="10" fill="#0d9488" fill-opacity="0.06" stroke="#0d9488"/>
+  <text x="750" y="46" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor">VocabItem (unchanged @Model)</text>
+  <text x="750" y="62" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.65">NotebookStore.add(…) — as-is</text>
+  <text x="640" y="92" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">sourceText</text>
+  <text x="640" y="122" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">translation</text>
+  <text x="640" y="152" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">srcLang</text>
+  <text x="640" y="182" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">tgtLang</text>
+  <text x="640" y="212" font-size="11.5" font-family="ui-monospace, Menlo, monospace" fill="currentColor">engine ("ai" | "free")</text>
+  <text x="640" y="242" font-size="10.5" fill="currentColor" opacity="0.65">clientUUID · isDirty · timestamps — auto</text>
+
+  <!-- mapping arrows -->
+  <line x1="176" y1="88" x2="620" y2="88" stroke="#0d9488" stroke-width="1.4" marker-end="url(#tb4-arr)"/>
+  <line x1="216" y1="118" x2="620" y2="118" stroke="#0d9488" stroke-width="1.4" marker-end="url(#tb4-arr)"/>
+  <path d="M 570 162 L 600 162 L 600 148 L 620 148" fill="none" stroke="#4338ca" stroke-width="1.3" marker-end="url(#tb4-arr-b)"/>
+  <path d="M 570 178 L 620 178" fill="none" stroke="#4338ca" stroke-width="1.3" marker-end="url(#tb4-arr-b)"/>
+  <path d="M 205 264 L 560 264 L 600 264 L 600 208 L 620 208" fill="none" stroke="#4338ca" stroke-width="1.3" marker-end="url(#tb4-arr-b)"/>
+
+  <!-- dropped -->
+  <path d="M 150 152 L 150 306" fill="none" stroke="#ef4444" stroke-opacity="0.7" stroke-dasharray="4 3" marker-end="url(#tb4-arr-r)"/>
+  <rect x="60" y="308" width="480" height="42" rx="9" fill="#ef4444" fill-opacity="0.05" stroke="#ef4444" stroke-opacity="0.5" stroke-dasharray="5 3"/>
+  <text x="300" y="326" text-anchor="middle" font-size="10.5" fill="currentColor">partOfSpeech · sense · example · exampleTranslation — <tspan font-weight="600">dropped by design</tspan></text>
+  <text x="300" y="341" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">PRD out-of-scope: no VocabItem / vocab-sync field; context-in-notebook is its own future feature</text>
+</svg>
+</div>
+<p class="cap">Fig. B4 — Card save reuses <code>CaptureCoordinator.save</code> and <code>NotebookStore.add</code> byte-for-byte (FR-7, AC-6). Sync, export, dedupe and the FREE/AI badge all keep working because the row is indistinguishable from a whole-capture row.</p>
+
+<p>
+Wiring: <code>CaptureCoordinator.present(result:source:pair:)</code> already builds the zero-argument <code>onSave</code> closure for the whole capture. It now additionally builds one <code>SelectionHooks</code> value (the frontend-declared seam type, §F-3):
+<code>translate: @MainActor (String) async -&gt; SelectionLookupOutcome</code>
+— forwarding to the coordinator's <code>translateSelectionLatest(span:context:pair:)</code>, which calls <code>service.translateSelection(span:context:pair:)</code> with the capture's recognized text as context and the pinned selection pair (§1, deviation 1), guards with <code>selectionGeneration</code> + the main <code>generation</code> token, and maps the return: success → <code>.success(SelectionResult)</code>, <code>CancellationError</code> or a stale token → <code>.superseded</code>, any other throw → <code>.failure(error)</code> — and
+<code>save: (@MainActor (_ source: String, _ translation: String, _ servedBy: EngineKind) async -&gt; Bool)?</code>
+— a thin wrapper over the same <code>save(source:translation:from:to:kind:)</code> with the same captured <code>fromCode</code>/<code>toCode</code>. The hooks thread through <code>ResultPresenting.showResult</code> as one trailing <code>selection: SelectionHooks?</code> parameter next to <code>onSave</code>/<code>onRetranslate</code> (signature change owned by the frontend section). ⌘S routing between header and card, and reverting to whole-capture save on dismissal, is pure UI state; the backend exposes the two closures and nothing else. The panel saves whatever variant is active: card → <code>headword</code>+<code>translation</code>, long-span/degraded → span+plain text with <code>servedBy</code> deciding the <code>engine</code> column (a degraded save records <code>"free"</code>, so the notebook badge stays honest).
+</p>
+
+<h4 id="tb-5">5 · Files — new, modified, and test surface</h4>
+
+<div class="tbl">
+<table>
+<thead><tr><th>File</th><th>Status</th><th>Responsibility in this feature</th></tr></thead>
+<tbody>
+<tr><td><code>macos/Sources/Translate/SelectionTranslation.swift</code></td><td><strong>new</strong></td><td>All selection value types and pure logic in one cohesive file: <code>DictionaryCard</code>, <code>SelectionOutput</code>, <code>SelectionResult</code>, <code>SelectionMode</code>, <code>SelectionPolicy</code>, <code>SpanNormalizer</code>, <code>ContextWindow</code>, <code>SelectionRoute</code>, <code>SelectionSpanTranslating</code>, <code>withDeadline</code> helper. No UI, no I/O. (Sources are directory-globbed in <code>project.yml</code> — re-run <code>xcodegen</code> once.)</td></tr>
+<tr><td><code>macos/Sources/Translate/TranslationService.swift</code></td><td>modified</td><td><code>Translating</code> gains <code>translateSelection</code>; implementation = normalize → window → route → deadline-wrapped engine call → <code>SelectionResult</code>. Testable init gains the optional <code>resolveSelection</code> override; internal overload takes an injectable <code>timeout:</code> for fast tests.</td></tr>
+<tr><td><code>macos/Sources/Translate/OpenAIEngine.swift</code></td><td>modified</td><td><code>SelectionSpanTranslating</code> conformance: <code>cardSystemPrompt</code> / <code>spanSystemPrompt</code> / <code>selectionUserMessage</code> builders, <code>responseFormat</code> on the wire type, <code>parseCard</code> ladder, <code>translateSpan</code>. Existing translate/summarize paths untouched.</td></tr>
+<tr><td><code>macos/Sources/Translate/EngineResolver.swift</code></td><td>modified</td><td><code>resolveSelection(for:)</code> — same truth table as <code>resolve(for:)</code>, returning <code>SelectionRoute</code>.</td></tr>
+<tr><td><code>macos/Sources/Translate/TranslationError.swift</code></td><td>modified</td><td>New <code>.timedOut</code> case + user-facing copy.</td></tr>
+<tr><td><code>macos/Sources/Capture/CaptureCoordinator.swift</code></td><td>modified</td><td><code>translateSelectionLatest(span:context:pair:)</code> (bumps <code>selectionGeneration</code>, two-token staleness guard, maps throws → <code>SelectionLookupOutcome</code>); <code>present(…)</code> builds <code>SelectionHooks</code> (context = recognized source, pinned pair from detection, save wrapper) and threads them through <code>ResultPresenting.showResult</code> as <code>selection:</code>.</td></tr>
+<tr><td><code>macos/Sources/UI/ResultPanel.swift</code></td><td>modified <em>(frontend section)</em></td><td>Card slot, <code>SelectionHooks</code>/<code>SelectionLookupOutcome</code> seam types, settle-task debounce + <code>selectionUIGeneration</code>, ⌘S routing, <code>shouldClearSelection</code> whitelist — specified in the frontend fragment; listed here only for the <code>showResult</code> signature change.</td></tr>
+<tr><td><code>macos/Tests/SelectionModeTests.swift</code></td><td><strong>new</strong></td><td>Threshold matrix (§3 table), normalizer, context-window edges — pure-function tests, no network.</td></tr>
+<tr><td><code>macos/Tests/SelectionServiceTests.swift</code></td><td><strong>new</strong></td><td><code>translateSelection</code> routing (contextual / degraded / flags), timeout via injected short deadline, cancellation passthrough, parse-fallback outcomes via stubbed <code>SelectionRoute</code>.</td></tr>
+<tr><td><code>macos/Tests/OpenAIEngineTests.swift</code></td><td>extended</td><td>Request-body assertions (model, temp 0.2, <code>response_format</code>, PASSAGE/SPAN user message) and <code>parseCard</code> ladder against canned payloads via <code>MockURLProtocol</code>.</td></tr>
+<tr><td><code>macos/Tests/CaptureCoordinatorSaveTests.swift</code></td><td>extended</td><td>Stub conformers gain the new <code>Translating</code> method (mechanical); card-save mapping test (span → <code>sourceText</code>, codes, engine).</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="tbl">
+<table>
+<thead><tr><th>Test seam</th><th>Kind</th><th>What QA exercises through it</th></tr></thead>
+<tbody>
+<tr><td><code>Translating</code> stub</td><td>protocol</td><td>Panel/coordinator wiring, AC-7 race, ⌘S routing — zero network</td></tr>
+<tr><td><code>TranslationService(resolveSelection:)</code> override</td><td>injected closure</td><td>Card/plain/degraded outcomes with a scripted <code>SelectionSpanTranslating</code> stub</td></tr>
+<tr><td><code>EngineResolver(settings:openAIKey:)</code></td><td>injected key closure</td><td>Route truth table: preference × key × <code>aiSupported</code></td></tr>
+<tr><td><code>MockURLProtocol</code> (existing)</td><td>URLProtocol</td><td>Exact OpenAI request body; parse ladder; retry/backoff; error envelopes</td></tr>
+<tr><td><code>translateSelection(…, timeout:)</code> overload</td><td>parameter</td><td>Deadline behavior in milliseconds instead of 8 s</td></tr>
+<tr><td><code>SelectionMode</code> / <code>SpanNormalizer</code> / <code>ContextWindow</code> / <code>parseCard</code></td><td>pure functions</td><td>Deterministic matrices — thresholds (AC-1/2/3/9), hygiene rules, windowing</td></tr>
+</tbody>
+</table>
+</div>
+<p class="cap">Every behavior in this section is reachable without the network; only optional live-smoke tests touch real endpoints.</p>
+
+<h4 id="tb-6">6 · What does NOT change</h4>
+
+<div class="decision">
+<strong>Frozen surface — the zero-regression guarantee (FR-8, AC-8) is enforced by construction:</strong>
+<ul>
+<li><code>GoogleEngine.swift</code> — untouched. The degraded path calls the existing <code>translate(_:)</code> with a span-only <code>TranslationRequest</code>; <code>translate_a/single</code> has no context parameter, and we add none.</li>
+<li><code>TranslationEngine</code> protocol — untouched. Selection capability is the separate <code>SelectionSpanTranslating</code> protocol that only <code>OpenAIEngine</code> adopts; Google is never asked to do something it can't.</li>
+<li>Whole-capture pipeline — <code>translate(text:pair:)</code>, detect → guard → resolve → AI-fallback, the coordinator's <code>generation</code> token at <code>CaptureCoordinator.swift:40</code>, <code>lastCapture</code>: all byte-identical.</li>
+<li><code>VocabItem</code> / <code>NotebookStore</code> / vocab-sync server API — no new fields, no migration; a card save is an ordinary <code>add(source:translation:from:to:engine:)</code>.</li>
+<li><code>SettingsStore</code> / Preferences — no new toggle (feature is passive, on by default); thresholds are compile-time constants per Gate 1.</li>
+<li>Existing OpenAI translate/summarize prompts, retries, and parsing — the selection variant adds methods beside them, never edits them.</li>
+</ul>
+</div>
+
+</section>
+
+<h2><span class="n">04</span> QA — test plan &amp; regression gate</h2>
+<section id="tech-qa">
+
+<p>Every acceptance criterion (PRD AC-1..9) and functional requirement (FR-1..8) maps to at least one automated test where a seam exists, plus one manual checklist row where the behavior is visual, temporal, or accessibility-bound. The plan reuses the codebase's existing test idioms exactly: <code>Swift Testing</code> (<code>@Suite(.serialized)</code>, <code>@Test</code>, <code>#expect</code>), <code>MockURLProtocol</code> for wire-level engine behavior, the <code>GatedService</code>/<code>StubTranslating</code>/<code>SpyResultPanel</code> doubles from <code>CaptureCoordinatorSaveTests.swift</code>, and the pure-static-helper pattern from <code>ResultPanelHeaderTests.swift</code> (<code>shouldClearSelection(forHit:)</code>). No test touches the network; the bundle stays non-parallel.</p>
+
+<h4>Q-1 · Test pyramid — what runs where</h4>
+<div class="fig">
+<svg viewBox="0 0 960 430" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif">
+  <defs><marker id="qar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5361"/></marker></defs>
+  <text x="20" y="26" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">TEST PYRAMID — 55 AUTOMATED + 15 MANUAL</text>
+  <!-- layers, apex (330,60) base y=380 -->
+  <polygon points="330,60 398,135 262,135" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+  <polygon points="262,135 398,135 470,215 190,215" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <polygon points="190,215 470,215 543,295 117,295" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+  <polygon points="117,295 543,295 620,380 40,380" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+  <text x="330" y="122" text-anchor="middle" font-size="11.5" font-weight="700" fill="#111418">MANUAL · 15</text>
+  <text x="330" y="172" text-anchor="middle" font-size="12" font-weight="700" fill="#b45309">UI · 8</text>
+  <text x="330" y="190" text-anchor="middle" font-size="10" fill="#b45309">headless AppKit, no window server tricks</text>
+  <text x="330" y="252" text-anchor="middle" font-size="12" font-weight="700" fill="#0d9488">INTEGRATION · 14</text>
+  <text x="330" y="270" text-anchor="middle" font-size="10" fill="#0f766e">service + coordinator + panel sinks over stubs</text>
+  <text x="330" y="335" text-anchor="middle" font-size="12" font-weight="700" fill="#4338ca">UNIT · 33</text>
+  <text x="330" y="353" text-anchor="middle" font-size="10" fill="#4338ca">pure functions — mode, normalize, window, prompts, parse, routing</text>
+  <!-- left arrow -->
+  <line x1="18" y1="375" x2="18" y2="70" stroke="#4a5361" stroke-width="1.5" marker-end="url(#qar)"/>
+  <text x="26" y="80" font-size="10" fill="#4a5361">fewer · slower · human-judged</text>
+  <text x="26" y="368" font-size="10" fill="#4a5361">many · ms-fast · every commit</text>
+  <!-- right annotations -->
+  <g font-size="11" fill="#374151">
+    <line x1="400" y1="100" x2="648" y2="100" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+    <text x="656" y="96" font-weight="600">Checklist M-01..15 — 1 : 1 with AC-1..9</text>
+    <text x="656" y="111" fill="#6b7280">+ 6 design checks · run at gate &amp; after each fix round</text>
+    <line x1="472" y1="180" x2="648" y2="180" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+    <text x="656" y="176" font-weight="600">ResultPanelHeaderTests (extended)</text>
+    <text x="656" y="191" fill="#6b7280">card states · growth bounds · ⌘S routing · whitelist</text>
+    <line x1="545" y1="260" x2="648" y2="260" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+    <text x="656" y="256" font-weight="600">SelectionServiceTests (NEW) · CaptureCoordinator-</text>
+    <text x="656" y="271" font-weight="600">SaveTests (ext.) · panel teardown sinks</text>
+    <line x1="622" y1="345" x2="648" y2="345" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+    <text x="656" y="341" font-weight="600">SelectionModeTests (NEW) · OpenAIEngineTests (ext.)</text>
+    <text x="656" y="356" font-weight="600">EngineResolverTests (ext.) · notebook mapping</text>
+  </g>
+  <text x="20" y="412" font-size="10.5" fill="#6b7280">Manual outnumbers UI deliberately: the card is a visual/temporal surface (skeleton, growth, VoiceOver, latency) — those checks are judged by a human once per gate, not simulated per commit.</text>
+</svg>
+<div class="cap">Fig. Q1 — Distribution and home file of every test tier. 55 automated tests run serially in the existing XCTest bundle; the 15-row manual pass is the Gate-3 checklist.</div>
+</div>
+
+<div class="decision"><b>TDD order (RED-first).</b> Rows chipped <code>RED</code> below are written and run failing <em>before</em> implementation: first land skeleton declarations of the contract types in <code>SelectionTranslation.swift</code> (compile-only, logic unimplemented), then write the pure-function matrices (U-01..U-16, U-22..U-27), the routing truth table (U-28..U-31), the service routes (I-01, I-03), the coordinator race (I-09), and the panel helpers (P-01, P-02, P-06) — watch them fail, then implement to green, then refactor. Wire-level and render tests follow implementation because they assert against constructed views/requests.</div>
+
+<h4>Q-2 · Unit tests — pure functions and single seams</h4>
+<p>All rows are deterministic and network-free. New suites copy the <code>TranslationServiceTests</code> idiom: <code>@Suite(.serialized)</code>, <code>MockURLProtocol.reset()</code> paired with <code>defer</code>, isolated <code>UserDefaults</code> suites per test.</p>
+<div class="tbl">
+<table>
+  <tr><th>ID</th><th>Target · File</th><th>Case</th><th>Expected</th><th>Traces</th><th>TDD</th></tr>
+  <tr><td>U-01</td><td><code>SelectionMode.mode(for:)</code> · SelectionModeTests (NEW)</td><td>"scored" — 1 token</td><td><code>.wordPhrase</code></td><td>AC-1 · FR-3</td><td><code>RED</code></td></tr>
+  <tr><td>U-02</td><td>same</td><td>"the final goal" — 3 tokens</td><td><code>.wordPhrase</code></td><td>AC-2 · FR-3</td><td><code>RED</code></td></tr>
+  <tr><td>U-03</td><td>same</td><td>boundary: exactly 4 tokens ("kicked the winning goal")</td><td><code>.wordPhrase</code> (≤ is inclusive)</td><td>FR-3</td><td><code>RED</code></td></tr>
+  <tr><td>U-04</td><td>same</td><td>"Messi scored the final goal." — 5 tokens</td><td><code>.longSpan</code></td><td>AC-3 · FR-4</td><td><code>RED</code></td></tr>
+  <tr><td>U-05</td><td>same</td><td>"攻入" — 2 Han graphemes, no whitespace</td><td><code>.wordPhrase</code> via grapheme rule</td><td>AC-9 · FR-3</td><td><code>RED</code></td></tr>
+  <tr><td>U-06</td><td>same</td><td>boundary: exactly 8 Han graphemes ("梅西攻入了最后一")</td><td><code>.wordPhrase</code> (≤ 8 inclusive)</td><td>AC-9 · FR-3</td><td><code>RED</code></td></tr>
+  <tr><td>U-07</td><td>same</td><td>"梅西攻入了最后一球" — 9 graphemes</td><td><code>.longSpan</code></td><td>FR-4 · AC-9</td><td><code>RED</code></td></tr>
+  <tr><td>U-08</td><td>same</td><td>mixed script "iPhone 攻略" — Han present ⇒ grapheme rule; 8 non-whitespace graphemes</td><td><code>.wordPhrase</code></td><td>AC-9 (edge)</td><td><code>RED</code></td></tr>
+  <tr><td>U-09</td><td>same</td><td>Hangul "안녕하세요 세계" — Korean excluded from unspaced set ⇒ token rule, 2 tokens</td><td><code>.wordPhrase</code></td><td>FR-3 (threshold spec)</td><td><code>RED</code></td></tr>
+  <tr><td>U-10</td><td>same</td><td>multi-line span "  goal \n " — normalize first, then count</td><td>1 token ⇒ <code>.wordPhrase</code></td><td>FR-1</td><td><code>RED</code></td></tr>
+  <tr><td>U-11</td><td>same</td><td>CJK with interior space "攻入 了" — grapheme count skips whitespace</td><td>3 graphemes ⇒ <code>.wordPhrase</code></td><td>AC-9</td><td><code>RED</code></td></tr>
+  <tr><td>U-12</td><td><code>SpanNormalizer.normalize</code> · SelectionModeTests</td><td>"  Messi\n  scored " — trim + fold runs incl. newlines</td><td>"Messi scored"; idempotent (normalize ∘ normalize = normalize)</td><td>FR-1</td><td><code>RED</code></td></tr>
+  <tr><td>U-13</td><td>same</td><td>whitespace/newline-only "\n \t"</td><td>"" — empty output (fire helper refuses; service guard throws)</td><td>FR-1</td><td><code>RED</code></td></tr>
+  <tr><td>U-14</td><td><code>ContextWindow.window</code> · SelectionModeTests</td><td>context ≤ 1500 chars</td><td>returned verbatim, untruncated</td><td>FR-2</td><td><code>RED</code></td></tr>
+  <tr><td>U-15</td><td>same</td><td>context &gt; 1500 chars, span present</td><td>≤ 1500-char window containing the span's first occurrence, edges extended to whitespace</td><td>FR-2 · PRD §08</td><td><code>RED</code></td></tr>
+  <tr><td>U-16</td><td>same</td><td>span not found verbatim in context</td><td>prefix window of <code>maxChars</code>; never crashes</td><td>FR-2</td><td><code>RED</code></td></tr>
+  <tr><td>U-17</td><td><code>cardSystemPrompt(from:to:)</code> · OpenAIEngineTests (ext.)</td><td>en → zh-CN pair</td><td>prompt names both <code>aiName</code>s, lists all five JSON keys, demands exactly ONE JSON object</td><td>FR-2 · FR-3 · AC-1</td><td><code>RED</code></td></tr>
+  <tr><td>U-18</td><td>same</td><td><code>from == nil</code> (Auto capture)</td><td>lead switches to "Detect the PASSAGE's language…"</td><td>FR-2</td><td><code>RED</code></td></tr>
+  <tr><td>U-19</td><td><code>spanSystemPrompt(from:to:)</code></td><td>long-span variant</td><td>translate-ONLY-the-SPAN instruction; no JSON keys anywhere</td><td>FR-4</td><td><code>RED</code></td></tr>
+  <tr><td>U-20</td><td><code>selectionUserMessage(span:context:)</code></td><td>span + windowed context</td><td>exact "PASSAGE:\n{context}\nSPAN: {span}" layout, span pre-normalized</td><td>FR-2</td><td><code>RED</code></td></tr>
+  <tr><td>U-21</td><td>wire body via <code>MockURLProtocol</code> · OpenAIEngineTests</td><td>card-mode vs long-span request</td><td>card: <code>response_format {"type":"json_object"}</code>, model <code>gpt-4o-mini</code>, temp 0.2; long-span: no <code>response_format</code>; both PASSAGE/SPAN user message</td><td>FR-3 · FR-4</td><td>—</td></tr>
+  <tr><td>U-22</td><td><code>parseCard(_:span:)</code> · OpenAIEngineTests</td><td>strict valid JSON, model echoes a different headword</td><td>full card; <code>headword</code> forced to the caller's normalized span (echo ignored)</td><td>FR-3 · AC-1 · AC-6</td><td><code>RED</code></td></tr>
+  <tr><td>U-23</td><td>same</td><td>content wrapped in ``` fences with prose around it</td><td>lenient pass (strip fences, first <code>{</code> … last <code>}</code>) decodes</td><td>FR-3 · PRD §08 risk</td><td><code>RED</code></td></tr>
+  <tr><td>U-24</td><td>same</td><td>hygiene: empty-string fields; <code>exampleTranslation</code> without <code>example</code></td><td>empty → nil (row omitted); orphaned exampleTranslation dropped — never faked</td><td>FR-3</td><td><code>RED</code></td></tr>
+  <tr><td>U-25</td><td>same</td><td>missing or empty <code>translation</code> key</td><td>whole parse returns nil</td><td>FR-3</td><td><code>RED</code></td></tr>
+  <tr><td>U-26</td><td><code>translateSpan</code> card mode · OpenAIEngineTests</td><td>model answers in prose, no braces at all</td><td><code>.plain(content)</code> — the FR-4-shaped fallback; no throw, no second request</td><td>FR-4 · PRD §08 risk</td><td><code>RED</code></td></tr>
+  <tr><td>U-27</td><td>same</td><td>brace-like content that fails both parse passes</td><td>throws <code>.unexpectedResponse(.ai)</code> — never renders half-parsed JSON</td><td>FR-3</td><td><code>RED</code></td></tr>
+  <tr><td>U-28</td><td><code>resolveSelection(for:)</code> · EngineResolverTests (ext.)</td><td>preference .openai + key + <code>to.aiSupported</code></td><td><code>.contextual(OpenAIEngine)</code></td><td>FR-2</td><td><code>RED</code></td></tr>
+  <tr><td>U-29</td><td>same</td><td>no OpenAI key</td><td><code>.contextFree(GoogleEngine)</code></td><td>AC-4 · FR-5</td><td><code>RED</code></td></tr>
+  <tr><td>U-30</td><td>same</td><td>preference .free, key present</td><td><code>.contextFree</code> — same truth table as <code>resolve(for:)</code></td><td>FR-5</td><td><code>RED</code></td></tr>
+  <tr><td>U-31</td><td>same</td><td>target language not <code>aiSupported</code></td><td><code>.contextFree</code></td><td>FR-5</td><td><code>RED</code></td></tr>
+  <tr><td>U-32</td><td>card save → <code>VocabItem</code> · CaptureCoordinatorSaveTests (ext.)</td><td>hooks.save("scored", "攻入（进球）", .ai) with threaded codes, in-memory <code>NotebookStore</code></td><td>one row: <code>sourceText</code>="scored", <code>translation</code>="攻入（进球）", srcLang/tgtLang = captured codes, <code>engine</code>="ai" — no new fields touched</td><td>FR-7 · AC-6</td><td><code>RED</code></td></tr>
+  <tr><td>U-33</td><td>same</td><td>degraded-variant save (<code>servedBy == .free</code>)</td><td>row records <code>engine</code>="free" — notebook badge stays honest</td><td>FR-5 · FR-7</td><td><code>RED</code></td></tr>
+</table>
+</div>
+<p class="cap">Table Q1 — 33 unit rows. U-01..U-16 land in the new <code>macos/Tests/SelectionModeTests.swift</code>; U-17..U-27 extend <code>OpenAIEngineTests.swift</code>; U-28..U-31 extend <code>EngineResolverTests.swift</code>; U-32..U-33 extend <code>CaptureCoordinatorSaveTests.swift</code>. U-01..U-11 are the parameterized threshold matrix (<code>@Test(arguments:)</code>) lifted from the threshold matrix in §03·3.</p>
+
+<h4>Q-3 · Integration tests — service orchestration, coordinator race, panel sinks</h4>
+<div class="fig">
+<svg viewBox="0 0 1180 470" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="12">
+  <defs><marker id="qar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5361"/></marker></defs>
+  <text x="20" y="26" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">TEST FILES → SEAMS THEY GRAB</text>
+  <g font-size="12">
+    <rect x="20" y="46" width="340" height="56" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="34" y="69" font-weight="700" fill="#0d9488">SelectionModeTests.swift — NEW</text>
+    <text x="34" y="88" fill="#0f766e" font-size="10.5">16 unit · threshold matrix · normalizer · window</text>
+    <rect x="20" y="122" width="340" height="56" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="34" y="145" font-weight="700" fill="#0d9488">SelectionServiceTests.swift — NEW</text>
+    <text x="34" y="164" fill="#0f766e" font-size="10.5">8 integration · routes · timeout · cancellation</text>
+    <rect x="20" y="198" width="340" height="56" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="34" y="221" font-weight="700">OpenAIEngineTests.swift — extended</text>
+    <text x="34" y="240" fill="#4a5361" font-size="10.5">11 unit · prompts · wire body · parseCard ladder</text>
+    <rect x="20" y="274" width="340" height="56" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="34" y="297" font-weight="700">CaptureCoordinatorSaveTests.swift — extended</text>
+    <text x="34" y="316" fill="#4a5361" font-size="10.5">2 unit + 4 integration · race · staleness · save payload</text>
+    <rect x="20" y="350" width="340" height="56" rx="9" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="34" y="373" font-weight="700">ResultPanelHeaderTests.swift — extended</text>
+    <text x="34" y="392" fill="#4a5361" font-size="10.5">2 integration + 8 UI · states · growth · ⌘S · whitelist</text>
+  </g>
+  <g font-size="12">
+    <rect x="700" y="46" width="460" height="56" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="714" y="69" font-weight="700" fill="#4338ca">Pure functions — no seam needed</text>
+    <text x="714" y="88" fill="#4a5361" font-size="10.5">SelectionMode · SpanNormalizer · ContextWindow · parseCard · prompt builders</text>
+    <rect x="700" y="122" width="460" height="56" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="714" y="145" font-weight="700" fill="#4338ca">TranslationService testable seams</text>
+    <text x="714" y="164" fill="#4a5361" font-size="10.5">init(resolveSelection:) override · translateSelection(…, timeout:) overload</text>
+    <rect x="700" y="198" width="460" height="56" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="714" y="221" font-weight="700" fill="#4338ca">MockURLProtocol (existing)</text>
+    <text x="714" y="240" fill="#4a5361" font-size="10.5">exact OpenAI request bodies · canned card JSON · Google degraded bodies</text>
+    <rect x="700" y="274" width="460" height="56" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="714" y="297" font-weight="700" fill="#4338ca">Protocol doubles (existing pattern)</text>
+    <text x="714" y="316" fill="#4a5361" font-size="10.5">GatedService · StubTranslating (+1 method) · SpyResultPanel (+selection: param)</text>
+    <rect x="700" y="350" width="460" height="56" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="714" y="373" font-weight="700" fill="#4338ca">Panel seams (frontend §F-9)</text>
+    <text x="714" y="392" fill="#4a5361" font-size="10.5">shouldFireSelection / shouldClearSelection (static) · State render seam · dismissSelectionCard()</text>
+  </g>
+  <g stroke="#4a5361" stroke-width="1.5" fill="none">
+    <line x1="360" y1="74" x2="694" y2="74" marker-end="url(#qar2)"/>
+    <line x1="360" y1="150" x2="694" y2="150" marker-end="url(#qar2)"/>
+    <path d="M 360 160 Q 560 190 694 216" marker-end="url(#qar2)"/>
+    <line x1="360" y1="226" x2="694" y2="226" marker-end="url(#qar2)"/>
+    <path d="M 360 216 Q 560 160 694 92" marker-end="url(#qar2)"/>
+    <line x1="360" y1="302" x2="694" y2="302" marker-end="url(#qar2)"/>
+    <line x1="360" y1="378" x2="694" y2="378" marker-end="url(#qar2)"/>
+  </g>
+  <text x="20" y="442" font-size="10.5" fill="#6b7280">Every arrow is an existing pattern: no new mocking infrastructure is invented for this feature. The two protocol doubles change by one mechanical conformance line each.</text>
+</svg>
+<div class="cap">Fig. Q2 — Coverage map: which test file exercises which seam. All seams come from the backend/frontend contract tables — QA adds zero new production surface.</div>
+</div>
+
+<div class="tbl">
+<table>
+  <tr><th>ID</th><th>Home file</th><th>Case</th><th>Expected</th><th>Traces</th><th>TDD</th></tr>
+  <tr><td>I-01</td><td>SelectionServiceTests (NEW)</td><td>contextual route: injected <code>resolveSelection</code> returns a scripted <code>SelectionSpanTranslating</code> stub yielding <code>.card</code></td><td><code>SelectionResult(output:.card, servedBy:.ai, contextUsed:true)</code>; stub received <code>mode == .wordPhrase</code></td><td>FR-2 · FR-3 · AC-1</td><td><code>RED</code></td></tr>
+  <tr><td>I-02</td><td>SelectionServiceTests</td><td>5-token span through the same stub</td><td>stub receives <code>mode == .longSpan</code>; <code>.plain</code> round-trips — mode decided in the service, once</td><td>FR-4 · AC-3</td><td>—</td></tr>
+  <tr><td>I-03</td><td>SelectionServiceTests</td><td>degraded route: <code>.contextFree(GoogleEngine)</code> over <code>MockURLProtocol</code> canned Google body</td><td><code>.plain</code>, <code>servedBy == .free</code>, <code>contextUsed == false</code>; the Google request carries the span only — no context leaks into the URL</td><td>AC-4 · FR-5</td><td><code>RED</code></td></tr>
+  <tr><td>I-04</td><td>SelectionServiceTests</td><td>context &gt; 1500 chars; spy engine records its <code>context</code> argument</td><td>engine sees the windowed ≤ 1500-char slice containing the span, not the full text</td><td>FR-2 · PRD §08</td><td>—</td></tr>
+  <tr><td>I-05</td><td>SelectionServiceTests</td><td>contextual stub throws <code>.network</code>; <code>MockURLProtocol</code> watching for any Google traffic</td><td>error rethrows to the caller; <b>zero</b> Google requests — no runtime AI→Google fallback for selections (backend deviation 2)</td><td>FR-5 (boundary) · AC-5</td><td>—</td></tr>
+  <tr><td>I-06</td><td>SelectionServiceTests</td><td>hung stub (never returns) + internal overload <code>translateSelection(…, timeout: .milliseconds(50))</code></td><td>throws <code>TranslationError.timedOut</code> within the test budget — no 8 s wait</td><td>FR-1 · DESIGN §05</td><td>—</td></tr>
+  <tr><td>I-07</td><td>SelectionServiceTests</td><td>cancel the wrapping <code>Task</code> mid-flight</td><td><code>CancellationError</code> rethrown as-is — never wrapped into <code>.network</code>/<code>.timedOut</code> (the coordinator's ability to map <code>.superseded</code> depends on this)</td><td>AC-7</td><td>—</td></tr>
+  <tr><td>I-08</td><td>SelectionServiceTests</td><td>span that normalizes to "" (whitespace/newlines)</td><td>throws <code>.emptyInput</code>; no engine call issued (defensive — UI already guards)</td><td>FR-1</td><td>—</td></tr>
+  <tr><td>I-09</td><td>CaptureCoordinatorSaveTests (ext.)</td><td>AC-7 race: gated stub holds request A ("scored"); B ("final goal") fired and completes; then the gate opens and A returns late — see Fig. Q3</td><td>B → <code>.success</code>; A → <code>.superseded</code>; <code>SpyResultPanel</code> never saw an A render</td><td>AC-7 · FR-1</td><td><code>RED</code></td></tr>
+  <tr><td>I-10</td><td>CaptureCoordinatorSaveTests</td><td>cross-token staleness: <code>runTranslation</code> (new capture) bumps the main generation while a selection lookup is in flight</td><td>selection returns <code>.superseded</code> — a stale card can never ride over new content</td><td>AC-5 · FR-6</td><td>—</td></tr>
+  <tr><td>I-11</td><td>CaptureCoordinatorSaveTests</td><td>outcome mapping: stub throws (a) <code>CancellationError</code>, (b) <code>.timedOut</code></td><td>(a) → <code>.superseded</code>; (b) → <code>.failure(.timedOut)</code> — taxonomy preserved for the panel</td><td>AC-7 · FR-6</td><td>—</td></tr>
+  <tr><td>I-12</td><td>CaptureCoordinatorSaveTests</td><td>hooks wiring: <code>present(result:source:pair:)</code> with <code>StubTranslating</code> recording <code>translateSelection</code> arguments</td><td>hook passes span verbatim, context == the capture's recognized text, pair == pinned From (explicit → detected → Auto) + <code>effectiveTo</code></td><td>FR-2 · FR-7</td><td>—</td></tr>
+  <tr><td>I-13</td><td>ResultPanelHeaderTests (ext.)</td><td>teardown sinks: with a card mounted and a lookup in flight, call <code>dropResultBody</code> / <code>setRetranslating</code> / <code>updateResult</code> in turn</td><td>each dismisses the card and cancels the settle/request task before content changes — covers retranslate-dismisses-card and new-capture-dismisses-card</td><td>AC-5 · FR-6</td><td><code>RED</code></td></tr>
+  <tr><td>I-14</td><td>ResultPanelHeaderTests</td><td>scripted <code>SelectionHooks.translate</code> returns <code>.failure(.timedOut)</code>; then "Try again" is activated</td><td>panel renders the quiet error row (no dialog); retry invokes <code>translate</code> exactly once more with the same span</td><td>FR-1 · FR-6 · DESIGN §03</td><td>—</td></tr>
+</table>
+</div>
+<p class="cap">Table Q2 — 14 integration rows. <code>SelectionServiceTests.swift</code> is a new file; the rest extend existing suites in place, matching the SummarizeTests/PhoneticTests precedent of feature-scoped files beside surface-scoped ones.</p>
+
+<div class="fig">
+<svg viewBox="0 0 1020 470" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <defs><marker id="qar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#374151"/></marker>
+  <marker id="qarw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#b45309"/></marker></defs>
+  <g font-weight="700" font-size="12" text-anchor="middle">
+    <rect x="40" y="16" width="150" height="30" rx="8" fill="#111418"/><text x="115" y="36" fill="#fff">Test body (I-09)</text>
+    <rect x="380" y="16" width="190" height="30" rx="8" fill="#fff" stroke="#111418" stroke-width="1.5"/><text x="475" y="36">CaptureCoordinator</text>
+    <rect x="740" y="16" width="200" height="30" rx="8" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/><text x="840" y="36" fill="#4338ca">GatedService (stub)</text>
+  </g>
+  <g stroke="#c9c9c9" stroke-dasharray="4 4"><line x1="115" y1="46" x2="115" y2="450"/><line x1="475" y1="46" x2="475" y2="450"/><line x1="840" y1="46" x2="840" y2="450"/></g>
+  <g fill="#374151">
+    <line x1="115" y1="80" x2="471" y2="80" stroke="#374151" stroke-width="1.5" marker-end="url(#qar3)"/><text x="128" y="74">async let a = translateSelectionLatest("scored", …)</text>
+    <rect x="380" y="94" width="190" height="22" rx="6" fill="#eef2ff"/><text x="475" y="109" text-anchor="middle" fill="#4338ca" font-weight="600">selectionGeneration := 1</text>
+    <line x1="475" y1="136" x2="836" y2="136" stroke="#374151" stroke-width="1.5" marker-end="url(#qar3)"/><text x="490" y="130">translateSelection(A) — gate CLOSED, suspends</text>
+    <line x1="115" y1="172" x2="471" y2="172" stroke="#374151" stroke-width="1.5" marker-end="url(#qar3)"/><text x="128" y="166">let b = await translateSelectionLatest("final goal", …)</text>
+    <rect x="380" y="186" width="190" height="22" rx="6" fill="#eef2ff"/><text x="475" y="201" text-anchor="middle" fill="#4338ca" font-weight="600">selectionGeneration := 2</text>
+    <line x1="475" y1="228" x2="836" y2="228" stroke="#374151" stroke-width="1.5" marker-end="url(#qar3)"/><text x="490" y="222">translateSelection(B) — gate open for B, returns fast</text>
+    <line x1="840" y1="256" x2="479" y2="256" stroke="#0d9488" stroke-width="1.5" marker-end="url(#qar3)"/><text x="490" y="250" fill="#0f766e">B result</text>
+    <line x1="475" y1="284" x2="119" y2="284" stroke="#0d9488" stroke-width="1.5" marker-end="url(#qar3)"/><text x="128" y="278" fill="#0f766e">#expect(b == .success(B)) — tokens 2 == 2</text>
+    <line x1="115" y1="322" x2="836" y2="322" stroke="#374151" stroke-width="1.5" marker-end="url(#qar3)"/><text x="128" y="316">open the gate (resume A's continuation)</text>
+    <line x1="840" y1="352" x2="479" y2="352" stroke="#b45309" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#qarw)"/><text x="490" y="346" fill="#b45309">A result — late</text>
+    <rect x="352" y="366" width="246" height="22" rx="6" fill="#fffbeb"/><text x="475" y="381" text-anchor="middle" fill="#b45309" font-weight="600">captured token 1 ≠ 2 → .superseded</text>
+    <line x1="475" y1="412" x2="119" y2="412" stroke="#374151" stroke-width="1.5" marker-end="url(#qar3)"/><text x="128" y="406">#expect(await a == .superseded)</text>
+    <text x="128" y="440" fill="#6b7280">#expect(SpyResultPanel saw no A render) — deterministic, no sleeps, no clock</text>
+  </g>
+</svg>
+<div class="cap">Fig. Q3 — The AC-7 race harness: the existing GatedService continuation-gating pattern makes "A then B, A returns late" fully deterministic — the test controls exactly when the stale response lands.</div>
+</div>
+
+<h4>Q-4 · UI-level tests — headless AppKit in the existing bundle</h4>
+<p>The panel is a plain <code>NSPanel</code> constructed directly in tests today (<code>CaptureCoordinatorSaveTests</code> builds <code>ResultPanel()</code>), so these run headless in the non-parallel bundle — no XCUITest, no window server dependence. Render assertions drive <code>SelectionCardView.render(_:span:)</code> and inspect the view tree, mirroring how <code>headerLabels</code> already inspects header chips.</p>
+<div class="tbl">
+<table>
+  <tr><th>ID</th><th>Case</th><th>Expected</th><th>Traces</th><th>TDD</th></tr>
+  <tr><td>P-01</td><td><code>shouldClearSelection(forHit:)</code> with a hit inside a <code>SelectionCardView</code> subtree; plus the existing matrix (text view → keep, scroller → keep, chrome/nil → clear)</td><td>card descendants → <code>false</code> (selection + card survive); all pre-existing expectations byte-identical</td><td>AC-5 · FR-6</td><td><code>RED</code></td></tr>
+  <tr><td>P-02</td><td><code>shouldFireSelection(normalizedSpan:lastFired:slotVisible:)</code> matrix: empty span · identical span with slot visible · identical span after dismissal · new span</td><td>empty → never; identical + visible → no re-fire (dedupe); identical + hidden → fire (card was dismissed); new → fire</td><td>FR-1</td><td><code>RED</code></td></tr>
+  <tr><td>P-03</td><td>render all five <code>State</code>s headless: <code>.loading(mode:)</code>, <code>.dictionary</code> (with nil POS/sense/example), <code>.plain(degraded:false)</code>, <code>.plain(degraded:true)</code>, <code>.error</code></td><td>dictionary omits nil rows entirely (not blank rows); plain has no dictionary rows; degraded shows dashed border + "Context-free · Google" chip + one-line note; error row contains "Try again"</td><td>AC-1/2/3/4 · FR-3/4/5</td><td>—</td></tr>
+  <tr><td>P-04</td><td><code>fittingHeight(for:state:span:width:)</code> with pathological content (2000-char translation, 500-char span)</td><td>never exceeds the 200 pt cap; <code>.loading(.wordPhrase)</code> reserves more height than <code>.loading(.longSpan)</code> (skeleton pre-sizing)</td><td>FR-3 · FR-4 · DESIGN §02</td><td>—</td></tr>
+  <tr><td>P-05</td><td>mount a card into a shown panel; then dismiss</td><td>window grows downward only — top edge y unchanged, height delta ≤ 200 pt; dismissal restores the exact original frame</td><td>AC-5 · FR-6 · DESIGN §02</td><td>—</td></tr>
+  <tr><td>P-06</td><td>⌘S routing: render <code>.dictionary</code> → inspect key equivalents; repeat for <code>.loading</code>/<code>.error</code>; then <code>dismissSelectionCard()</code></td><td>content states move the <code>⌘S</code> key equivalent to the card's Save control; loading/error leave it on the header; dismissal reverts it — one shortcut, never two active targets</td><td>AC-6 · FR-7</td><td><code>RED</code></td></tr>
+  <tr><td>P-07</td><td>stale UI render: bump <code>selectionUIGeneration</code> after a lookup starts, then deliver its outcome via the render seam</td><td>outcome discarded — same seam-driven pattern as <code>renderPhoneticForTests</code></td><td>AC-7</td><td>—</td></tr>
+  <tr><td>P-08</td><td>build the result body via <code>showResult(…, selection: nil)</code> (every pre-existing call site's shape)</td><td>no <code>SelectionCardView</code> anywhere in the view hierarchy; no delegate side effects — construction identical to v1.2.10</td><td>AC-8 · FR-8</td><td>—</td></tr>
+</table>
+</div>
+<p class="cap">Table Q3 — 8 UI rows, all in <code>ResultPanelHeaderTests.swift</code>. What headless AppKit cannot judge — shimmer motion, 180 ms grow feel, VoiceOver announcement order, real drag gestures — is explicitly delegated to the manual checklist below, not faked with brittle markup assertions.</p>
+
+<h4>Q-5 · Manual E2E checklist — 1 : 1 with AC-1..9</h4>
+<div class="decision"><b>Environment.</b> Release-config build of <code>feat/contextual-selection</code> on macOS 14+; one real OpenAI BYOK key; two test captures rendered on screen: EN subtitle "Messi scored the final goal." and zh sentence "梅西攻入了最后一球。". Network Link Conditioner installed for M-07/M-13/M-14. Run the full list at Gate 3 and re-run after every substantial fix round.</div>
+<div class="tbl">
+<table>
+  <tr><th>ID</th><th>Traces</th><th>Steps</th><th>Expected</th></tr>
+  <tr><td>M-01</td><td>AC-1</td><td>OpenAI key set. ⌃⌥Y-capture the EN subtitle; wait for the whole-text result; drag-select exactly "scored" in the Recognized pane; release</td><td>skeleton within ~300 ms of settling; card ≤ ~3 s with a football-sense translation (攻入 / 进（球）class — <b>not</b> a generic sense list), POS "verb", one in-context sense line, one example pair, "In context · AI" chip</td></tr>
+  <tr><td>M-02</td><td>AC-2</td><td>same capture; select "the final goal"</td><td>dictionary card (3 tokens ≤ 4) with the contextual phrase translation (制胜一球 / 最后一球 class)</td></tr>
+  <tr><td>M-03</td><td>AC-3</td><td>same capture; select the entire sentence</td><td>long-span plain block: contextual translation only — no POS chip, no sense line, no example rows</td></tr>
+  <tr><td>M-04</td><td>AC-4</td><td>remove the OpenAI key (Google-only); recapture; select "scored"</td><td>plain translation with dashed border, "Context-free · Google" chip and the subtle add-a-key note; no error, no dialog</td></tr>
+  <tr><td>M-05</td><td>AC-5</td><td>with a card visible, exercise each dismissal: (a) Esc, (b) click panel chrome outside text views/card, (c) click the ✕, (d) change the target language, (e) start a new capture</td><td>every path dismisses the card and shrinks the panel back; after (d)/(e) the new content never shows a stale card, even briefly</td></tr>
+  <tr><td>M-06</td><td>AC-6</td><td>card active → press ⌘S; open the Notebook; then dismiss the card and press ⌘S again</td><td>first save: span as source, card translation as translation, AI engine badge, sync/export unchanged; second save: the whole capture (routing reverted)</td></tr>
+  <tr><td>M-07</td><td>AC-7</td><td>Network Link Conditioner "3G": select "scored", then immediately drag "final goal" before the first card lands</td><td>exactly one card renders — "final goal"; no flash or replacement by the stale "scored" result</td></tr>
+  <tr><td>M-08</td><td>AC-8</td><td>never make a selection: run the full existing manual flow — capture, whole-text translate, retranslate via language bar, both speakers, IPA line, Save, notebook history</td><td>behavior indistinguishable from v1.2.10; plus the automated regression gate (Q-7) green</td></tr>
+  <tr><td>M-09</td><td>AC-9</td><td>capture the zh sentence (zh→EN); drag-select "攻入" mid-sentence (no surrounding spaces)</td><td>card for exactly the selected characters — EN translation ("scored / to score (a goal)" class); absent POS/example rows are omitted, never faked; boundaries follow the selection, not a tokenizer</td></tr>
+  <tr><td>M-10</td><td>FR-3/4 · DESIGN §05</td><td>System Settings → Accessibility → Reduce Motion ON; repeat M-01 and M-05(a)</td><td>no shimmer (static bars), growth and dismissal instant; content identical</td></tr>
+  <tr><td>M-11</td><td>FR-3 · DESIGN §06</td><td>VoiceOver on; repeat M-01; cursor into the card</td><td>one "Contextual translation" group; reading order span → chip → translation → POS → sense → example → Save → dismiss; render announcement "scored — 攻入（进球）, verb"; skeleton bars never read</td></tr>
+  <tr><td>M-12</td><td>FR-1 · DESIGN §06</td><td>drag the panel to the bottom edge of the screen; select a word</td><td>panel shifts up by the shortfall before growing; the card is never clipped offscreen</td></tr>
+  <tr><td>M-13</td><td>FR-2 · PRD §08</td><td>normal network; time M-01 and M-02 from mouse-up to card, 3 runs each</td><td>typical ≤ ~3 s (PRD acceptance target); skeleton visible the whole wait — no dead panel</td></tr>
+  <tr><td>M-14</td><td>FR-1 · DESIGN §03</td><td>Conditioner "100% loss" after capture; select "scored"; wait; restore network; click "Try again"</td><td>quiet inline error row at ~8 s (no dialog); retry succeeds and renders the card</td></tr>
+  <tr><td>M-15</td><td>FR-1 · DESIGN §06</td><td>click into the Recognized pane, use ⇧← / ⇧→ to extend a selection over a word; stop typing</td><td>same settle-then-fire behavior as a mouse selection — card appears after the 300 ms quiet window</td></tr>
+</table>
+</div>
+<p class="cap">Table Q4 — 15 manual rows: M-01..M-09 map 1 : 1 to AC-1..AC-9; M-10..M-15 cover the design-bound behaviors headless tests cannot judge (motion, VoiceOver, screen geometry, real latency, real timeout, keyboard selection).</p>
+
+<h4>Q-6 · Traceability — every requirement, every tier</h4>
+<div class="tbl">
+<table>
+  <tr><th>Req</th><th>Unit</th><th>Integration</th><th>UI</th><th>Manual</th></tr>
+  <tr><td>AC-1</td><td>U-01, U-17, U-21, U-22</td><td>I-01</td><td>P-03</td><td>M-01</td></tr>
+  <tr><td>AC-2</td><td>U-02</td><td>I-01</td><td>P-03</td><td>M-02</td></tr>
+  <tr><td>AC-3</td><td>U-04</td><td>I-02</td><td>P-03</td><td>M-03</td></tr>
+  <tr><td>AC-4</td><td>U-29, U-33</td><td>I-03</td><td>P-03</td><td>M-04</td></tr>
+  <tr><td>AC-5</td><td>—</td><td>I-05, I-10, I-13</td><td>P-01, P-05</td><td>M-05</td></tr>
+  <tr><td>AC-6</td><td>U-22, U-32</td><td>I-12</td><td>P-06</td><td>M-06</td></tr>
+  <tr><td>AC-7</td><td>—</td><td>I-07, I-09, I-11</td><td>P-07</td><td>M-07</td></tr>
+  <tr><td>AC-8</td><td>—</td><td>—</td><td>P-08</td><td>M-08 + regression gate (Q-7)</td></tr>
+  <tr><td>AC-9</td><td>U-05, U-06, U-07, U-08, U-11</td><td>—</td><td>—</td><td>M-09</td></tr>
+  <tr><td>FR-1 debounce/single-flight</td><td>U-09, U-10, U-12, U-13</td><td>I-06, I-08, I-14</td><td>P-02</td><td>M-12, M-14, M-15</td></tr>
+  <tr><td>FR-2 context prompt</td><td>U-14..U-21, U-28</td><td>I-01, I-04, I-12</td><td>—</td><td>M-01, M-13</td></tr>
+  <tr><td>FR-3 dictionary card</td><td>U-01..U-03, U-05, U-06, U-08, U-22..U-25, U-27</td><td>I-01</td><td>P-03, P-04</td><td>M-01, M-09, M-10, M-11</td></tr>
+  <tr><td>FR-4 long-span</td><td>U-04, U-07, U-19, U-26</td><td>I-02</td><td>P-03, P-04</td><td>M-03</td></tr>
+  <tr><td>FR-5 degraded</td><td>U-29..U-31, U-33</td><td>I-03, I-05</td><td>P-03</td><td>M-04</td></tr>
+  <tr><td>FR-6 dismissal lifecycle</td><td>—</td><td>I-10, I-11, I-13, I-14</td><td>P-01, P-05</td><td>M-05</td></tr>
+  <tr><td>FR-7 notebook save</td><td>U-32, U-33</td><td>I-12</td><td>P-06</td><td>M-06</td></tr>
+  <tr><td>FR-8 zero regression</td><td>—</td><td>—</td><td>P-08</td><td>M-08 + full suite (Q-7)</td></tr>
+</table>
+</div>
+<p class="cap">Table Q5 — Traceability matrix. No requirement rests on a single tier except AC-9, whose runtime behavior is selection-driven (the automated half lives entirely in the pure threshold matrix — exactly where the CJK logic is).</p>
+
+<h4>Q-7 · Regression gate — the existing suite is the eighth requirement</h4>
+<div class="fig">
+<svg viewBox="0 0 1140 200" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11.5">
+  <defs><marker id="qar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5361"/></marker></defs>
+  <g text-anchor="middle">
+    <rect x="20" y="40" width="180" height="64" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="110" y="66" font-weight="600">xcodegen generate</text>
+    <text x="110" y="86" fill="#4a5361" font-size="10.5">globs pick up the 3 new files</text>
+    <rect x="240" y="40" width="180" height="64" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="330" y="66" font-weight="600">build</text>
+    <text x="330" y="86" fill="#4a5361" font-size="10.5">strict concurrency clean</text>
+    <rect x="460" y="40" width="200" height="64" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="560" y="66" font-weight="600">existing 34 test files</text>
+    <text x="560" y="86" fill="#4a5361" font-size="10.5">serial, unmodified expectations</text>
+    <rect x="700" y="40" width="200" height="64" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+    <text x="800" y="66" font-weight="700" fill="#0d9488">new selection suites</text>
+    <text x="800" y="86" fill="#0f766e" font-size="10.5">55 tests, Tables Q1–Q3</text>
+    <rect x="940" y="40" width="180" height="64" rx="10" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/>
+    <text x="1030" y="66" font-weight="700" fill="#4338ca">GATE</text>
+    <text x="1030" y="86" fill="#4338ca" font-size="10.5">0 failures · 0 new skips · run ×2</text>
+  </g>
+  <g stroke="#4a5361" stroke-width="1.5">
+    <line x1="200" y1="72" x2="234" y2="72" marker-end="url(#qar4)"/>
+    <line x1="420" y1="72" x2="454" y2="72" marker-end="url(#qar4)"/>
+    <line x1="660" y1="72" x2="694" y2="72" marker-end="url(#qar4)"/>
+    <line x1="900" y1="72" x2="934" y2="72" marker-end="url(#qar4)"/>
+  </g>
+  <text x="20" y="140" font-size="10.5" fill="#6b7280">The double run guards against ordering flakiness in the serialized bundle. Pre-existing test source may change ONLY in the compile-mechanical ways listed below —</text>
+  <text x="20" y="156" font-size="10.5" fill="#6b7280">never an expectation edit. Any existing #expect that needs changing is treated as a regression in the implementation, not in the test.</text>
+</svg>
+<div class="cap">Fig. Q4 — The gate pipeline. FR-8/AC-8 is not a test of its own — it is the entire pre-existing suite running green with unmodified expectations, twice.</div>
+</div>
+<div class="tbl">
+<table>
+  <tr><th>Existing file at risk</th><th>Why</th><th>Allowed change</th></tr>
+  <tr><td>TranslationServiceTests.swift</td><td><code>protocol Translating</code> gains <code>translateSelection</code>; the service must conform without disturbing detect → guard → resolve → fallback</td><td>none — must compile and pass untouched (the service's real conformance satisfies the protocol)</td></tr>
+  <tr><td>CaptureCoordinatorSaveTests.swift</td><td><code>StubTranslating</code> / <code>GatedService</code> need the new protocol method; <code>SpyResultPanel</code> gains the <code>selection:</code> parameter</td><td>one-line mechanical conformances only; every existing <code>#expect</code> unchanged</td></tr>
+  <tr><td>ResultPanelHeaderTests.swift</td><td><code>shouldClearSelection</code> ancestry walk gains the card check</td><td>existing hit-test expectations must hold verbatim (P-01 asserts both old and new rows)</td></tr>
+  <tr><td>OpenAIEngineTests.swift</td><td><code>makeChatRequest</code> gains an optional <code>responseFormat</code> parameter</td><td>none — default nil must leave existing request bodies byte-identical</td></tr>
+  <tr><td>EngineResolverTests.swift</td><td>resolver gains <code>resolveSelection(for:)</code></td><td>none — <code>resolve(for:)</code> truth table untouched</td></tr>
+  <tr><td>NotebookStoreTests.swift · NotebookSyncBridgeTests.swift</td><td>FR-7 rides the existing save path; these prove the no-schema-change claim</td><td>none</td></tr>
+  <tr><td>SummarizeTests.swift · PhoneticTests.swift · SpeechServiceTests.swift</td><td>share <code>OpenAIEngine</code> transport / panel seams — the frozen surface of FR-8</td><td>none</td></tr>
+</table>
+</div>
+<p class="cap">Table Q6 — Compile-risk concentration. Everything else in the 34-file suite is expected to be untouched by the diff entirely; any unexpected compile error outside this table is an immediate design-drift signal to raise before proceeding.</p>
+
+</section>
+
+<h2><span class="n">05</span> Build &amp; delivery plan — Step 6 slices</h2>
+<p>Nine slices, each small, independently testable, and ending in its own commit on <code>feat/contextual-selection</code>. The pure contract types land first with <em>no</em> protocol change, so nothing existing can break until slice S4 lands the <code>Translating</code> requirement together with its mechanical stub conformances. The frontend lane starts as soon as S1's types compile.</p>
+<div class="fig">
+<svg viewBox="0 0 1100 250" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11">
+  <defs>
+    <marker id="sl-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5361"/></marker>
+    <marker id="sl-d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#9ca3af"/></marker>
+  </defs>
+  <text x="20" y="26" font-size="11.5" font-weight="700" fill="#4338ca" letter-spacing="2">BACKEND WORKER</text>
+  <g>
+    <rect x="20" y="40" width="150" height="56" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="95" y="62" text-anchor="middle" font-weight="700" fill="#4338ca">S1 · contract types</text>
+    <text x="95" y="80" text-anchor="middle" fill="#4a5361" font-family="ui-monospace,Menlo,monospace" font-size="9.5">U-01..16</text>
+    <rect x="190" y="40" width="150" height="56" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="265" y="62" text-anchor="middle" font-weight="700" fill="#4338ca">S2 · resolver route</text>
+    <text x="265" y="80" text-anchor="middle" fill="#4a5361" font-family="ui-monospace,Menlo,monospace" font-size="9.5">U-28..31</text>
+    <rect x="360" y="40" width="150" height="56" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="435" y="62" text-anchor="middle" font-weight="700" fill="#4338ca">S3 · OpenAI variant</text>
+    <text x="435" y="80" text-anchor="middle" fill="#4a5361" font-family="ui-monospace,Menlo,monospace" font-size="9.5">U-17..27</text>
+    <rect x="530" y="40" width="150" height="56" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="605" y="62" text-anchor="middle" font-weight="700" fill="#4338ca">S4 · service + seam</text>
+    <text x="605" y="80" text-anchor="middle" fill="#4a5361" font-family="ui-monospace,Menlo,monospace" font-size="9.5">I-01..08 + suite</text>
+  </g>
+  <text x="20" y="126" font-size="11.5" font-weight="700" fill="#0d9488" letter-spacing="2">FRONTEND WORKER</text>
+  <g>
+    <rect x="190" y="136" width="150" height="56" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="265" y="158" text-anchor="middle" font-weight="700" fill="#0d9488">S5 · card view</text>
+    <text x="265" y="176" text-anchor="middle" fill="#0f766e" font-family="ui-monospace,Menlo,monospace" font-size="9.5">P-03 · P-04</text>
+    <rect x="360" y="136" width="150" height="56" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="435" y="158" text-anchor="middle" font-weight="700" fill="#0d9488">S6 · panel lifecycle</text>
+    <text x="435" y="176" text-anchor="middle" fill="#0f766e" font-family="ui-monospace,Menlo,monospace" font-size="9.5">P-01/02/05/07/08 · I-13</text>
+    <rect x="530" y="136" width="150" height="56" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="605" y="158" text-anchor="middle" font-weight="700" fill="#0d9488">S7 · coordinator</text>
+    <text x="605" y="176" text-anchor="middle" fill="#0f766e" font-family="ui-monospace,Menlo,monospace" font-size="9.5">I-09..12 · U-32/33</text>
+    <rect x="700" y="136" width="150" height="56" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="775" y="158" text-anchor="middle" font-weight="700" fill="#0d9488">S8 · ⌘S + retry</text>
+    <text x="775" y="176" text-anchor="middle" fill="#0f766e" font-family="ui-monospace,Menlo,monospace" font-size="9.5">P-06 · I-14</text>
+  </g>
+  <rect x="890" y="88" width="180" height="56" rx="9" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <text x="980" y="110" text-anchor="middle" font-weight="700" fill="#b45309">S9 · regression gate ×2</text>
+  <text x="980" y="128" text-anchor="middle" fill="#92610a" font-family="ui-monospace,Menlo,monospace" font-size="9.5">+ manual M-01..15</text>
+  <g stroke="#4a5361" stroke-width="1.5" fill="none">
+    <line x1="170" y1="68" x2="184" y2="68" marker-end="url(#sl-a)"/>
+    <line x1="340" y1="68" x2="354" y2="68" marker-end="url(#sl-a)"/>
+    <line x1="510" y1="68" x2="524" y2="68" marker-end="url(#sl-a)"/>
+    <path d="M 680 68 C 780 68 810 96 884 106" marker-end="url(#sl-a)"/>
+    <path d="M 95 96 C 95 150 130 164 184 164" marker-end="url(#sl-a)"/>
+    <line x1="340" y1="164" x2="354" y2="164" marker-end="url(#sl-a)"/>
+    <line x1="510" y1="164" x2="524" y2="164" marker-end="url(#sl-a)"/>
+    <line x1="680" y1="164" x2="694" y2="164" marker-end="url(#sl-a)"/>
+    <path d="M 850 164 C 866 164 870 140 884 132" marker-end="url(#sl-a)"/>
+  </g>
+  <path d="M 605 96 L 605 130" stroke="#9ca3af" stroke-width="1.3" stroke-dasharray="4 3" fill="none" marker-end="url(#sl-d)"/>
+  <text x="614" y="118" fill="#6b7280" font-size="9.5">S7 needs S4's seam</text>
+  <text x="20" y="232" fill="#6b7280" font-size="10.5">S5–S6 run in parallel with S2–S4 once S1's types compile · every box = one reviewed commit with its gating tests green · full existing suite green at every slice.</text>
+</svg>
+<div class="cap">Fig. D1 — Delivery rail: two worker lanes converging on the regression gate. The dashed edge is the only cross-lane dependency.</div>
+</div>
+
+<div class="tbl">
+<table>
+  <tr><th>Slice</th><th>Owner</th><th>Scope (files · work)</th><th>Tests that gate the commit</th></tr>
+  <tr><td>S1</td><td>Backend Worker</td><td><code>SelectionTranslation.swift</code> (NEW): <code>DictionaryCard</code> / <code>SelectionOutput</code> / <code>SelectionResult</code> / <code>SelectionMode</code> / <code>SelectionPolicy</code> / <code>SpanNormalizer</code> / <code>ContextWindow</code> / <code>SelectionRoute</code> / <code>SelectionSpanTranslating</code> / <code>withDeadline</code>; re-run <code>xcodegen</code>. <b>No protocol change yet</b> — nothing existing can break.</td><td><code>SelectionModeTests</code> U-01..U-16 (RED → GREEN); full suite green</td></tr>
+  <tr><td>S2</td><td>Backend Worker</td><td><code>EngineResolver.swift</code>: <code>resolveSelection(for:)</code> — same truth table as <code>resolve(for:)</code>.</td><td><code>EngineResolverTests</code> U-28..U-31</td></tr>
+  <tr><td>S3</td><td>Backend Worker</td><td><code>OpenAIEngine.swift</code>: <code>cardSystemPrompt</code> / <code>spanSystemPrompt</code> / <code>selectionUserMessage</code>, optional <code>responseFormat</code> on <code>makeChatRequest</code>, <code>parseCard</code> ladder, <code>translateSpan</code>.</td><td><code>OpenAIEngineTests</code> U-17..U-27 (incl. wire-body U-21)</td></tr>
+  <tr><td>S4</td><td>Backend Worker</td><td><code>TranslationService.swift</code>: <code>translateSelection</code> orchestration + injectable <code>resolveSelection</code>/<code>timeout</code>; <code>TranslationError.timedOut</code>; <code>Translating</code> gains the requirement <b>together with</b> the one-line stub conformances (<code>GatedService</code>, <code>StubTranslating</code>).</td><td><code>SelectionServiceTests</code> I-01..I-08 (NEW file); existing suite green with unmodified expectations</td></tr>
+  <tr><td>S5</td><td>Frontend Worker</td><td><code>SelectionCardView.swift</code> (NEW): five states, <code>fittingHeight</code>, shimmer, degraded styling flag, AX group + announcement.</td><td>P-03 · P-04</td></tr>
+  <tr><td>S6</td><td>Frontend Worker</td><td><code>ResultPanel.swift</code>: seam types (<code>SelectionHooks</code> / <code>SelectionLookupOutcome</code>), <code>sourceTextView</code> delegate + settle task + pure fire helpers, slot mount + growth/shrink, dismissal sink + teardown wiring, <code>shouldClearSelection</code> whitelist entry, <code>showResult</code> <code>selection:</code> parameter (default <code>nil</code>).</td><td>P-01 · P-02 · P-05 · P-07 · P-08 · I-13</td></tr>
+  <tr><td>S7</td><td>Frontend Worker</td><td><code>CaptureCoordinator.swift</code>: <code>selectionGeneration</code>, <code>translateSelectionLatest</code> (two-token guard, outcome mapping), <code>SelectionHooks</code> build in <code>present(…)</code> + save wrapper. <em>Needs S4.</em></td><td>I-09..I-12 · U-32 · U-33</td></tr>
+  <tr><td>S8</td><td>Frontend Worker</td><td><code>ResultPanel.swift</code> / <code>SelectionCardView.swift</code>: ⌘S key-equivalent swap + revert, error row + Try-again re-fire, async-confirm save on the card.</td><td>P-06 · I-14</td></tr>
+  <tr><td>S9</td><td>QA (Workers fix)</td><td>Regression gate: <code>xcodegen</code> → build → full suite ×2 (0 failures, 0 new skips, Table Q6 respected) → release-config manual checklist M-01..M-15 with a real BYOK key.</td><td>Q-7 gate + Table Q4 → Gate 3 evidence</td></tr>
+</table>
+</div>
+<p class="cap">Table D1 — Slice plan for Step 6. The Orchestrator reviews every slice before it merges; QA re-runs the affected tier after each fix round.</p>
+
+<h2><span class="n">06</span> Risks carried forward</h2>
+<div class="risk"><span class="sev m">MED</span><div><b>Card latency feels slow</b> — a second AI round-trip after selection. Held down by settle-then-fire (no mid-drag calls), single in-flight request, windowed ≤ 1500-char context, and the skeleton keeping the panel alive. Measured by M-13 against the PRD's ≤ ~3 s typical target; if it misses, first lever is prompt size, not architecture.</div></div>
+<div class="risk"><span class="sev m">MED</span><div><b>Structured-output flakiness</b> — the model returns malformed card JSON. Contained by the <code>parseCard</code> ladder: strict → lenient → prose-as-<code>.plain</code> fallback (FR-4 shape, no second billing); brace-like garbage throws rather than rendering half-parsed JSON. Pinned by U-22..U-27 and I-01.</div></div>
+<div class="risk"><span class="sev l">LOW</span><div><b>Selection UX conflicts</b> — the card must not fight click-outside collapse, read-aloud, or phonetics. One dismissal sink, the <code>shouldClearSelection</code> whitelist entry, and Esc consumed only while a card is active keep the affordances separated. Pinned by P-01, I-13, M-05.</div></div>
+<div class="risk"><span class="sev l">LOW</span><div><b>Cost creep</b> — every selection is a paid call on the user's key. Fire only after a settled mouse-up/keyboard selection; identical-span dedupe; never mid-drag. Pinned by P-02 and the Fig. F2 guards.</div></div>
+<div class="risk"><span class="sev l">LOW</span><div><b>Protocol-change ripple</b> — <code>Translating</code> and <code>showResult(selection:)</code> touch existing conformers. Bounded by Table Q6's allowed-changes list; any compile error outside that table is a design-drift signal to stop and raise, not patch around.</div></div>
+<div class="risk"><span class="sev l">LOW</span><div><b>Serialized-bundle flakiness</b> — new async tests join a non-parallel bundle. The gate runs the suite twice (Fig. Q4); races are built on the deterministic <code>GatedService</code> continuation pattern, never sleeps.</div></div>
+
+<p class="soft">Prepared for Gate 2 review. On approval, Step 6 begins at slice S1; the Orchestrator owns commits and merges — Workers implement, QA gates.</p>
+
+</div>
+</body>
+</html>
