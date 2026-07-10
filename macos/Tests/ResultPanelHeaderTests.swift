@@ -505,23 +505,29 @@ struct ResultPanelSelectionTests {
         #expect(ResultPanel.shouldClearSelection(forHit: nil) == true)
     }
 
-    // P-02 (FR-1) — the pure fire decision: empty/punctuation-only never fire,
-    // an identical span with the slot visible is deduped, the same span fires
-    // again after a dismissal, and a new span always fires.
-    @Test("shouldFireSelection: empty never; identical+visible deduped; dismissed/new spans fire")
+    // P-02 (FR-1, tightened in beta round 2 / F2+F3) — the pure fire decision
+    // keys the identical-span dedupe on the slot's STATE, not its visibility:
+    // a content card or an in-flight skeleton answering the span dedupes; an
+    // error row NEVER poisons its span (re-selecting it fires again); the same
+    // span fires again after a dismissal; a new span always fires.
+    @Test("shouldFireSelection: empty never; identical deduped only by content/loading; error/dismissed re-fire")
     func fireDecisionMatrix() {
         // Empty → never.
-        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "", lastFired: nil, slotVisible: false))
-        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "", lastFired: "scored", slotVisible: true))
+        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "", lastFired: nil, slot: .empty))
+        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "", lastFired: "scored", slot: .content))
         // Punctuation-only → no fire (DESIGN §06 — nothing to translate).
-        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "…!?", lastFired: nil, slotVisible: false))
-        // Identical span + slot visible → no re-fire (dedupe; the card already answers it).
-        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: "scored", slotVisible: true))
-        // Identical span + slot hidden → fire (the card was dismissed).
-        #expect(ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: "scored", slotVisible: false))
-        // New span → fire.
-        #expect(ResultPanel.shouldFireSelection(normalizedSpan: "final goal", lastFired: "scored", slotVisible: true))
-        #expect(ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: nil, slotVisible: false))
+        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "…!?", lastFired: nil, slot: .empty))
+        // Identical span + content up → no re-fire (F3: the card already answers it).
+        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: "scored", slot: .content))
+        // Identical span + skeleton up → no re-fire (single-flight; the lookup is running).
+        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: "scored", slot: .loading))
+        // Identical span + ERROR row → fire again (F2: a failure never poisons the span).
+        #expect(ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: "scored", slot: .error))
+        // Identical span + slot gone → fire (the card was dismissed).
+        #expect(ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: "scored", slot: .empty))
+        // New span → always fire.
+        #expect(ResultPanel.shouldFireSelection(normalizedSpan: "final goal", lastFired: "scored", slot: .content))
+        #expect(ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: nil, slot: .empty))
     }
 
     // P-05 (AC-5 · FR-6 · DESIGN §02) — mounting a card grows the window
@@ -719,6 +725,244 @@ struct ResultPanelSelectionTests {
         #expect(requestedSpans.count == 2)
     }
 
+    // BETA ROUND 2 · F1 (coverage N10, lens-B high #1) — the outer net: a
+    // lookup that never resolves (a Keychain read blocking BELOW the service's
+    // own 8 s deadline, an unresumed continuation, an outcome mis-mapped into
+    // `.superseded`) must not leave the skeleton shimmering forever. The
+    // panel's watchdog renders the quiet error row at deadline + grace and
+    // cancels the hung task; Try again stays live.
+    @Test("A lookup that never resolves is rescued by the watchdog: shimmer stops, quiet error row renders")
+    func watchdogRescuesHungLookup() async throws {
+        var cancelled = false
+        let panel = presentedPanel(selection: parkedHooks(onCancelled: { cancelled = true }))
+        panel.selectionWatchdogTimeoutForTests = .milliseconds(80)
+
+        panel.fireSelectionForTests(span: "keeper")
+        let card = try #require(panel.selectionCardForTests)
+        #expect(card.skeletonBarCountForTests > 0, "precondition: the skeleton is up")
+
+        await settleSpin { buttons(in: card).contains { $0.title == "Try again" } }
+        #expect(labelStrings(in: card).contains { $0.contains("Couldn’t translate") },
+                "the watchdog renders the quiet inline error row")
+        #expect(card.skeletonBarCountForTests == 0, "the shimmer is stopped, not left behind")
+        #expect(panel.isSelectionLookupInFlightForTests == false,
+                "the watchdog cancels the hung lookup")
+        await spin { cancelled }
+        #expect(cancelled, "the hung request task really is cancelled")
+    }
+
+    // BETA ROUND 2 · F1 — a rendered outcome must keep the watchdog quiet: the
+    // rescue may never stomp an error row over content that arrived in time.
+    @Test("The watchdog stands down once an outcome renders")
+    func watchdogStandsDownAfterOutcome() async throws {
+        let hooks = SelectionHooks(
+            translate: { _ in
+                .success(SelectionResult(output: .card(Self.fullCard), servedBy: .ai, contextUsed: true))
+            },
+            save: nil
+        )
+        let panel = presentedPanel(selection: hooks)
+        panel.selectionWatchdogTimeoutForTests = .milliseconds(60)
+
+        panel.fireSelectionForTests(span: "scored")
+        let card = try #require(panel.selectionCardForTests)
+        await spin { labelStrings(in: card).contains("攻入（进球）") }
+
+        // Outwait the watchdog deadline: the content card must survive it.
+        await settleSpin(timeout: .milliseconds(300)) { false }
+        #expect(labelStrings(in: card).contains("攻入（进球）"), "the content card stays")
+        #expect(!buttons(in: card).contains { $0.title == "Try again" },
+                "no error row is stomped over a rendered outcome")
+    }
+
+    // BETA ROUND 2 · F2 (lens-B high #2) — a failed span must never be
+    // poisoned: with the quiet error row up, re-selecting the SAME span fires
+    // a fresh lookup (the settle path's decision, driven through the fire
+    // seam which applies the same normalize + shouldFireSelection gate).
+    @Test("A failed span fires again on an identical re-selection — the error row never dedupes")
+    func failedSpanRefiresOnReselect() async throws {
+        var requestedSpans: [String] = []
+        let hooks = SelectionHooks(
+            translate: { span in
+                requestedSpans.append(span)
+                return .failure(TranslationError.timedOut)
+            },
+            save: nil
+        )
+        let panel = presentedPanel(selection: hooks)
+
+        panel.fireSelectionForTests(span: "keeper")
+        let card = try #require(panel.selectionCardForTests)
+        await spin { buttons(in: card).contains { $0.title == "Try again" } }
+        #expect(requestedSpans == ["keeper"], "precondition: one failed lookup, error row up")
+
+        // The user re-double-clicks the same word — no Try-again click.
+        panel.fireSelectionForTests(span: "keeper")
+        await spin { requestedSpans.count >= 2 }
+        #expect(requestedSpans == ["keeper", "keeper"],
+                "an error slot must not poison its span — the identical re-selection fires")
+    }
+
+    // BETA ROUND 2 · F3 (coverage N11 FAIL, lens-B med #1) — re-double-clicking
+    // the word whose card is showing is a NO-OP: the card stays, zero new
+    // requests. AppKit delivers that gesture as collapse (click 1, mid-
+    // interaction) → word re-select (click 2) → release; the transient
+    // collapse must not tear the card down.
+    @Test("Re-double-clicking the carded span keeps the card and fires no new request")
+    func identicalReclickIsNoOp() async throws {
+        var requestedSpans: [String] = []
+        let hooks = SelectionHooks(
+            translate: { span in
+                requestedSpans.append(span)
+                return .superseded // outcomes injected via the render seam
+            },
+            save: nil
+        )
+        let panel = ResultPanel()
+        panel.reduceMotionForTests = true
+        panel.showTranslating(source: nil)
+        panel.showTranslating(source: "Messi scored the final goal.")
+        panel.showResult(
+            translation: "梅西攻入了最后一球。", source: "Messi scored the final goal.",
+            badge: "AI", copied: false, selection: hooks
+        )
+        let sourceTV = try #require(panel.sourceTextViewForTests)
+
+        // A content card is up for 'scored'.
+        panel.fireSelectionForTests(span: "scored")
+        await spin { !requestedSpans.isEmpty }
+        let result = SelectionResult(output: .card(Self.fullCard), servedBy: .ai, contextUsed: true)
+        panel.applySelectionOutcomeForTests(
+            .success(result), span: "scored", generation: panel.selectionUIGenerationForTests
+        )
+        let card = try #require(panel.selectionCardForTests)
+        #expect(requestedSpans == ["scored"], "precondition: exactly one lookup so far")
+
+        // The re-double-click, exactly as AppKit delivers it: click 1 collapses
+        // the selection to a caret while the interaction is live, click 2
+        // re-selects the word, then the release ends the interaction.
+        let wordRange = (sourceTV.string as NSString).range(of: "scored")
+        panel.mouseInteractionActiveForTests = true
+        sourceTV.setSelectedRange(NSRange(location: wordRange.location, length: 0)) // click 1: collapse
+        sourceTV.setSelectedRange(wordRange)                                        // click 2: word select
+        panel.mouseInteractionActiveForTests = false                                // release
+
+        // Outwait the settle: the card must survive and nothing new may fire.
+        await settleSpin(timeout: .milliseconds(900)) { requestedSpans.count > 1 }
+        #expect(panel.selectionCardForTests === card, "the existing card stays mounted")
+        #expect(labelStrings(in: card).contains("攻入（进球）"),
+                "still the content card — not a skeleton, not an error row")
+        #expect(requestedSpans == ["scored"], "zero new requests — the re-click is a no-op")
+    }
+
+    // BETA ROUND 2 · F3/F6 — a lone collapse (single click into the pane, no
+    // re-selection following) still dismisses the card once the interaction
+    // ends: the deferral that saves the re-click must not leak stale cards.
+    @Test("A collapse with no re-selection still dismisses the card after the settle")
+    func loneCollapseStillDismisses() async throws {
+        let hooks = SelectionHooks(
+            translate: { _ in .superseded },
+            save: nil
+        )
+        let panel = ResultPanel()
+        panel.reduceMotionForTests = true
+        panel.showTranslating(source: nil)
+        panel.showTranslating(source: "Messi scored the final goal.")
+        panel.showResult(
+            translation: "梅西攻入了最后一球。", source: "Messi scored the final goal.",
+            badge: "AI", copied: false, selection: hooks
+        )
+        let sourceTV = try #require(panel.sourceTextViewForTests)
+
+        panel.fireSelectionForTests(span: "scored")
+        let result = SelectionResult(output: .card(Self.fullCard), servedBy: .ai, contextUsed: true)
+        panel.applySelectionOutcomeForTests(
+            .success(result), span: "scored", generation: panel.selectionUIGenerationForTests
+        )
+        try #require(panel.selectionCardForTests != nil)
+
+        // Single click on another spot in the pane: collapse, release, nothing else.
+        panel.mouseInteractionActiveForTests = true
+        sourceTV.setSelectedRange(NSRange(location: 0, length: 0))
+        panel.mouseInteractionActiveForTests = false
+
+        await settleSpin { panel.selectionCardForTests == nil }
+        #expect(panel.selectionCardForTests == nil,
+                "a real collapse still dismisses the card once the interaction ends")
+    }
+
+    // BETA ROUND 2 · F5 (lens-B med #3) — the second double-click that extends
+    // the selection word-wise WITHOUT shift (macOS click-count extension) is
+    // part of the same dead-trigger family as b5b953d: the whole gesture runs
+    // inside tracking loops. Driven through the REAL event path: double-click
+    // word A, then double-click word B ~100 ms later with the click count
+    // still rising; whatever selection the real machinery settles on must fire
+    // exactly one lookup.
+    @Test("A second double-click extending the selection (no shift) settles and fires")
+    func doubleClickExtensionFires() async throws {
+        var requestedSpans: [String] = []
+        let hooks = SelectionHooks(
+            translate: { span in
+                requestedSpans.append(span)
+                return .superseded
+            },
+            save: nil
+        )
+        let panel = ResultPanel()
+        panel.reduceMotionForTests = true
+        panel.showTranslating(source: nil)
+        panel.showTranslating(source: "Messi scored the final goal.")
+        panel.showResult(
+            translation: "梅西攻入了最后一球。", source: "Messi scored the final goal.",
+            badge: "AI", copied: false, selection: hooks
+        )
+        let window = try #require(panel.panelForTests)
+        let sourceTV = try #require(panel.sourceTextViewForTests)
+        window.contentView?.layoutSubtreeIfNeeded()
+
+        func pointInWindow(of word: String) throws -> NSPoint {
+            let charRange = (sourceTV.string as NSString).range(of: word)
+            let layoutManager = try #require(sourceTV.layoutManager)
+            let container = try #require(sourceTV.textContainer)
+            layoutManager.ensureLayout(for: container)
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: charRange, actualCharacterRange: nil)
+            var glyphRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: container)
+            glyphRect.origin.x += sourceTV.textContainerOrigin.x
+            glyphRect.origin.y += sourceTV.textContainerOrigin.y
+            return sourceTV.convert(NSPoint(x: glyphRect.midX, y: glyphRect.midY), to: nil)
+        }
+        func mouse(_ type: NSEvent.EventType, at point: NSPoint, clickCount: Int) throws -> NSEvent {
+            try #require(NSEvent.mouseEvent(
+                with: type, location: point, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber, context: nil,
+                eventNumber: 0, clickCount: clickCount, pressure: 1
+            ))
+        }
+
+        // Double-click 'Messi' (tracking loop consumes the queued up)…
+        let messi = try pointInWindow(of: "Messi")
+        NSApp.postEvent(try mouse(.leftMouseUp, at: messi, clickCount: 2), atStart: true)
+        window.sendEvent(try mouse(.leftMouseDown, at: messi, clickCount: 2))
+
+        // …then, still inside the double-click interval, double-click 'final':
+        // the click count keeps rising and AppKit extends the selection
+        // word-wise from the anchor. No shift anywhere.
+        let final = try pointInWindow(of: "final")
+        NSApp.postEvent(try mouse(.leftMouseUp, at: final, clickCount: 4), atStart: true)
+        window.sendEvent(try mouse(.leftMouseDown, at: final, clickCount: 4))
+
+        let selected = (sourceTV.string as NSString).substring(with: sourceTV.selectedRange())
+        let expected = SpanNormalizer.normalize(selected)
+        try #require(!expected.isEmpty, "precondition: the extension gesture produced a selection")
+        try #require(expected.contains("Messi"), "precondition: the selection extends from the anchor word")
+
+        await settleSpin { !requestedSpans.isEmpty }
+        #expect(requestedSpans == [expected],
+                "the settled extension gesture must fire exactly one lookup, for the extended span")
+        #expect(panel.selectionCardForTests != nil, "the card slot must mount")
+    }
+
     // LIVE-DEFECT regression (2026-07-10, feat/contextual-selection): in the
     // running app a mouse-made selection NEVER fired the lookup — no skeleton,
     // no card, no growth — while all 299 spy-driven tests were green, because
@@ -790,14 +1034,12 @@ struct ResultPanelSelectionTests {
         let down = try #require(mouse(.leftMouseDown))
         let up = try #require(mouse(.leftMouseUp))
 
-        // Live ordering: the button is physically down for the whole dispatch
-        // (any selection-change notification inside it reads pressed=1), and
-        // the up is consumed by the text view's tracking loop — posted to the
-        // event queue, never routed through sendEvent.
-        panel.pressedMouseButtonsForTests = 1
+        // Live ordering: the whole interaction happens inside the mouse-down
+        // dispatch (the panel's dispatch depth reads "interacting" throughout),
+        // and the up is consumed by the text view's tracking loop — posted to
+        // the event queue, never routed through sendEvent.
         NSApp.postEvent(up, atStart: true)
         window.sendEvent(down)
-        panel.pressedMouseButtonsForTests = 0 // dispatch over ⇒ button released
 
         // The REAL tracking loop owns the resulting range (a queue-posted up can
         // resolve a shifted point and extend word-wise) — the contract under
@@ -817,10 +1059,10 @@ struct ResultPanelSelectionTests {
 
     // The losing double-click ordering in isolation, via the REAL delegate
     // notification (no fire-seam shortcut): the word-select notification
-    // arrives while the button is still pressed; the release produces no
+    // arrives while the interaction is still live; the release produces no
     // further notification and no panel-level mouse-up. The lookup must still
-    // fire once the button is up.
-    @Test("A selection change delivered while the button is held still fires after the release")
+    // fire once the interaction ends.
+    @Test("A selection change delivered while the interaction is live still fires after it ends")
     func heldButtonSelectionFiresAfterRelease() async throws {
         var requested: [String] = []
         let hooks = SelectionHooks(
@@ -841,18 +1083,18 @@ struct ResultPanelSelectionTests {
         let sourceTV = try #require(panel.sourceTextViewForTests)
 
         // Second click of a double-click: the word is selected while the
-        // button is held — setSelectedRange drives the REAL AppKit delegate
-        // notification into the panel.
-        panel.pressedMouseButtonsForTests = 1
+        // interaction is live — setSelectedRange drives the REAL AppKit
+        // delegate notification into the panel.
+        panel.mouseInteractionActiveForTests = true
         sourceTV.setSelectedRange((sourceTV.string as NSString).range(of: "scored"))
 
         // The release: consumed by the tracking loop live — no sendEvent
         // mouse-up, no further selection-change notification.
-        panel.pressedMouseButtonsForTests = 0
+        panel.mouseInteractionActiveForTests = false
 
         await settleSpin { !requested.isEmpty }
         #expect(requested == ["scored"],
-                "the selection must fire once the button is released")
+                "the selection must fire once the interaction ends")
         #expect(panel.selectionCardForTests != nil, "the card slot must mount")
     }
 
@@ -915,14 +1157,12 @@ struct ResultPanelSelectionTests {
 
         // The live drag contract: no notification for the whole interaction.
         // Detaching the delegate for the dispatch window cancels the synthetic
-        // dispatch's one spurious notification; the button stays pressed for
+        // dispatch's one spurious notification; the interaction is live for
         // the whole dispatch and the up is consumed inside the tracking loop.
         let originalDelegate = sourceTV.delegate
         sourceTV.delegate = nil
-        panel.pressedMouseButtonsForTests = 1
         NSApp.postEvent(up, atStart: true)
         window.sendEvent(down)
-        panel.pressedMouseButtonsForTests = 0 // dispatch over ⇒ button released
         sourceTV.delegate = originalDelegate  // interaction over — live wiring restored
 
         let selected = (sourceTV.string as NSString).substring(with: sourceTV.selectedRange())
@@ -935,16 +1175,17 @@ struct ResultPanelSelectionTests {
         #expect(panel.selectionCardForTests != nil, "the card slot must mount")
     }
 
-    // MUTATION-PIN (QA round, mutation C — the poll-until-release branch):
-    // when the 300 ms debounce elapses while the button is STILL down (a slow
-    // drag / long double-click hold), `selectionSettleDidFire` must re-arm and
-    // poll for the release rather than dying — the matching mouse-up may never
-    // reach `sendEvent`, so nothing else will ever retry.
-    // `heldButtonSelectionFiresAfterRelease` cannot pin that branch: it
-    // releases the seam synchronously, long before the debounce elapses, so
-    // the fire-time button check never reads pressed. Here the seam is
-    // released only AFTER the settle has verifiably elapsed while pressed.
-    @Test("A settle that elapses while the button is still down polls until the release, then fires")
+    // MUTATION-PIN (QA round, mutation C — the poll-until-release branch;
+    // re-pinned to the panel-tracked interaction gate in beta round 2 / F5):
+    // when the 300 ms debounce elapses while the interaction is STILL live (a
+    // slow drag / long double-click hold), `selectionSettleDidFire` must
+    // re-arm and poll for the interaction's end rather than dying — the
+    // matching mouse-up may never reach `sendEvent`, so nothing else will
+    // ever retry. `heldButtonSelectionFiresAfterRelease` cannot pin that
+    // branch: it releases the seam synchronously, long before the debounce
+    // elapses, so the fire-time gate never reads "interacting". Here the seam
+    // is released only AFTER the settle has verifiably elapsed while live.
+    @Test("A settle that elapses while the interaction is live polls until it ends, then fires")
     func settleElapsingWhileHeldPollsUntilRelease() async throws {
         var requested: [String] = []
         let hooks = SelectionHooks(
@@ -964,24 +1205,24 @@ struct ResultPanelSelectionTests {
         )
         let sourceTV = try #require(panel.sourceTextViewForTests)
 
-        // The word-select notification arrives while the button is held (the
-        // real AppKit delegate path), arming the settle.
-        panel.pressedMouseButtonsForTests = 1
+        // The word-select notification arrives while the interaction is live
+        // (the real AppKit delegate path), arming the settle.
+        panel.mouseInteractionActiveForTests = true
         sourceTV.setSelectedRange((sourceTV.string as NSString).range(of: "scored"))
 
         // Hold PAST the debounce (300 ms — 3x margin): the settle elapses
-        // while the seam still reads pressed, forcing the fire-time button
-        // check. FR-1 holds throughout — nothing may fire while held.
+        // while the seam still reads "interacting", forcing the fire-time
+        // gate. FR-1 holds throughout — nothing may fire mid-interaction.
         await settleSpin(timeout: .milliseconds(900)) { !requested.isEmpty }
-        #expect(requested.isEmpty, "FR-1: no lookup may fire while the button is down")
+        #expect(requested.isEmpty, "FR-1: no lookup may fire while the interaction is live")
 
-        // Only now release. No mouse-up reaches sendEvent and no further
-        // notification arrives (the tracking loop consumed both live) — the
-        // re-armed poll is the only path left to complete the fire.
-        panel.pressedMouseButtonsForTests = 0
+        // Only now does the interaction end. No mouse-up reaches sendEvent and
+        // no further notification arrives (the tracking loop consumed both
+        // live) — the re-armed poll is the only path left to complete the fire.
+        panel.mouseInteractionActiveForTests = false
         await settleSpin { !requested.isEmpty }
         #expect(requested == ["scored"],
-                "the elapsed-while-held settle must poll until the release, then fire exactly once")
+                "the elapsed-while-live settle must poll until the interaction ends, then fire exactly once")
         #expect(panel.selectionCardForTests != nil, "the card slot must mount")
     }
 

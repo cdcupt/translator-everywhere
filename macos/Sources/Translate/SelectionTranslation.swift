@@ -40,6 +40,12 @@ enum SelectionPolicy {
     static let requestTimeout: Duration = .seconds(8)    // DESIGN §05 "request" row
     static let maxContextChars = 1500                    // PRD §08 "keep prompt small"
     static let settleDebounce: Duration = .milliseconds(300)  // consumed by the UI layer
+    /// The panel-side outer net (beta round 2, F1): if NO outcome reaches the
+    /// slot by the request deadline + grace — a lookup hung *below* the
+    /// service's own deadline (blocking Keychain read, unresumed continuation)
+    /// or an outcome mis-mapped into the void — the slot renders the quiet
+    /// error row instead of shimmering forever.
+    static let watchdogTimeout: Duration = requestTimeout + .milliseconds(500)
 }
 
 /// Folds whitespace runs (including newlines) to a single space and trims.

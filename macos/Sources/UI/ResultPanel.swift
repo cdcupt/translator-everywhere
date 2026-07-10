@@ -85,6 +85,18 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         /// on the card/chrome (must not re-arm what it just dismissed).
         private weak var lastLeftMouseDownHit: NSView?
 
+        /// How many primary-button event dispatches are currently on the stack
+        /// (a text view's tracking loop runs INSIDE its mouse-down dispatch).
+        /// This is the panel-local truth for "a mouse interaction is live" —
+        /// unlike `NSEvent.pressedMouseButtons`, whose global state was
+        /// observed stuck at "pressed" after synthetic/edge-case clicks,
+        /// silently wedging every selection fire (beta round 2, F5/F1). The
+        /// depth is balanced by `sendEvent` itself, so it can never stick.
+        private var primaryMouseDispatchDepth = 0
+
+        /// Whether a primary-button interaction is being dispatched right now.
+        var isPrimaryMouseDispatchActive: Bool { primaryMouseDispatchDepth > 0 }
+
         /// Esc handling while a selection card is active: returns `true` when
         /// the cancel was consumed (a card was dismissed). `false`/`nil` falls
         /// through to `super` — today's Esc behavior untouched (TECH §F-6).
@@ -111,8 +123,11 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
                     clearTextSelection(in: contentView)
                 }
             }
+            let isPrimaryMouse = event.type == .leftMouseDown || event.type == .leftMouseUp
+            if isPrimaryMouse { primaryMouseDispatchDepth += 1 }
             super.sendEvent(event)
-            if event.type == .leftMouseUp || event.type == .leftMouseDown {
+            if isPrimaryMouse {
+                primaryMouseDispatchDepth -= 1
                 onPrimaryMouseInteractionEnd?(lastLeftMouseDownHit)
             }
         }
@@ -296,6 +311,20 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
 
     /// Identical-span dedupe key (`SpanNormalizer.normalize`d at fire time).
     private var lastFiredSpan: String?
+
+    /// What the mounted slot currently shows — the fire decision's dedupe keys
+    /// on this, not on mere visibility (beta round 2, F2/F3). Tracked at mount
+    /// and reset by the dismissal sink.
+    private var selectionSlotFill: SelectionSlotFill = .empty
+
+    /// The F1 outer net (beta round 2): armed per fire; if no outcome reaches
+    /// `applySelectionOutcome` by `SelectionPolicy.watchdogTimeout`, the slot
+    /// renders the quiet error row and the hung lookup is cancelled.
+    private var selectionWatchdogTask: Task<Void, Never>?
+
+    /// Injectable watchdog deadline so tests exercise the rescue in
+    /// milliseconds instead of 8.5 s (the `reduceMotionForTests` pattern).
+    var selectionWatchdogTimeoutForTests: Duration?
 
     /// The selection hand-off for the live result. `nil` (every pre-selection
     /// call site) leaves the whole feature unreachable (FR-8/AC-8).
@@ -1041,15 +1070,33 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
 
     // MARK: - Contextual selection — observation (TECH §F-2)
 
-    /// Whether a settled selection should fire a lookup (Fig. F2's guards):
-    /// empty and punctuation-only spans never fire (DESIGN §06 — nothing to
-    /// translate); an identical span while the slot is visible is deduped (the
-    /// existing card already answers it); the same span fires again after a
-    /// dismissal; anything else fires. Pure + static so the fire decision is
-    /// unit-testable without a window, exactly like `shouldClearSelection`.
-    static func shouldFireSelection(normalizedSpan: String, lastFired: String?, slotVisible: Bool) -> Bool {
+    /// What the card slot currently shows, as the fire decision consumes it
+    /// (beta round 2, F2/F3): the dedupe must key on the slot's STATE, not its
+    /// mere visibility — an error row must never poison its span.
+    enum SelectionSlotFill {
+        case empty      // no slot mounted
+        case loading    // skeleton up — a lookup for `lastFired` is in flight
+        case content    // dictionary card or plain block answering `lastFired`
+        case error      // the quiet error row
+    }
+
+    /// Whether a settled selection should fire a lookup (Fig. F2's guards,
+    /// tightened in beta round 2 / F2+F3): empty and punctuation-only spans
+    /// never fire (DESIGN §06 — nothing to translate); an identical span is
+    /// deduped only while the slot actually ANSWERS it — a content card (F3:
+    /// the re-click is a no-op, the card stays) or an in-flight skeleton
+    /// (single-flight). An error row never poisons its span (F2): re-selecting
+    /// it fires again, exactly like a dismissed slot. A new span always fires.
+    /// Pure + static so the fire decision is unit-testable without a window,
+    /// exactly like `shouldClearSelection`.
+    static func shouldFireSelection(normalizedSpan: String, lastFired: String?, slot: SelectionSlotFill) -> Bool {
         guard normalizedSpan.contains(where: { $0.isLetter || $0.isNumber }) else { return false }
-        if slotVisible, normalizedSpan == lastFired { return false }
+        if normalizedSpan == lastFired {
+            switch slot {
+            case .content, .loading: return false
+            case .error, .empty: return true
+            }
+        }
         return true
     }
 
@@ -1070,7 +1117,16 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         }
         guard textView === sourceTextView else { return }
         guard !SpanNormalizer.normalize(recognizedSelection()).isEmpty else {
-            dismissSelectionCard() // selection collapse kills the card, no debounce
+            // A collapse DURING a live mouse interaction is transient — the
+            // first click of a re-double-click collapses to a caret before the
+            // second click re-selects the word (beta round 2, F3). Defer the
+            // verdict to the settle: a lone collapse still dismisses there,
+            // but an identical re-selection keeps the card, zero requests.
+            if isMouseInteractionActive {
+                restartSelectionSettleTask()
+            } else {
+                dismissSelectionCard() // a settled collapse kills the card, no debounce
+            }
             return
         }
         // (Re)arm even while the button is down (a mid-drag / double-click
@@ -1084,16 +1140,20 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         restartSelectionSettleTask()
     }
 
-    /// Whether the primary mouse button is currently up.
-    /// `pressedMouseButtonsForTests` is the injection seam (mirroring
-    /// `reduceMotionForTests`): `NSEvent.pressedMouseButtons` is global
-    /// hardware state a headless test cannot press, and the live defect this
-    /// guards (a selection-change delivered while the button is still down)
-    /// only exists in that hardware ordering.
-    var pressedMouseButtonsForTests: Int?
+    /// Whether a primary-button interaction is live RIGHT NOW, tracked by the
+    /// panel's own event dispatch (beta round 2, F5/F1). This deliberately
+    /// replaces `NSEvent.pressedMouseButtons`: that global bit was observed
+    /// stuck at "pressed" long after synthetic/edge-case clicks released, so
+    /// the fire-time gate polled forever and the whole selection layer went
+    /// silently dead (no skeleton, no card, no error — the live dead-trigger
+    /// family). The dispatch depth is balanced by `sendEvent` itself, so it
+    /// always clears when the interaction ends. `mouseInteractionActiveForTests`
+    /// is the injection seam (the `reduceMotionForTests` pattern): headless
+    /// tests can't hold a live tracking loop open across a settle window.
+    var mouseInteractionActiveForTests: Bool?
     @MainActor
-    private var isPrimaryMouseButtonUp: Bool {
-        (pressedMouseButtonsForTests ?? NSEvent.pressedMouseButtons) & 1 == 0
+    private var isMouseInteractionActive: Bool {
+        mouseInteractionActiveForTests ?? (panel?.isPrimaryMouseDispatchActive ?? false)
     }
 
     /// Sets (or clears) the selection observer on both panes. The Recognized
@@ -1143,31 +1203,42 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         }
     }
 
-    /// The settle task elapsed — re-check the world *now* (the mouse may be
-    /// down again, the selection collapsed, or the span already answered) and
-    /// fire if it all still holds.
+    /// The settle task elapsed — re-check the world *now* (the interaction may
+    /// still be live, the selection collapsed, or the span already answered)
+    /// and fire if it all still holds.
     @MainActor
     private func selectionSettleDidFire() {
         selectionSettleTask = nil
         guard currentSelectionHooks != nil else { return }
-        guard isPrimaryMouseButtonUp else {
-            // Button still down (drag / double-click hold): the matching
-            // mouse-up may never reach `sendEvent` (a text view's tracking
-            // loop consumes it), so poll — re-arm and wait for the release
-            // instead of dying silently (the live S9 defect).
+        guard !isMouseInteractionActive else {
+            // A primary-button dispatch is still on the stack (drag /
+            // double-click hold): the matching mouse-up may never reach
+            // `sendEvent` (a text view's tracking loop consumes it), so poll —
+            // re-arm and wait for the dispatch to end instead of dying
+            // silently (the live S9 defect). The panel-local dispatch depth
+            // always clears, so this poll terminates (beta round 2, F5).
             restartSelectionSettleTask()
             return
         }
         let span = SpanNormalizer.normalize(recognizedSelection())
+        guard !span.isEmpty else {
+            // The deferred mid-interaction collapse (F3) lands here: nothing
+            // was re-selected, so the collapse verdict is final — dismiss.
+            dismissSelectionCard()
+            return
+        }
         guard Self.shouldFireSelection(
-            normalizedSpan: span, lastFired: lastFiredSpan, slotVisible: selectionCard != nil
+            normalizedSpan: span, lastFired: lastFiredSpan, slot: selectionSlotFill
         ) else { return }
         fireSelection(span: span)
     }
 
     /// FIRE (Fig. F2): supersede any in-flight lookup, mount the skeleton
-    /// (pre-sized by the span's mode), grow the panel, and launch the lookup
-    /// through the coordinator's hook. `span` is already normalized.
+    /// (pre-sized by the span's mode), grow the panel, launch the lookup
+    /// through the coordinator's hook, and arm the outer watchdog (beta round
+    /// 2, F1) — if NO outcome reaches the slot by the deadline + grace, the
+    /// quiet error row renders instead of a forever-shimmering skeleton.
+    /// `span` is already normalized.
     @MainActor
     private func fireSelection(span: String) {
         guard let hooks = currentSelectionHooks else { return }
@@ -1180,17 +1251,45 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
             let outcome = await hooks.translate(span)
             self?.applySelectionOutcome(outcome, span: span, ifCurrent: generation)
         }
+        selectionWatchdogTask?.cancel()
+        let watchdogTimeout = selectionWatchdogTimeoutForTests ?? SelectionPolicy.watchdogTimeout
+        selectionWatchdogTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: watchdogTimeout)
+            guard !Task.isCancelled else { return }
+            self?.selectionWatchdogFired(span: span, ifCurrent: generation)
+        }
+    }
+
+    /// The F1 outer net fired: the slot's lookup produced NO outcome by the
+    /// watchdog deadline — a hang below the service's own deadline (blocking
+    /// Keychain read, unresumed continuation) or an outcome lost to the void.
+    /// Cancel whatever is still in flight and land the slot in the designed
+    /// quiet error row; "Try again" re-fires the same span as usual.
+    @MainActor
+    private func selectionWatchdogFired(span: String, ifCurrent generation: Int) {
+        guard selectionUIGeneration == generation else { return }
+        NSLog("[TE] Selection lookup produced no outcome by the watchdog deadline — rendering the error row")
+        selectionWatchdogTask = nil
+        selectionTask?.cancel()
+        selectionTask = nil
+        mountSelectionCard(.error, span: span)
     }
 
     /// Applies a lookup outcome only while its fire-time generation is still
     /// current — the `renderPhoneticForTests`-style staleness guard (AC-7).
     /// Every outcome maps to exactly one card state (Fig. F5); `.superseded`
-    /// renders nothing — a newer request owns the slot.
+    /// renders nothing — a newer request owns the slot. A RENDERED outcome
+    /// stands the watchdog down; a current-generation `.superseded` (the
+    /// request died with no successor owning the slot) deliberately leaves it
+    /// armed, so the slot still lands in the error row instead of shimmering
+    /// forever (beta round 2, F1).
     @MainActor
     private func applySelectionOutcome(_ outcome: SelectionLookupOutcome, span: String, ifCurrent generation: Int) {
         guard selectionUIGeneration == generation else { return }
         switch outcome {
         case .success(let result):
+            selectionWatchdogTask?.cancel()
+            selectionWatchdogTask = nil
             switch result.output {
             case .card(let card):
                 mountSelectionCard(.dictionary(card), span: span, servedBy: result.servedBy)
@@ -1201,6 +1300,8 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
                 )
             }
         case .failure:
+            selectionWatchdogTask?.cancel()
+            selectionWatchdogTask = nil
             mountSelectionCard(.error, span: span) // quiet inline row — never a dialog
         case .superseded:
             break
@@ -1219,6 +1320,11 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         _ state: SelectionCardView.State, span: String, servedBy: EngineKind? = nil
     ) {
         guard let stack = resultStack, let sourceSection = sourceSectionView else { return }
+        switch state {
+        case .loading: selectionSlotFill = .loading
+        case .dictionary, .plain: selectionSlotFill = .content
+        case .error: selectionSlotFill = .error
+        }
         let card: SelectionCardView
         if let mounted = selectionCard {
             card = mounted
@@ -1345,8 +1451,11 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         selectionSettleTask = nil
         selectionTask?.cancel()
         selectionTask = nil
+        selectionWatchdogTask?.cancel()
+        selectionWatchdogTask = nil
         selectionUIGeneration += 1
         lastFiredSpan = nil
+        selectionSlotFill = .empty
         guard let card = selectionCard else { return }
         selectionSlotHeightConstraint = nil
         if let stack = card.superview as? NSStackView { stack.removeArrangedSubview(card) }
@@ -1376,7 +1485,7 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         guard currentSelectionHooks != nil else { return }
         let normalized = SpanNormalizer.normalize(span)
         guard Self.shouldFireSelection(
-            normalizedSpan: normalized, lastFired: lastFiredSpan, slotVisible: selectionCard != nil
+            normalizedSpan: normalized, lastFired: lastFiredSpan, slot: selectionSlotFill
         ) else { return }
         fireSelection(span: normalized)
     }
