@@ -775,6 +775,51 @@ struct ResultPanelSelectionTests {
                 "no error row is stomped over a rendered outcome")
     }
 
+    // BETA ROUND 2 · F1 review fix — the watchdog's `selectionTask?.cancel()`
+    // is only cooperative: the motivating hang (a Keychain read blocking below
+    // the service's own deadline, an unresumed continuation) never observes it
+    // and can still RESOLVE after the watchdog has rendered the error row.
+    // That straggler outcome must die on the staleness guard like any other
+    // superseded outcome — never re-mount a card over the error row with zero
+    // user action, arbitrarily late.
+    @Test("A straggler outcome resolving after the watchdog fired is dropped — the error row stays")
+    func watchdogSupersedesStragglerOutcome() async throws {
+        // Parks on an unresumed continuation — nothing observes cancellation —
+        // then resolves with a full success card once the test releases it.
+        var release: CheckedContinuation<Void, Never>?
+        let hooks = SelectionHooks(
+            translate: { _ in
+                await withCheckedContinuation { release = $0 }
+                return .success(
+                    SelectionResult(output: .card(Self.fullCard), servedBy: .ai, contextUsed: true)
+                )
+            },
+            save: nil
+        )
+        let panel = presentedPanel(selection: hooks)
+        panel.selectionWatchdogTimeoutForTests = .milliseconds(80)
+
+        panel.fireSelectionForTests(span: "keeper")
+        let card = try #require(panel.selectionCardForTests)
+        await spin { release != nil }
+        #expect(release != nil, "precondition: the lookup is parked in flight")
+
+        await settleSpin { buttons(in: card).contains { $0.title == "Try again" } }
+        #expect(labelStrings(in: card).contains { $0.contains("Couldn’t translate") },
+                "precondition: the watchdog rendered the quiet error row")
+
+        // The hung call finally returns — late, unprompted, cancellation ignored.
+        release?.resume()
+        await settleSpin(timeout: .milliseconds(300)) {
+            labelStrings(in: card).contains("攻入（进球）")
+        }
+
+        #expect(!labelStrings(in: card).contains("攻入（进球）"),
+                "a straggler outcome must not re-mount content over the error row")
+        #expect(buttons(in: card).contains { $0.title == "Try again" },
+                "the watchdog's error row stays until the user acts")
+    }
+
     // BETA ROUND 2 · F2 (lens-B high #2) — a failed span must never be
     // poisoned: with the quiet error row up, re-selecting the SAME span fires
     // a fresh lookup (the settle path's decision, driven through the fire

@@ -1289,6 +1289,13 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
     private func selectionWatchdogFired(span: String, ifCurrent generation: Int) {
         guard selectionUIGeneration == generation else { return }
         NSLog("[TE] Selection lookup produced no outcome by the watchdog deadline — rendering the error row")
+        // The cancel below is only cooperative — the motivating hang (a
+        // Keychain read blocking below the service's deadline, an unresumed
+        // continuation) never observes it and can still resolve later. Bump
+        // the generation so that straggler dies on `applySelectionOutcome`'s
+        // staleness guard like any other superseded outcome, instead of
+        // re-mounting a card over this error row arbitrarily late.
+        selectionUIGeneration += 1
         selectionWatchdogTask = nil
         selectionTask?.cancel()
         selectionTask = nil
