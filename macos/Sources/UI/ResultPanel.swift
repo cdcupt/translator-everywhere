@@ -15,7 +15,8 @@ protocol ResultPresenting: AnyObject {
         detected: DetectedSource,
         viaGoogleFallback: Bool,
         onSave: (@MainActor () async -> Bool)?,
-        onRetranslate: (@MainActor (LanguagePair) -> Void)?
+        onRetranslate: (@MainActor (LanguagePair) -> Void)?,
+        selection: SelectionHooks?
     )
     /// Shows the panel *immediately* in a loading state the moment a region is
     /// captured, before OCR/translation run — so the user sees the app working
@@ -27,6 +28,25 @@ protocol ResultPresenting: AnyObject {
     func show(title: String, body: String)
 }
 
+/// What a selection lookup produced, as the panel consumes it (TECH §F-3).
+/// The coordinator maps service throws/staleness into exactly one case; the
+/// panel renders `.success`/`.failure` and ignores `.superseded` outright — a
+/// newer request owns the slot.
+enum SelectionLookupOutcome {
+    case success(SelectionResult)
+    case failure(Error)
+    case superseded
+}
+
+/// The selection hand-off `CaptureCoordinator` builds at present time
+/// (mirroring `onSave`/`onRetranslate`): `translate` runs one span lookup with
+/// the capture's context/pair pre-captured behind the closure; `save` persists
+/// a card save (`nil` ⇒ no notebook, so the card offers no Save control).
+struct SelectionHooks {
+    let translate: @MainActor (String) async -> SelectionLookupOutcome
+    let save: (@MainActor (_ source: String, _ translation: String, _ servedBy: EngineKind) async -> Bool)?
+}
+
 /// The translation result UI (TECH §8.1).
 ///
 /// An `NSPanel` subclass that *can become key* — an `LSUIElement` agent app has
@@ -35,13 +55,24 @@ protocol ResultPresenting: AnyObject {
 /// result: the translation large/primary, the recognized source dim/smaller, an
 /// engine badge (FREE/AI), and a "Copied ✓" affordance once the translation is
 /// on the pasteboard. Errors render as a distinct error state.
-final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
+final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultPresenting {
 
     /// A borderless utility panel that is allowed to become key/main despite the
     /// app having no Dock presence.
     private final class KeyablePanel: NSPanel {
         override var canBecomeKey: Bool { true }
         override var canBecomeMain: Bool { true }
+
+        /// Fired after every left mouse-up — the reliable end-of-drag trigger
+        /// for a selection (`textViewDidChangeSelection` fires mid-drag; the
+        /// mouse-up is what says the drag settled — TECH Fig. F2). Observation
+        /// only: the event is always forwarded to `super`.
+        var onLeftMouseUp: (() -> Void)?
+
+        /// Esc handling while a selection card is active: returns `true` when
+        /// the cancel was consumed (a card was dismissed). `false`/`nil` falls
+        /// through to `super` — today's Esc behavior untouched (TECH §F-6).
+        var onCancel: (() -> Bool)?
 
         /// Clears any active selection in the (non-editable but selectable)
         /// "Recognized"/"Translation" text views when the user clicks outside
@@ -51,6 +82,8 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         /// the click is seen before any subview (caption, button, language bar)
         /// can consume it; the event is always forwarded to `super` so normal
         /// dispatch (button presses, text selection, scrolling) is untouched.
+        /// A left mouse-up is noticed *after* `super` has dispatched it, so the
+        /// text view's selection is final when the selection hook reads it.
         override func sendEvent(_ event: NSEvent) {
             if event.type == .leftMouseDown, let contentView {
                 let point = contentView.convert(event.locationInWindow, from: nil)
@@ -59,6 +92,12 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
                 }
             }
             super.sendEvent(event)
+            if event.type == .leftMouseUp { onLeftMouseUp?() }
+        }
+
+        override func cancelOperation(_ sender: Any?) {
+            if onCancel?() == true { return }
+            super.cancelOperation(sender)
         }
 
         /// Collapses every descendant text view's selection and drops
@@ -81,7 +120,8 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
 
     /// Whether a left-click that resolved to `hitView` should clear an active
     /// text selection. Clicks that land inside a selectable `NSTextView` (or on a
-    /// scroller, so dragging to scroll doesn't wipe the selection) keep it; clicks
+    /// scroller, so dragging to scroll doesn't wipe the selection — or inside the
+    /// selection card, whose visual anchor IS the selection) keep it; clicks
     /// anywhere else in the panel — captions, header, language bar, empty area —
     /// clear it. Walks up the view's ancestry so a hit on a text view's internal
     /// subview still counts as "inside the text". Pure + static so the deselect
@@ -90,6 +130,7 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         var view = hitView
         while let current = view {
             if current is NSTextView || current is NSScroller { return false }
+            if current is SelectionCardView { return false }
             view = current.superview
         }
         return true
@@ -101,6 +142,14 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         /// so neither section can be squeezed to near-zero height — the user must
         /// always be able to read both to compare them.
         static let minSectionHeight: CGFloat = 56
+        /// The selection card slot never exceeds this (DESIGN §02): pathological
+        /// content is clamped inside the card, never scrolled.
+        static let maxCardSlotHeight: CGFloat = 200
+        /// Gap between the Recognized section and the card slot (TECH §F-1).
+        static let cardSlotSpacing: CGFloat = 12
+        /// Slot growth animation (DESIGN §02 timing.motion): 180 ms ease-out.
+        /// Shrink on dismissal and Reduce Motion are always instant.
+        static let cardGrowDuration: TimeInterval = 0.18
     }
 
     private var panel: KeyablePanel?
@@ -196,6 +245,43 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     /// paint onto the new one.
     private var phoneticGeneration = 0
 
+    // MARK: - Contextual-selection state (TECH §F-1 "new members")
+
+    /// The mounted selection card, if any. Weak: the result stack owns it.
+    private weak var selectionCard: SelectionCardView?
+
+    /// The live result body's outer stack and its Recognized section, kept so
+    /// the card slot can mount lazily after the Recognized pane on the first
+    /// fire (TECH §F-1 — nothing is constructed before then, FR-8). Weak: the
+    /// view hierarchy owns them; swapping the content view auto-nils them.
+    private weak var resultStack: NSStackView?
+    private weak var sourceSectionView: NSView?
+
+    /// The card slot's height constraint — re-measured when content lands and
+    /// adjusted only on a real difference (Fig. F4).
+    private var selectionSlotHeightConstraint: NSLayoutConstraint?
+
+    /// The 300 ms settle task armed by selection changes / mouse-up (Fig. F2).
+    private var selectionSettleTask: Task<Void, Never>?
+
+    /// The in-flight lookup task — cancelled on a re-fire and by the dismissal
+    /// sink, so at most one request is ever in flight (FR-1).
+    private var selectionTask: Task<Void, Never>?
+
+    /// Mirror of `phoneticGeneration` for the card: a lookup captures the value
+    /// at fire time and its outcome is applied only while still current (AC-7).
+    private var selectionUIGeneration = 0
+
+    /// Identical-span dedupe key (`SpanNormalizer.normalize`d at fire time).
+    private var lastFiredSpan: String?
+
+    /// The selection hand-off for the live result. `nil` (every pre-selection
+    /// call site) leaves the whole feature unreachable (FR-8/AC-8).
+    private var currentSelectionHooks: SelectionHooks?
+
+    /// The panel frame before the card grew it — dismissal restores it exactly.
+    private var frameBeforeSelectionGrowth: NSRect?
+
     /// True while the instant loading body (spinner + "Translating…") is mounted,
     /// from the moment a region is captured until the result/error supersedes it.
     /// Distinguishes "loading body up" from "result body up" so `showResult` knows
@@ -233,7 +319,8 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         detected: DetectedSource = .unavailable,
         viaGoogleFallback: Bool = false,
         onSave: (@MainActor () async -> Bool)? = nil,
-        onRetranslate: (@MainActor (LanguagePair) -> Void)? = nil
+        onRetranslate: (@MainActor (LanguagePair) -> Void)? = nil,
+        selection: SelectionHooks? = nil
     ) {
         // Auto-detect (`from: nil`) to the home target is the safe default when a
         // caller omits the pair (older call sites / tests).
@@ -249,7 +336,7 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
             updateResult(
                 translation: translation, source: source, badge: badge, copied: copied,
                 pair: pair, detected: detected, viaGoogleFallback: viaGoogleFallback,
-                onSave: onSave, onRetranslate: onRetranslate
+                onSave: onSave, onRetranslate: onRetranslate, selection: selection
             )
             present(panel, recenter: false)
             return
@@ -262,6 +349,7 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         let recenter = !isShowingLoading
         tearDownLoading()
         currentOnRetranslate = onRetranslate
+        currentSelectionHooks = selection
         panel.contentView = makeResultContent(
             translation: translation, source: source, badge: badge, copied: copied,
             pair: pair, detected: detected, viaGoogleFallback: viaGoogleFallback,
@@ -317,8 +405,14 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         detected: DetectedSource,
         viaGoogleFallback: Bool,
         onSave: (@MainActor () async -> Bool)?,
-        onRetranslate: (@MainActor (LanguagePair) -> Void)?
+        onRetranslate: (@MainActor (LanguagePair) -> Void)?,
+        selection: SelectionHooks? = nil
     ) {
+        // The content is changing under any active card — dismiss it FIRST so a
+        // stale card can never sit over the new result, even briefly (FR-6).
+        dismissSelectionCard()
+        currentSelectionHooks = selection
+        wireSelectionTrigger()
         currentOnRetranslate = onRetranslate
         // The result is changing under any in-progress read-aloud — stop it, then
         // re-point the speakers at the new languages and hide any that the system
@@ -347,6 +441,9 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     /// build on completion).
     @MainActor
     func setRetranslating() {
+        // The result is about to change — a card answering the old text must go
+        // now, before the in-place feedback paints (FR-6, TECH §F-6).
+        dismissSelectionCard()
         guard let translationTextView else { return }
         // The result is about to change — silence any read-aloud now (and reset the
         // "stop" icon) rather than letting stale audio run until the new result lands.
@@ -405,9 +502,13 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     /// Forgets the live result body so the next `showResult` rebuilds it fresh
     /// (called when a message/error replaces a result, or on close). Also tears
     /// down any loading affordance, so a message/error/new-capture cleanly stops a
-    /// running spinner.
+    /// running spinner. Internal (not private): it is one of the three teardown
+    /// funnels the selection tests drive directly (TECH I-13).
     @MainActor
-    private func dropResultBody() {
+    func dropResultBody() {
+        // One dismissal system: the card can never outlive its content (FR-6).
+        dismissSelectionCard()
+        currentSelectionHooks = nil
         haltSpeech()
         saveButtonController = nil
         languageBarController = nil
@@ -450,6 +551,14 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.delegate = self
+        // Selection wiring (TECH §F-2/§F-6): both handlers are inert until a
+        // result presented with hooks arms the feature — pure observation before.
+        panel.onLeftMouseUp = { [weak self] in self?.handleLeftMouseUp() }
+        panel.onCancel = { [weak self] in
+            guard let self, self.selectionCard != nil else { return false }
+            self.dismissSelectionCard()
+            return true
+        }
         return panel
     }
 
@@ -529,6 +638,12 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
         stack.setCustomSpacing(10, after: header)
         stack.setCustomSpacing(12, after: barController.view)
         stack.setCustomSpacing(14, after: translationSection)
+
+        // The card slot mounts lazily after the Recognized section on the first
+        // selection fire — keep the anchors (TECH §F-1) and wire the trigger.
+        resultStack = stack
+        sourceSectionView = sourceSection
+        wireSelectionTrigger()
 
         // Fill the phonetic lines (async; English-only, hidden otherwise).
         refreshPhonetics(translation: translation, source: source)
@@ -899,6 +1014,289 @@ final class ResultPanel: NSObject, NSWindowDelegate, ResultPresenting {
     @MainActor var sourceSpeakerIsHiddenForTests: Bool? { sourceSpeakerButton?.isHidden }
     @MainActor var isReadingTranslationForTests: Bool { activeSpeakSection == .translation }
     @MainActor var isReadingSourceForTests: Bool { activeSpeakSection == .source }
+
+    // MARK: - Contextual selection — observation (TECH §F-2)
+
+    /// Whether a settled selection should fire a lookup (Fig. F2's guards):
+    /// empty and punctuation-only spans never fire (DESIGN §06 — nothing to
+    /// translate); an identical span while the slot is visible is deduped (the
+    /// existing card already answers it); the same span fires again after a
+    /// dismissal; anything else fires. Pure + static so the fire decision is
+    /// unit-testable without a window, exactly like `shouldClearSelection`.
+    static func shouldFireSelection(normalizedSpan: String, lastFired: String?, slotVisible: Bool) -> Bool {
+        guard normalizedSpan.contains(where: { $0.isLetter || $0.isNumber }) else { return false }
+        if slotVisible, normalizedSpan == lastFired { return false }
+        return true
+    }
+
+    /// Selection changes in the two result panes. The Recognized pane is the
+    /// only trigger surface: a collapse dismisses the card at once (no
+    /// debounce), a mid-drag change only disarms the settle task (never fire
+    /// mid-drag — FR-1, cost guard), and a settled change (mouse or ⇧←/→)
+    /// re-arms it. A non-empty selection in the Translation pane dismisses an
+    /// active card (TECH §F-6) and triggers nothing.
+    @MainActor
+    func textViewDidChangeSelection(_ notification: Notification) {
+        guard currentSelectionHooks != nil,
+              let textView = notification.object as? NSTextView else { return }
+        if textView === translationTextView {
+            if textView.selectedRange().length > 0 { dismissSelectionCard() }
+            return
+        }
+        guard textView === sourceTextView else { return }
+        guard !SpanNormalizer.normalize(recognizedSelection()).isEmpty else {
+            dismissSelectionCard() // selection collapse kills the card, no debounce
+            return
+        }
+        guard NSEvent.pressedMouseButtons & 1 == 0 else {
+            // Drag in progress: stand down; the panel's mouse-up hook re-arms.
+            selectionSettleTask?.cancel()
+            selectionSettleTask = nil
+            return
+        }
+        restartSelectionSettleTask()
+    }
+
+    /// Sets (or clears) the selection observer on both panes. The Recognized
+    /// pane is the trigger surface; the Translation pane is observed solely so
+    /// a selection there dismisses an active card. With `selection: nil` no
+    /// delegate is wired at all — construction identical to a pre-selection
+    /// build (FR-8/AC-8).
+    @MainActor
+    private func wireSelectionTrigger() {
+        let delegate: NSTextViewDelegate? = currentSelectionHooks != nil ? self : nil
+        sourceTextView?.delegate = delegate
+        translationTextView?.delegate = delegate
+    }
+
+    /// The current Recognized-pane selection, raw (normalization happens at the
+    /// decision points so the dedupe key and the request span can never drift).
+    @MainActor
+    private func recognizedSelection() -> String {
+        guard let textView = sourceTextView else { return "" }
+        let range = textView.selectedRange()
+        guard range.length > 0 else { return "" }
+        return (textView.string as NSString).substring(with: range)
+    }
+
+    /// The panel-level mouse-up hook — the reliable end-of-drag trigger
+    /// (Fig. F2): a non-empty Recognized selection (re)arms the settle task.
+    @MainActor
+    private func handleLeftMouseUp() {
+        guard currentSelectionHooks != nil else { return }
+        guard !recognizedSelection().isEmpty else { return }
+        restartSelectionSettleTask()
+    }
+
+    /// (Re)arms the 300 ms settle task: the lookup fires only after a quiet
+    /// window with no further selection changes (`SelectionPolicy.settleDebounce`).
+    @MainActor
+    private func restartSelectionSettleTask() {
+        selectionSettleTask?.cancel()
+        selectionSettleTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: SelectionPolicy.settleDebounce)
+            guard !Task.isCancelled else { return }
+            self?.selectionSettleDidFire()
+        }
+    }
+
+    /// The settle task elapsed — re-check the world *now* (the mouse may be
+    /// down again, the selection collapsed, or the span already answered) and
+    /// fire if it all still holds.
+    @MainActor
+    private func selectionSettleDidFire() {
+        selectionSettleTask = nil
+        guard currentSelectionHooks != nil else { return }
+        guard NSEvent.pressedMouseButtons & 1 == 0 else { return } // mouse down again
+        let span = SpanNormalizer.normalize(recognizedSelection())
+        guard Self.shouldFireSelection(
+            normalizedSpan: span, lastFired: lastFiredSpan, slotVisible: selectionCard != nil
+        ) else { return }
+        fireSelection(span: span)
+    }
+
+    /// FIRE (Fig. F2): supersede any in-flight lookup, mount the skeleton
+    /// (pre-sized by the span's mode), grow the panel, and launch the lookup
+    /// through the coordinator's hook. `span` is already normalized.
+    @MainActor
+    private func fireSelection(span: String) {
+        guard let hooks = currentSelectionHooks else { return }
+        selectionUIGeneration += 1
+        let generation = selectionUIGeneration
+        selectionTask?.cancel()
+        lastFiredSpan = span
+        mountSelectionCard(.loading(mode: SelectionMode.mode(for: span)), span: span)
+        selectionTask = Task { @MainActor [weak self] in
+            let outcome = await hooks.translate(span)
+            self?.applySelectionOutcome(outcome, span: span, ifCurrent: generation)
+        }
+    }
+
+    /// Applies a lookup outcome only while its fire-time generation is still
+    /// current — the `renderPhoneticForTests`-style staleness guard (AC-7).
+    /// Every outcome maps to exactly one card state (Fig. F5); `.superseded`
+    /// renders nothing — a newer request owns the slot.
+    @MainActor
+    private func applySelectionOutcome(_ outcome: SelectionLookupOutcome, span: String, ifCurrent generation: Int) {
+        guard selectionUIGeneration == generation else { return }
+        switch outcome {
+        case .success(let result):
+            switch result.output {
+            case .card(let card):
+                mountSelectionCard(.dictionary(card), span: span)
+            case .plain(let translation):
+                mountSelectionCard(.plain(translation: translation, degraded: !result.contextUsed), span: span)
+            }
+        case .failure:
+            mountSelectionCard(.error, span: span) // quiet inline row — never a dialog
+        case .superseded:
+            break
+        }
+    }
+
+    // MARK: - Contextual selection — card slot + panel growth (TECH §F-4)
+
+    /// Mounts (or re-renders) the card in the fixed slot after the Recognized
+    /// section and sizes the slot + window for the new state. The slot is
+    /// constructed on the first fire only — before that, nothing exists (FR-8).
+    @MainActor
+    private func mountSelectionCard(_ state: SelectionCardView.State, span: String) {
+        guard let stack = resultStack, let sourceSection = sourceSectionView else { return }
+        let card: SelectionCardView
+        if let mounted = selectionCard {
+            card = mounted
+        } else {
+            card = SelectionCardView()
+            card.onDismiss = { [weak self] in self?.dismissSelectionCard() }
+            stack.addArrangedSubview(card)
+            stack.setCustomSpacing(Layout.cardSlotSpacing, after: sourceSection)
+            card.widthAnchor.constraint(
+                equalTo: stack.widthAnchor,
+                constant: -(stack.edgeInsets.left + stack.edgeInsets.right)
+            ).isActive = true
+            selectionCard = card
+            frameBeforeSelectionGrowth = panel?.frame
+        }
+        card.render(state, span: span)
+        setSelectionSlotHeight(
+            SelectionCardView.fittingHeight(for: state, span: span, width: selectionSlotWidth)
+        )
+    }
+
+    /// The width the mounted card gets: panel content width minus the result
+    /// stack's side insets (the 440 pt panel default when nothing is laid out yet).
+    @MainActor
+    private var selectionSlotWidth: CGFloat {
+        let contentWidth = panel?.contentView?.bounds.width ?? 0
+        let insets = resultStack.map { $0.edgeInsets.left + $0.edgeInsets.right } ?? 32
+        return (contentWidth > 0 ? contentWidth : 440) - insets
+    }
+
+    /// Pins the slot to `height` (≤ the 200 pt cap) and grows the window to
+    /// absorb exactly Δ = slot + spacing (Fig. F4): top edge fixed, growth
+    /// downward, shifted up by any `visibleFrame` shortfall so the card never
+    /// clips offscreen. Recomputed from the pre-growth frame so a re-measure
+    /// (skeleton → content) adjusts only on a real difference. Growth animates
+    /// 180 ms ease-out; instant under Reduce Motion (DESIGN §02).
+    @MainActor
+    private func setSelectionSlotHeight(_ height: CGFloat) {
+        let clamped = ceil(min(height, Layout.maxCardSlotHeight))
+        if let constraint = selectionSlotHeightConstraint {
+            constraint.constant = clamped
+        } else if let card = selectionCard {
+            let constraint = card.heightAnchor.constraint(equalToConstant: clamped)
+            constraint.isActive = true
+            selectionSlotHeightConstraint = constraint
+        }
+        guard let panel, let base = frameBeforeSelectionGrowth else { return }
+        let delta = clamped + Layout.cardSlotSpacing
+        var frame = base
+        frame.size.height += delta
+        frame.origin.y -= delta
+        if let visible = (panel.screen ?? NSScreen.main)?.visibleFrame {
+            frame.origin.y += max(0, visible.minY - frame.minY) // never clip offscreen
+        }
+        guard frame != panel.frame else { return }
+        applyPanelFrame(frame, animated: !isReduceMotion)
+    }
+
+    /// Applies a window frame — 180 ms ease-out when animated (DESIGN §02),
+    /// synchronous otherwise (shrink, Reduce Motion, headless tests).
+    @MainActor
+    private func applyPanelFrame(_ frame: NSRect, animated: Bool) {
+        guard let panel else { return }
+        guard animated, panel.isVisible else {
+            panel.setFrame(frame, display: true)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Layout.cardGrowDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(frame, display: true)
+        }
+    }
+
+    /// Reduce Motion, injectable for tests (headless growth must be synchronous
+    /// — the window animator lands frames asynchronously).
+    var reduceMotionForTests: Bool?
+    private var isReduceMotion: Bool {
+        reduceMotionForTests ?? NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    // MARK: - Contextual selection — dismissal, one sink (TECH §F-6)
+
+    /// The single dismissal sink, funnel for all six triggers (Esc, ✕, outside
+    /// click, selection collapse, retranslate, new capture/error/close):
+    /// cancels the settle + lookup tasks, supersedes any late outcome via the
+    /// generation bump, unmounts the slot, and restores the pre-growth frame
+    /// (shrink is always instant — DESIGN §02). Idempotent: safe to call from
+    /// every teardown path, twice. Internal — doubles as a test seam.
+    @MainActor
+    func dismissSelectionCard() {
+        selectionSettleTask?.cancel()
+        selectionSettleTask = nil
+        selectionTask?.cancel()
+        selectionTask = nil
+        selectionUIGeneration += 1
+        lastFiredSpan = nil
+        guard let card = selectionCard else { return }
+        selectionSlotHeightConstraint = nil
+        if let stack = card.superview as? NSStackView { stack.removeArrangedSubview(card) }
+        card.removeFromSuperview()
+        selectionCard = nil
+        if let base = frameBeforeSelectionGrowth {
+            applyPanelFrame(base, animated: false)
+        }
+        frameBeforeSelectionGrowth = nil
+    }
+
+    // MARK: - Selection test seams (mirroring the read-aloud seams)
+
+    @MainActor var panelForTests: NSPanel? { panel }
+    @MainActor var selectionCardForTests: SelectionCardView? { selectionCard }
+    @MainActor var sourceTextViewForTests: NSTextView? { sourceTextView }
+    @MainActor var isSelectionLookupInFlightForTests: Bool { selectionTask != nil }
+    @MainActor var selectionUIGenerationForTests: Int { selectionUIGeneration }
+
+    /// Drives the FIRE path directly (bypassing the 300 ms settle), normalizing
+    /// and gating exactly like the settle path — inert without hooks, exactly
+    /// as production is (FR-8).
+    @MainActor func fireSelectionForTests(span: String) {
+        guard currentSelectionHooks != nil else { return }
+        let normalized = SpanNormalizer.normalize(span)
+        guard Self.shouldFireSelection(
+            normalizedSpan: normalized, lastFired: lastFiredSpan, slotVisible: selectionCard != nil
+        ) else { return }
+        fireSelection(span: normalized)
+    }
+
+    /// Delivers a lookup outcome through the same generation-guarded apply the
+    /// production task uses (the `renderPhoneticForTests` pattern).
+    @MainActor func applySelectionOutcomeForTests(
+        _ outcome: SelectionLookupOutcome, span: String, generation: Int
+    ) {
+        applySelectionOutcome(outcome, span: span, ifCurrent: generation)
+    }
 
     @MainActor
     private func copiedLabel() -> NSView {

@@ -324,7 +324,8 @@ private final class SpyResultPanel: ResultPresenting {
         detected: DetectedSource,
         viaGoogleFallback: Bool,
         onSave: (@MainActor () async -> Bool)?,
-        onRetranslate: (@MainActor (LanguagePair) -> Void)?
+        onRetranslate: (@MainActor (LanguagePair) -> Void)?,
+        selection: SelectionHooks?
     ) {
         lastTranslation = translation
         lastPair = pair

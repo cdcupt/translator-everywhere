@@ -271,7 +271,11 @@ actor CaptureCoordinator {
             detected: result.detected,
             viaGoogleFallback: result.viaGoogleFallback,
             onSave: onSave,
-            onRetranslate: onRetranslate
+            onRetranslate: onRetranslate,
+            // Slice S7 builds the real SelectionHooks (translate + save with the
+            // capture's context/pair pre-captured); nil keeps the selection
+            // feature unreachable until then (FR-8).
+            selection: nil
         )
     }
 

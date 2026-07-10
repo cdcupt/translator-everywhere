@@ -439,3 +439,228 @@ struct SelectionCardViewTests {
         return escapees
     }
 }
+
+/// The panel-side selection lifecycle (slice S6 — TECH §02 F-2/F-4/F-6, §04):
+/// the pure fire-decision helper, the whitelist's card entry, the card slot's
+/// growth/shrink geometry, the generation-guarded render seam, the teardown
+/// sinks, and the zero-footprint guarantee with `selection: nil`.
+@MainActor
+@Suite("ResultPanel — selection card slot lifecycle", .serialized)
+struct ResultPanelSelectionTests {
+
+    private static let fullCard = DictionaryCard(
+        headword: "scored",
+        translation: "攻入（进球）",
+        partOfSpeech: "verb",
+        sense: "“score”的过去式 — 此处指把球踢进球门",
+        example: "Messi scored the final goal.",
+        exampleTranslation: "梅西攻入了最后一球。"
+    )
+
+    /// Hooks whose lookup parks until cancelled — the "in flight" fixture.
+    /// `Task.sleep` observes cancellation, so the dismissal sink's
+    /// `selectionTask?.cancel()` is what resolves it (recorded via `onCancelled`).
+    private func parkedHooks(onCancelled: (@MainActor () -> Void)? = nil) -> SelectionHooks {
+        SelectionHooks(
+            translate: { _ in
+                do { try await Task.sleep(for: .seconds(300)) } catch { onCancelled?() }
+                return .superseded
+            },
+            save: nil
+        )
+    }
+
+    /// Presents a result body with `selection:` hooks and hands back the panel,
+    /// with growth forced synchronous (headless tests can't await an animator).
+    private func presentedPanel(selection: SelectionHooks?) -> ResultPanel {
+        let panel = ResultPanel()
+        panel.reduceMotionForTests = true
+        panel.showResult(
+            translation: "你好，世界", source: "Hello world", badge: "AI",
+            copied: false, selection: selection
+        )
+        return panel
+    }
+
+    // P-01 (AC-5 · FR-6) — the shouldClearSelection ancestry walk gains the
+    // card entry: hits inside a SelectionCardView subtree keep the selection
+    // (and the card); every pre-existing row holds byte-identical.
+    @Test("A hit inside the selection card keeps the selection; existing rows unchanged")
+    func whitelistKeepsCardHits() throws {
+        let card = SelectionCardView()
+        card.render(.dictionary(Self.fullCard), span: "scored")
+        #expect(ResultPanel.shouldClearSelection(forHit: card) == false)
+        let descendant = try #require(anyLabel(in: card), "the rendered card must have text descendants")
+        #expect(ResultPanel.shouldClearSelection(forHit: descendant) == false)
+
+        // The pre-existing matrix, re-asserted verbatim.
+        #expect(ResultPanel.shouldClearSelection(forHit: NSTextView()) == false)
+        #expect(ResultPanel.shouldClearSelection(forHit: NSScroller()) == false)
+        #expect(ResultPanel.shouldClearSelection(forHit: NSView()) == true)
+        #expect(ResultPanel.shouldClearSelection(forHit: NSTextField(labelWithString: "Recognized")) == true)
+        #expect(ResultPanel.shouldClearSelection(forHit: nil) == true)
+    }
+
+    // P-02 (FR-1) — the pure fire decision: empty/punctuation-only never fire,
+    // an identical span with the slot visible is deduped, the same span fires
+    // again after a dismissal, and a new span always fires.
+    @Test("shouldFireSelection: empty never; identical+visible deduped; dismissed/new spans fire")
+    func fireDecisionMatrix() {
+        // Empty → never.
+        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "", lastFired: nil, slotVisible: false))
+        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "", lastFired: "scored", slotVisible: true))
+        // Punctuation-only → no fire (DESIGN §06 — nothing to translate).
+        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "…!?", lastFired: nil, slotVisible: false))
+        // Identical span + slot visible → no re-fire (dedupe; the card already answers it).
+        #expect(!ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: "scored", slotVisible: true))
+        // Identical span + slot hidden → fire (the card was dismissed).
+        #expect(ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: "scored", slotVisible: false))
+        // New span → fire.
+        #expect(ResultPanel.shouldFireSelection(normalizedSpan: "final goal", lastFired: "scored", slotVisible: true))
+        #expect(ResultPanel.shouldFireSelection(normalizedSpan: "scored", lastFired: nil, slotVisible: false))
+    }
+
+    // P-05 (AC-5 · FR-6 · DESIGN §02) — mounting a card grows the window
+    // downward only (top edge fixed, delta ≤ 200 pt); dismissal restores the
+    // exact original frame.
+    @Test("Mounting a card grows the panel downward only; dismissal restores the frame")
+    func cardGrowthAndDismissalRestore() throws {
+        let panel = presentedPanel(selection: SelectionHooks(translate: { _ in .superseded }, save: nil))
+        let window = try #require(panel.panelForTests)
+        let original = window.frame
+
+        panel.fireSelectionForTests(span: "Hello")
+        #expect(panel.selectionCardForTests != nil, "the fire must mount the card slot")
+        let grown = window.frame
+        #expect(abs(grown.maxY - original.maxY) < 0.5, "the top edge must stay fixed")
+        #expect(grown.height > original.height, "the panel must grow to make room")
+        #expect(grown.height - original.height <= 200, "growth stays within the slot cap")
+        #expect(grown.minY < original.minY, "growth is downward only")
+
+        panel.dismissSelectionCard()
+        #expect(panel.selectionCardForTests == nil)
+        #expect(window.frame == original, "dismissal restores the exact original frame")
+    }
+
+    // P-07 (AC-7) — a lookup outcome delivered after the UI generation moved
+    // on is discarded via the guarded render seam (the renderPhoneticForTests
+    // pattern); the current generation still renders.
+    @Test("A stale outcome delivered after the generation bumps is discarded")
+    func staleOutcomeDiscarded() throws {
+        let panel = presentedPanel(selection: parkedHooks())
+
+        panel.fireSelectionForTests(span: "scored")
+        let staleGeneration = panel.selectionUIGenerationForTests
+
+        panel.fireSelectionForTests(span: "final goal") // supersedes — bumps the generation
+        let card = try #require(panel.selectionCardForTests)
+        #expect(card.skeletonBarCountForTests > 0, "the newer lookup owns the slot (skeleton up)")
+
+        let result = SelectionResult(output: .card(Self.fullCard), servedBy: .ai, contextUsed: true)
+        panel.applySelectionOutcomeForTests(.success(result), span: "scored", generation: staleGeneration)
+        #expect(card.skeletonBarCountForTests > 0, "a stale outcome must not render")
+        #expect(!labelStrings(in: card).contains("攻入（进球）"))
+
+        panel.applySelectionOutcomeForTests(
+            .success(result), span: "final goal", generation: panel.selectionUIGenerationForTests
+        )
+        #expect(labelStrings(in: card).contains("攻入（进球）"), "the current generation renders")
+    }
+
+    // P-08 (AC-8 · FR-8) — with `selection: nil` (every pre-existing call
+    // site's shape) no card exists anywhere, no delegate is wired, and the
+    // fire path is unreachable: construction identical to v1.2.10.
+    @Test("showResult with selection: nil builds no card and wires no delegate")
+    func nilSelectionHasZeroFootprint() throws {
+        let panel = ResultPanel()
+        panel.showResult(translation: "出口", source: "Exit", badge: "FREE", copied: false)
+        let content = try #require(panel.panelForTests?.contentView)
+        #expect(selectionCards(in: content).isEmpty, "no SelectionCardView in the hierarchy")
+        #expect(panel.sourceTextViewForTests?.delegate == nil, "no delegate side effects")
+
+        // Even the fire seam is inert without hooks — no card can ever mount.
+        panel.fireSelectionForTests(span: "Exit")
+        #expect(panel.selectionCardForTests == nil)
+        #expect(selectionCards(in: content).isEmpty)
+    }
+
+    /// The three teardown funnels I-13 walks in turn.
+    enum TeardownSink: String, CaseIterable {
+        case dropResultBody, setRetranslating, updateResult
+    }
+
+    // I-13 (AC-5 · FR-6) — with a card mounted and a lookup in flight, each
+    // teardown funnel dismisses the card and cancels the settle/request task
+    // before content changes (retranslate-dismisses-card and
+    // new-capture-dismisses-card both funnel through here).
+    @Test("Teardown sinks dismiss the card and cancel the in-flight lookup",
+          arguments: TeardownSink.allCases)
+    func teardownSinksDismissTheCard(sink: TeardownSink) async throws {
+        var cancelled = false
+        let panel = presentedPanel(selection: parkedHooks(onCancelled: { cancelled = true }))
+
+        panel.fireSelectionForTests(span: "Hello")
+        #expect(panel.selectionCardForTests != nil, "precondition: a card is mounted")
+        #expect(panel.isSelectionLookupInFlightForTests, "precondition: a lookup is in flight")
+
+        switch sink {
+        case .dropResultBody:
+            panel.dropResultBody()
+        case .setRetranslating:
+            panel.setRetranslating()
+        case .updateResult:
+            let en = try #require(LanguageCatalog.language(forCode: "en"))
+            panel.updateResult(
+                translation: "T", source: "S", badge: "AI", copied: false,
+                pair: LanguagePair(from: nil, to: en), detected: .unavailable,
+                viaGoogleFallback: false, onSave: nil, onRetranslate: nil
+            )
+        }
+
+        #expect(panel.selectionCardForTests == nil, "\(sink.rawValue) must dismiss the card")
+        #expect(panel.isSelectionLookupInFlightForTests == false,
+                "\(sink.rawValue) must cancel the in-flight lookup")
+        await spin { cancelled }
+        #expect(cancelled, "\(sink.rawValue) must actually cancel the request task")
+    }
+
+    // MARK: - Helpers
+
+    /// Every `NSTextField` string in the subtree, in document order.
+    private func labelStrings(in root: NSView) -> [String] {
+        var strings: [String] = []
+        func visit(_ view: NSView) {
+            if let field = view as? NSTextField { strings.append(field.stringValue) }
+            view.subviews.forEach(visit)
+        }
+        visit(root)
+        return strings
+    }
+
+    /// Any text-field descendant of the card — a deep whitelist probe target.
+    private func anyLabel(in root: NSView) -> NSTextField? {
+        for view in root.subviews {
+            if let field = view as? NSTextField { return field }
+            if let found = anyLabel(in: view) { return found }
+        }
+        return nil
+    }
+
+    /// Every `SelectionCardView` in the subtree (P-08 asserts none exist).
+    private func selectionCards(in root: NSView) -> [SelectionCardView] {
+        var found: [SelectionCardView] = []
+        func visit(_ view: NSView) {
+            if let card = view as? SelectionCardView { found.append(card) }
+            view.subviews.forEach(visit)
+        }
+        visit(root)
+        return found
+    }
+
+    /// Bounded main-actor drain (the KeySyncTests idiom): yields until the
+    /// condition holds — no wall-clock sleeps.
+    private func spin(_ condition: () -> Bool) async {
+        var spins = 0
+        while !condition(), spins < 1000 { await Task.yield(); spins += 1 }
+    }
+}
