@@ -856,6 +856,135 @@ struct ResultPanelSelectionTests {
         #expect(panel.selectionCardForTests != nil, "the card slot must mount")
     }
 
+    // MUTATION-PIN (QA round, mutation A — the down-return hook): a DRAG-made
+    // selection delivers ZERO selection-change notifications end to end
+    // (verified live — every mid-drag set uses `stillSelecting`), and the
+    // mouse-up is consumed by the tracking loop, so the RETURN of the
+    // dispatched mouse-down is the ONLY signal that can arm the settle.
+    // `mouseSelectionFiresThroughRealEventPath` cannot pin that hook: its
+    // synthetic double-click delivers one final notification a live drag never
+    // does, and the held-button re-arm masks a removed hook. Here the delegate
+    // is detached for exactly the dispatch window, reproducing the live
+    // zero-notification drag headlessly — the down-return hook (which reads
+    // the text view directly, not the delegate) is all that remains.
+    @Test("A tracking-loop selection delivering no notification still fires via the down-return hook")
+    func noNotificationSelectionFiresViaDownReturnHook() async throws {
+        var requested: [String] = []
+        let hooks = SelectionHooks(
+            translate: { span in
+                requested.append(span)
+                return .superseded
+            },
+            save: nil
+        )
+        let panel = ResultPanel()
+        panel.reduceMotionForTests = true
+        panel.showTranslating(source: nil)
+        panel.showTranslating(source: "Messi scored the final goal.")
+        panel.showResult(
+            translation: "梅西攻入了最后一球。", source: "Messi scored the final goal.",
+            badge: "AI", copied: false, selection: hooks
+        )
+        let window = try #require(panel.panelForTests)
+        let sourceTV = try #require(panel.sourceTextViewForTests)
+        #expect(sourceTV.delegate === panel,
+                "precondition: the live present path wires the selection trigger delegate")
+        window.contentView?.layoutSubtreeIfNeeded()
+
+        // Aim a double-click at the middle of "scored" in the Recognized pane.
+        let charRange = (sourceTV.string as NSString).range(of: "scored")
+        let layoutManager = try #require(sourceTV.layoutManager)
+        let container = try #require(sourceTV.textContainer)
+        layoutManager.ensureLayout(for: container)
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: charRange, actualCharacterRange: nil)
+        var glyphRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: container)
+        glyphRect.origin.x += sourceTV.textContainerOrigin.x
+        glyphRect.origin.y += sourceTV.textContainerOrigin.y
+        let pointInWindow = sourceTV.convert(NSPoint(x: glyphRect.midX, y: glyphRect.midY), to: nil)
+
+        func mouse(_ type: NSEvent.EventType) -> NSEvent? {
+            NSEvent.mouseEvent(
+                with: type, location: pointInWindow, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber, context: nil,
+                eventNumber: 0, clickCount: 2, pressure: 1
+            )
+        }
+        let down = try #require(mouse(.leftMouseDown))
+        let up = try #require(mouse(.leftMouseUp))
+
+        // The live drag contract: no notification for the whole interaction.
+        // Detaching the delegate for the dispatch window cancels the synthetic
+        // dispatch's one spurious notification; the button stays pressed for
+        // the whole dispatch and the up is consumed inside the tracking loop.
+        let originalDelegate = sourceTV.delegate
+        sourceTV.delegate = nil
+        panel.pressedMouseButtonsForTests = 1
+        NSApp.postEvent(up, atStart: true)
+        window.sendEvent(down)
+        panel.pressedMouseButtonsForTests = 0 // dispatch over ⇒ button released
+        sourceTV.delegate = originalDelegate  // interaction over — live wiring restored
+
+        let selected = (sourceTV.string as NSString).substring(with: sourceTV.selectedRange())
+        let expected = SpanNormalizer.normalize(selected)
+        try #require(!expected.isEmpty, "precondition: the dispatch produced a selection")
+
+        await settleSpin { !requested.isEmpty }
+        #expect(requested == [expected],
+                "with zero notifications, only the down-return hook can arm the settle — it must fire")
+        #expect(panel.selectionCardForTests != nil, "the card slot must mount")
+    }
+
+    // MUTATION-PIN (QA round, mutation C — the poll-until-release branch):
+    // when the 300 ms debounce elapses while the button is STILL down (a slow
+    // drag / long double-click hold), `selectionSettleDidFire` must re-arm and
+    // poll for the release rather than dying — the matching mouse-up may never
+    // reach `sendEvent`, so nothing else will ever retry.
+    // `heldButtonSelectionFiresAfterRelease` cannot pin that branch: it
+    // releases the seam synchronously, long before the debounce elapses, so
+    // the fire-time button check never reads pressed. Here the seam is
+    // released only AFTER the settle has verifiably elapsed while pressed.
+    @Test("A settle that elapses while the button is still down polls until the release, then fires")
+    func settleElapsingWhileHeldPollsUntilRelease() async throws {
+        var requested: [String] = []
+        let hooks = SelectionHooks(
+            translate: { span in
+                requested.append(span)
+                return .superseded
+            },
+            save: nil
+        )
+        let panel = ResultPanel()
+        panel.reduceMotionForTests = true
+        panel.showTranslating(source: nil)
+        panel.showTranslating(source: "Messi scored the final goal.")
+        panel.showResult(
+            translation: "梅西攻入了最后一球。", source: "Messi scored the final goal.",
+            badge: "AI", copied: false, selection: hooks
+        )
+        let sourceTV = try #require(panel.sourceTextViewForTests)
+
+        // The word-select notification arrives while the button is held (the
+        // real AppKit delegate path), arming the settle.
+        panel.pressedMouseButtonsForTests = 1
+        sourceTV.setSelectedRange((sourceTV.string as NSString).range(of: "scored"))
+
+        // Hold PAST the debounce (300 ms — 3x margin): the settle elapses
+        // while the seam still reads pressed, forcing the fire-time button
+        // check. FR-1 holds throughout — nothing may fire while held.
+        await settleSpin(timeout: .milliseconds(900)) { !requested.isEmpty }
+        #expect(requested.isEmpty, "FR-1: no lookup may fire while the button is down")
+
+        // Only now release. No mouse-up reaches sendEvent and no further
+        // notification arrives (the tracking loop consumed both live) — the
+        // re-armed poll is the only path left to complete the fire.
+        panel.pressedMouseButtonsForTests = 0
+        await settleSpin { !requested.isEmpty }
+        #expect(requested == ["scored"],
+                "the elapsed-while-held settle must poll until the release, then fire exactly once")
+        #expect(panel.selectionCardForTests != nil, "the card slot must mount")
+    }
+
     // MARK: - Helpers
 
     /// Wall-clock-capable drain for the 300 ms settle debounce (the yield-based
