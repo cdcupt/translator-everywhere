@@ -39,6 +39,11 @@ actor CaptureCoordinator {
     /// update on rapid To changes (TECH §5).
     private var generation = 0
 
+    /// Monotonic selection-lookup token (TECH §F-3) — the mirror of `generation`
+    /// for the panel's selection seam. `translateSelectionLatest` bumps it per
+    /// lookup; a mismatch on return means a newer selection started (AC-7).
+    private var selectionGeneration = 0
+
     init(
         permission: PermissionService = PermissionService(),
         capturer: RegionCapturer = RegionCapturer(),
@@ -167,6 +172,33 @@ actor CaptureCoordinator {
         }
     }
 
+    /// Runs one selection lookup under the TWO-token staleness guard (TECH §F-3):
+    /// bumps `selectionGeneration` and captures the MAIN `generation`, then
+    /// requires BOTH unchanged when the service returns — a newer selection
+    /// (AC-7) or a capture/retranslate that changed the content underneath
+    /// (FR-6) makes the result `.superseded`. Error taxonomy is preserved for
+    /// the panel: `CancellationError` (the panel cancelled the lookup task)
+    /// maps to `.superseded`; any other throw surfaces as `.failure` so the
+    /// card can render the quiet error row. Internal so the race is
+    /// unit-testable without driving capture/OCR/UI.
+    func translateSelectionLatest(
+        span: String, context: String, pair: LanguagePair
+    ) async -> SelectionLookupOutcome {
+        selectionGeneration &+= 1
+        let token = selectionGeneration
+        let mainToken = generation
+        do {
+            let result = try await service.translateSelection(span: span, context: context, pair: pair)
+            guard token == selectionGeneration, mainToken == generation else { return .superseded }
+            return .success(result)
+        } catch is CancellationError {
+            return .superseded
+        } catch {
+            guard token == selectionGeneration, mainToken == generation else { return .superseded }
+            return .failure(error)
+        }
+    }
+
     /// Persists the capture to the notebook when the user opts in via the panel's
     /// Save button. Threads the resolved From/To BCP-47 codes the orchestrator
     /// derived into `srcLang`/`tgtLang`. Returns whether the save succeeded so the
@@ -231,9 +263,43 @@ actor CaptureCoordinator {
             Task { await self.retranslate(pair: newPair) }
         }
 
+        // ONE SelectionHooks per present (TECH §F-3). The translate hook
+        // pre-captures the recognized text as context and PINS the pair —
+        // explicit From → detected language → Auto, with the effective target —
+        // so every lookup on this result translates against what was actually
+        // captured, whatever Preferences do meanwhile. The save hook wraps the
+        // existing `save` with the same threaded codes; nil without a notebook,
+        // so the card offers no Save control (mirroring `onSave`).
+        let detectedFrom: Language?
+        if case let .identified(language, _) = result.detected {
+            detectedFrom = language
+        } else {
+            detectedFrom = nil
+        }
+        let selectionPair = LanguagePair(from: pair.from ?? detectedFrom, to: effectiveTo)
+        let onSelectionSave: (@MainActor (String, String, EngineKind) async -> Bool)? = notebook.map { _ in
+            { [weak self] span, translation, servedBy in
+                guard let self else { return false }
+                return await self.save(
+                    source: span, translation: translation,
+                    from: fromCode, to: toCode, kind: servedBy
+                )
+            }
+        }
+        let selection = SelectionHooks(
+            translate: { [weak self] span in
+                guard let self else { return .superseded }
+                return await self.translateSelectionLatest(
+                    span: span, context: source, pair: selectionPair
+                )
+            },
+            save: onSelectionSave
+        )
+
         await presentResult(
             result: result, source: source, pair: displayPair,
-            copied: copied, onSave: onSave, onRetranslate: onRetranslate
+            copied: copied, onSave: onSave, onRetranslate: onRetranslate,
+            selection: selection
         )
     }
 
@@ -255,7 +321,8 @@ actor CaptureCoordinator {
         pair: LanguagePair,
         copied: Bool,
         onSave: (@MainActor () async -> Bool)?,
-        onRetranslate: @escaping @MainActor (LanguagePair) -> Void
+        onRetranslate: @escaping @MainActor (LanguagePair) -> Void,
+        selection: SelectionHooks
     ) {
         // LSUIElement agents launch unfocused — grab focus before showing.
         NSApp.activate(ignoringOtherApps: true)
@@ -272,10 +339,7 @@ actor CaptureCoordinator {
             viaGoogleFallback: result.viaGoogleFallback,
             onSave: onSave,
             onRetranslate: onRetranslate,
-            // Slice S7 builds the real SelectionHooks (translate + save with the
-            // capture's context/pair pre-captured); nil keeps the selection
-            // feature unreachable until then (FR-8).
-            selection: nil
+            selection: selection
         )
     }
 

@@ -220,6 +220,255 @@ struct CaptureCoordinatorSaveTests {
             return
         }
     }
+
+    // MARK: - Selection lookups (slice S7): two-token guard + hooks wiring
+
+    /// I-09 (AC-7 · FR-1) — the A/B supersede race: request A ("scored") parks
+    /// in-flight behind the stub's gate; B ("final goal") fires after it and
+    /// completes at once; then the gate opens and A returns late. B owns the
+    /// slot (`.success`); late A is dropped (`.superseded`); and the panel
+    /// never saw an A render — the coordinator returns outcomes, presents nothing.
+    @Test("I-09: a newer selection lookup supersedes the older in-flight one")
+    func selectionRaceDropsLateReturn() async throws {
+        let zh = try #require(LanguageCatalog.language(forCode: "zh-CN"))
+        let pair = LanguagePair(from: nil, to: zh)
+        let service = GatedSelectionService(
+            slowSpan: "scored",
+            translations: ["scored": "攻入（进球）", "final goal": "决胜球"]
+        )
+        let spy = SpyResultPanel()
+        let coordinator = CaptureCoordinator(
+            settings: makeSettings(), service: service, resultPanel: spy, notebook: nil
+        )
+
+        // A bumps the selection token, then parks in-flight (gate closed).
+        let a = Task {
+            await coordinator.translateSelectionLatest(
+                span: "scored", context: "He scored twice tonight.", pair: pair
+            )
+        }
+        await service.waitUntilParked()
+
+        // B fires after its own settle and completes fast — it is now the newest.
+        let b = await coordinator.translateSelectionLatest(
+            span: "final goal", context: "The final goal stood.", pair: pair
+        )
+        guard case let .success(result) = b else {
+            Issue.record("expected the newer selection lookup to succeed")
+            return
+        }
+        #expect(result.output == .plain("决胜球"))
+
+        // The gate opens: A returns late with a stale selection token.
+        await service.openGate()
+        guard case .superseded = await a.value else {
+            Issue.record("expected the older selection lookup to be superseded")
+            return
+        }
+        // The panel saw no A render — no render at all: outcomes are the
+        // panel's to apply, and nothing was presented for either request.
+        #expect(spy.events.isEmpty)
+    }
+
+    /// I-10 (AC-5 · FR-6) — cross-token staleness: a new capture/retranslate
+    /// (`runTranslation`) bumps the MAIN generation while a selection lookup is
+    /// in flight; when the lookup returns, its captured main token no longer
+    /// matches → `.superseded`. A stale card can never ride over new content.
+    @Test("I-10: a main-generation bump mid-flight supersedes the selection lookup")
+    func selectionSupersededByNewCapture() async throws {
+        let zh = try #require(LanguageCatalog.language(forCode: "zh-CN"))
+        let pair = LanguagePair(from: nil, to: zh)
+        let service = GatedSelectionService(slowSpan: "scored", translations: ["scored": "攻入"])
+        let coordinator = CaptureCoordinator(
+            settings: makeSettings(), service: service, resultPanel: SpyResultPanel(), notebook: nil
+        )
+
+        // The selection lookup parks in-flight, its main token captured.
+        let lookup = Task {
+            await coordinator.translateSelectionLatest(
+                span: "scored", context: "He scored twice.", pair: pair
+            )
+        }
+        await service.waitUntilParked()
+
+        // A new capture translates — the main generation moves on.
+        await coordinator.runTranslation(text: "fresh capture", pair: pair)
+
+        // The parked lookup returns to a changed main token → superseded, even
+        // though no newer SELECTION ever started.
+        await service.openGate()
+        guard case .superseded = await lookup.value else {
+            Issue.record("expected the selection lookup to be superseded by the new capture")
+            return
+        }
+    }
+
+    /// I-11 (AC-7 · FR-6) — outcome mapping preserves the error taxonomy:
+    /// (a) `CancellationError` (the panel cancelled the lookup task) →
+    /// `.superseded`; (b) `TranslationError.timedOut` → `.failure(.timedOut)`
+    /// so the panel can render the quiet error row.
+    @Test("I-11: CancellationError maps to .superseded; timedOut maps to .failure")
+    func selectionOutcomeMapping() async throws {
+        let zh = try #require(LanguageCatalog.language(forCode: "zh-CN"))
+        let pair = LanguagePair(from: nil, to: zh)
+
+        // (a) cancellation → .superseded
+        let cancelled = CaptureCoordinator(
+            settings: makeSettings(),
+            service: ThrowingSelectionService(error: CancellationError()),
+            resultPanel: SpyResultPanel(), notebook: nil
+        )
+        let a = await cancelled.translateSelectionLatest(span: "scored", context: "ctx", pair: pair)
+        guard case .superseded = a else {
+            Issue.record("expected a CancellationError to map to .superseded")
+            return
+        }
+
+        // (b) timeout → .failure(.timedOut)
+        let timedOut = CaptureCoordinator(
+            settings: makeSettings(),
+            service: ThrowingSelectionService(error: TranslationError.timedOut),
+            resultPanel: SpyResultPanel(), notebook: nil
+        )
+        let b = await timedOut.translateSelectionLatest(span: "scored", context: "ctx", pair: pair)
+        guard case let .failure(error) = b, case TranslationError.timedOut = error else {
+            Issue.record("expected a timeout to surface as .failure(.timedOut)")
+            return
+        }
+    }
+
+    /// I-12 (FR-2 · FR-7) — hooks wiring: `present` hands the panel ONE
+    /// `SelectionHooks` whose translate closure forwards the span verbatim,
+    /// the capture's recognized text as context, and the PINNED pair — the
+    /// explicit From when set, else the detected language, else Auto — with
+    /// `effectiveTo` as target. No notebook ⇒ the save hook is nil.
+    @Test("I-12: the translate hook forwards span verbatim, recognized text as context, and the pinned pair")
+    func selectionHooksWiring() async throws {
+        let en = try #require(LanguageCatalog.language(forCode: "en"))
+        let zh = try #require(LanguageCatalog.language(forCode: "zh-CN"))
+        let fr = try #require(LanguageCatalog.language(forCode: "fr"))
+
+        // Pinning step 2 — no explicit From: the DETECTED language is pinned.
+        let detected = RecordingSelectionService(result: TranslationResult(
+            translation: "他梅开二度", detected: .identified(en, confidence: 0.97),
+            servedBy: .ai, viaGoogleFallback: false, effectiveTo: zh
+        ))
+        let spy = SpyResultPanel()
+        let coordinator = CaptureCoordinator(
+            settings: makeSettings(), service: detected, resultPanel: spy, notebook: nil
+        )
+        await coordinator.runTranslation(
+            text: "He scored twice tonight.", pair: LanguagePair(from: nil, to: zh)
+        )
+        let hooks = try #require(spy.lastSelection)
+        #expect(hooks.save == nil)
+        guard case .success = await hooks.translate("scored") else {
+            Issue.record("expected the translate hook to succeed")
+            return
+        }
+        #expect(await detected.recordedSpan == "scored")
+        #expect(await detected.recordedContext == "He scored twice tonight.")
+        let pinned = try #require(await detected.recordedPair)
+        #expect(pinned.from?.code == "en")
+        #expect(pinned.to.code == "zh-CN")
+
+        // Pinning step 1 — an explicit From wins over the detected language.
+        let explicit = RecordingSelectionService(result: TranslationResult(
+            translation: "他进球了", detected: .identified(en, confidence: 0.97),
+            servedBy: .ai, viaGoogleFallback: false, effectiveTo: zh
+        ))
+        let explicitSpy = SpyResultPanel()
+        let explicitCoordinator = CaptureCoordinator(
+            settings: makeSettings(), service: explicit, resultPanel: explicitSpy, notebook: nil
+        )
+        await explicitCoordinator.runTranslation(
+            text: "Il a marqué.", pair: LanguagePair(from: fr, to: zh)
+        )
+        _ = await (try #require(explicitSpy.lastSelection)).translate("marqué")
+        let explicitPinned = try #require(await explicit.recordedPair)
+        #expect(explicitPinned.from?.code == "fr")
+        #expect(explicitPinned.to.code == "zh-CN")
+
+        // Pinning step 3 — neither explicit nor detected: Auto (nil From).
+        let auto = RecordingSelectionService(result: TranslationResult(
+            translation: "他进球了", detected: .unavailable,
+            servedBy: .ai, viaGoogleFallback: false, effectiveTo: zh
+        ))
+        let autoSpy = SpyResultPanel()
+        let autoCoordinator = CaptureCoordinator(
+            settings: makeSettings(), service: auto, resultPanel: autoSpy, notebook: nil
+        )
+        await autoCoordinator.runTranslation(
+            text: "He scored.", pair: LanguagePair(from: nil, to: zh)
+        )
+        _ = await (try #require(autoSpy.lastSelection)).translate("scored")
+        let autoPinned = try #require(await auto.recordedPair)
+        #expect(autoPinned.from == nil)
+        #expect(autoPinned.to.code == "zh-CN")
+    }
+
+    /// U-32 (FR-7 · AC-6) — a card save lands exactly one row through the
+    /// EXISTING save path: span as `sourceText`, the card translation, the
+    /// capture's threaded from/to codes, engine="ai" — no new fields touched.
+    @Test("U-32: hooks.save writes span/translation with threaded codes and engine=ai")
+    func cardSaveWritesThreadedRow() async throws {
+        let en = try #require(LanguageCatalog.language(forCode: "en"))
+        let zh = try #require(LanguageCatalog.language(forCode: "zh-CN"))
+        let store = try NotebookStore(inMemory: true)
+        let result = TranslationResult(
+            translation: "他梅开二度", detected: .identified(en, confidence: 0.97),
+            servedBy: .ai, viaGoogleFallback: false, effectiveTo: zh
+        )
+        let spy = SpyResultPanel()
+        let coordinator = CaptureCoordinator(
+            settings: makeSettings(), service: StubTranslating(result: result),
+            resultPanel: spy, notebook: store
+        )
+        await coordinator.runTranslation(
+            text: "He scored twice.", pair: LanguagePair(from: nil, to: zh)
+        )
+
+        let hooks = try #require(spy.lastSelection)
+        let save = try #require(hooks.save)
+        #expect(await save("scored", "攻入（进球）", .ai))
+
+        let all = try store.all()
+        #expect(all.count == 1)
+        let row = try #require(all.first)
+        #expect(row.sourceText == "scored")
+        #expect(row.translation == "攻入（进球）")
+        #expect(row.srcLang == "en")     // the capture's detected code, threaded
+        #expect(row.tgtLang == "zh-CN")  // the capture's effective target, threaded
+        #expect(row.engine == EngineKind.ai.rawValue)
+    }
+
+    /// U-33 (FR-5 · FR-7) — the degraded variant saves honestly: a card served
+    /// by Google records engine="free", so the notebook badge stays truthful.
+    @Test("U-33: a degraded card save records engine=free")
+    func degradedCardSaveRecordsFreeEngine() async throws {
+        let en = try #require(LanguageCatalog.language(forCode: "en"))
+        let zh = try #require(LanguageCatalog.language(forCode: "zh-CN"))
+        let store = try NotebookStore(inMemory: true)
+        let result = TranslationResult(
+            translation: "他梅开二度", detected: .identified(en, confidence: 0.97),
+            servedBy: .free, viaGoogleFallback: false, effectiveTo: zh
+        )
+        let spy = SpyResultPanel()
+        let coordinator = CaptureCoordinator(
+            settings: makeSettings(), service: StubTranslating(result: result),
+            resultPanel: spy, notebook: store
+        )
+        await coordinator.runTranslation(
+            text: "He scored twice.", pair: LanguagePair(from: nil, to: zh)
+        )
+
+        let hooks = try #require(spy.lastSelection)
+        let save = try #require(hooks.save)
+        #expect(await save("scored", "攻入", .free))
+
+        let row = try #require(try store.all().first)
+        #expect(row.engine == EngineKind.free.rawValue)
+    }
 }
 
 /// A `Translating` stub that parks the "slow" target until the test opens its
@@ -280,6 +529,91 @@ private actor GatedService: Translating {
     }
 }
 
+/// A `Translating` stub whose SELECTION path parks a configured span until the
+/// test opens its gate, so the selection A/B race (I-09) and the cross-token
+/// staleness (I-10) are deterministic — no sleeps. Mirrors `GatedService`; its
+/// main `translate` returns at once so `runTranslation` can bump the main
+/// generation while a selection lookup is parked.
+private actor GatedSelectionService: Translating {
+    private let slowSpan: String
+    private let translations: [String: String]
+    private var release: CheckedContinuation<Void, Never>?
+    private var parkedSignal: CheckedContinuation<Void, Never>?
+    private var isParked = false
+
+    init(slowSpan: String, translations: [String: String]) {
+        self.slowSpan = slowSpan
+        self.translations = translations
+    }
+
+    func translate(text: String, pair: LanguagePair) async throws -> TranslationResult {
+        TranslationResult(
+            translation: "T", detected: .unavailable, servedBy: .free,
+            viaGoogleFallback: false, effectiveTo: pair.to
+        )
+    }
+
+    func translateSelection(span: String, context: String, pair: LanguagePair) async throws -> SelectionResult {
+        if span == slowSpan {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                release = cont
+                isParked = true
+                parkedSignal?.resume()
+                parkedSignal = nil
+            }
+        }
+        return SelectionResult(
+            output: .plain(translations[span] ?? "?"), servedBy: .ai, contextUsed: true
+        )
+    }
+
+    /// Suspends until the slow selection lookup has parked on its gate.
+    func waitUntilParked() async {
+        if isParked { return }
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            parkedSignal = cont
+        }
+    }
+
+    /// Releases the parked selection lookup.
+    func openGate() {
+        release?.resume()
+        release = nil
+    }
+}
+
+/// A `Translating` stub whose selection path always throws, so the outcome
+/// mapping (I-11: `CancellationError` → `.superseded`, anything else →
+/// `.failure`) can be asserted directly.
+private struct ThrowingSelectionService: Translating {
+    let error: any Error
+    func translate(text: String, pair: LanguagePair) async throws -> TranslationResult { throw error }
+    func translateSelection(span: String, context: String, pair: LanguagePair) async throws -> SelectionResult { throw error }
+}
+
+/// A `Translating` stub that returns a fixed main result and RECORDS the
+/// selection arguments the coordinator's hook forwards (I-12): the span, the
+/// context, and the pinned pair.
+private actor RecordingSelectionService: Translating {
+    private let result: TranslationResult
+    private(set) var recordedSpan: String?
+    private(set) var recordedContext: String?
+    private(set) var recordedPair: LanguagePair?
+
+    init(result: TranslationResult) {
+        self.result = result
+    }
+
+    func translate(text: String, pair: LanguagePair) async throws -> TranslationResult { result }
+
+    func translateSelection(span: String, context: String, pair: LanguagePair) async throws -> SelectionResult {
+        recordedSpan = span
+        recordedContext = context
+        recordedPair = pair
+        return SelectionResult(output: .plain("記録"), servedBy: .ai, contextUsed: true)
+    }
+}
+
 /// A `Translating` stub that returns a fixed result, so the coordinator's present
 /// composition (effective-target display + threaded save codes) can be asserted
 /// without the network.
@@ -304,6 +638,7 @@ private final class SpyResultPanel: ResultPresenting {
     private(set) var lastPair: LanguagePair?
     private(set) var lastDetected: DetectedSource?
     private(set) var lastOnSave: (@MainActor () async -> Bool)?
+    private(set) var lastSelection: SelectionHooks?
 
     /// The presentation calls in order, so a test can assert that the instant
     /// loading state is shown before the result fills it in.
@@ -331,6 +666,7 @@ private final class SpyResultPanel: ResultPresenting {
         lastPair = pair
         lastDetected = detected
         lastOnSave = onSave
+        lastSelection = selection
         events.append(.result(translation: translation))
     }
 
