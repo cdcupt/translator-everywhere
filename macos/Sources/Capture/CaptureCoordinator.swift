@@ -176,11 +176,14 @@ actor CaptureCoordinator {
     /// bumps `selectionGeneration` and captures the MAIN `generation`, then
     /// requires BOTH unchanged when the service returns — a newer selection
     /// (AC-7) or a capture/retranslate that changed the content underneath
-    /// (FR-6) makes the result `.superseded`. Error taxonomy is preserved for
-    /// the panel: `CancellationError` (the panel cancelled the lookup task)
-    /// maps to `.superseded`; any other throw surfaces as `.failure` so the
-    /// card can render the quiet error row. Internal so the race is
-    /// unit-testable without driving capture/OCR/UI.
+    /// (FR-6) makes the result `.superseded`. Error taxonomy keys on the
+    /// LOOKUP's fate, not the error's spelling (beta round 2, F1): only a
+    /// lookup whose task was really cancelled (the panel superseded or
+    /// dismissed it) maps to `.superseded`; every other throw — including a
+    /// `CancellationError` surfacing in a lookup nobody cancelled — is a
+    /// `.failure`, so the card renders the quiet error row instead of
+    /// discarding the outcome into a forever-shimmering skeleton. Internal so
+    /// the race is unit-testable without driving capture/OCR/UI.
     func translateSelectionLatest(
         span: String, context: String, pair: LanguagePair
     ) async -> SelectionLookupOutcome {
@@ -191,9 +194,8 @@ actor CaptureCoordinator {
             let result = try await service.translateSelection(span: span, context: context, pair: pair)
             guard token == selectionGeneration, mainToken == generation else { return .superseded }
             return .success(result)
-        } catch is CancellationError {
-            return .superseded
         } catch {
+            if Task.isCancelled { return .superseded }
             guard token == selectionGeneration, mainToken == generation else { return .superseded }
             return .failure(error)
         }

@@ -303,35 +303,59 @@ struct CaptureCoordinatorSaveTests {
         }
     }
 
-    /// I-11 (AC-7 · FR-6) — outcome mapping preserves the error taxonomy:
-    /// (a) `CancellationError` (the panel cancelled the lookup task) →
-    /// `.superseded`; (b) `TranslationError.timedOut` → `.failure(.timedOut)`
-    /// so the panel can render the quiet error row.
-    @Test("I-11: CancellationError maps to .superseded; timedOut maps to .failure")
+    /// I-11 (AC-7 · FR-6, tightened in beta round 2 / F1) — outcome mapping
+    /// preserves the error taxonomy by the LOOKUP's fate, not the error's
+    /// spelling:
+    /// (a) a lookup whose task was really cancelled (the panel superseded or
+    ///     dismissed it) → `.superseded`;
+    /// (b) a `CancellationError` surfacing in a lookup NOBODY cancelled is a
+    ///     real failure — mapping it to `.superseded` renders nothing and the
+    ///     skeleton shimmers forever (the live N10 silent-failure defect);
+    /// (c) `TranslationError.timedOut` → `.failure(.timedOut)` so the panel
+    ///     renders the quiet error row.
+    @Test("I-11: only a really-cancelled lookup is superseded; a stray CancellationError and a timeout are failures")
     func selectionOutcomeMapping() async throws {
         let zh = try #require(LanguageCatalog.language(forCode: "zh-CN"))
         let pair = LanguagePair(from: nil, to: zh)
 
-        // (a) cancellation → .superseded
-        let cancelled = CaptureCoordinator(
+        // (a) a genuinely cancelled lookup → .superseded. The service parks on
+        // a cancellation-responsive sleep; cancelling the wrapping task is the
+        // only thing that resolves it.
+        let parked = CaptureCoordinator(
+            settings: makeSettings(),
+            service: SleepingSelectionService(),
+            resultPanel: SpyResultPanel(), notebook: nil
+        )
+        let lookup = Task {
+            await parked.translateSelectionLatest(span: "scored", context: "ctx", pair: pair)
+        }
+        lookup.cancel()
+        guard case .superseded = await lookup.value else {
+            Issue.record("expected a really-cancelled lookup to map to .superseded")
+            return
+        }
+
+        // (b) a CancellationError thrown by the stack in a NON-cancelled
+        // lookup → .failure (the error row must render — never a silent void).
+        let stray = CaptureCoordinator(
             settings: makeSettings(),
             service: ThrowingSelectionService(error: CancellationError()),
             resultPanel: SpyResultPanel(), notebook: nil
         )
-        let a = await cancelled.translateSelectionLatest(span: "scored", context: "ctx", pair: pair)
-        guard case .superseded = a else {
-            Issue.record("expected a CancellationError to map to .superseded")
+        let b = await stray.translateSelectionLatest(span: "scored", context: "ctx", pair: pair)
+        guard case .failure = b else {
+            Issue.record("expected a stray CancellationError in a live lookup to surface as .failure")
             return
         }
 
-        // (b) timeout → .failure(.timedOut)
+        // (c) timeout → .failure(.timedOut)
         let timedOut = CaptureCoordinator(
             settings: makeSettings(),
             service: ThrowingSelectionService(error: TranslationError.timedOut),
             resultPanel: SpyResultPanel(), notebook: nil
         )
-        let b = await timedOut.translateSelectionLatest(span: "scored", context: "ctx", pair: pair)
-        guard case let .failure(error) = b, case TranslationError.timedOut = error else {
+        let c = await timedOut.translateSelectionLatest(span: "scored", context: "ctx", pair: pair)
+        guard case let .failure(error) = c, case TranslationError.timedOut = error else {
             Issue.record("expected a timeout to surface as .failure(.timedOut)")
             return
         }
@@ -583,12 +607,25 @@ private actor GatedSelectionService: Translating {
 }
 
 /// A `Translating` stub whose selection path always throws, so the outcome
-/// mapping (I-11: `CancellationError` → `.superseded`, anything else →
-/// `.failure`) can be asserted directly.
+/// mapping (I-11) can be asserted directly.
 private struct ThrowingSelectionService: Translating {
     let error: any Error
     func translate(text: String, pair: LanguagePair) async throws -> TranslationResult { throw error }
     func translateSelection(span: String, context: String, pair: LanguagePair) async throws -> SelectionResult { throw error }
+}
+
+/// A `Translating` stub whose selection path parks on a CANCELLATION-RESPONSIVE
+/// sleep — cancelling the wrapping task is the only thing that resolves it, so
+/// I-11 (a) can assert the really-cancelled → `.superseded` mapping without
+/// wall-clock flakiness.
+private struct SleepingSelectionService: Translating {
+    func translate(text: String, pair: LanguagePair) async throws -> TranslationResult {
+        throw TranslationError.emptyInput
+    }
+    func translateSelection(span: String, context: String, pair: LanguagePair) async throws -> SelectionResult {
+        try await Task.sleep(for: .seconds(300))
+        throw TranslationError.timedOut
+    }
 }
 
 /// A `Translating` stub that returns a fixed main result and RECORDS the
