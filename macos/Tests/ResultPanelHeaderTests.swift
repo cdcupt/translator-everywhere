@@ -258,6 +258,50 @@ struct SelectionCardViewTests {
                 "the stale save must not re-enable a button whose own save is in flight")
     }
 
+    // Review-fix round 2 (AC-7 · TECH F-3) — what the generation guard actually
+    // protects: `isSaving` is the reentrancy latch shared by every activation
+    // path, and a stale completion must not reset it while the new card's own
+    // save is in flight — unguarded, that reset re-arms `saveTapped` and a
+    // second rapid activation double-fires `onSave` for the same selection.
+    // The second activation is sent at the action level: a raw click would be
+    // swallowed by the disabled button cell, which is incidental (the stale
+    // completion only touches its own captured button), not the invariant
+    // under test.
+    @Test("A stale completion never re-arms the new card's in-flight save")
+    func staleCompletionNeverRearmsInFlightSave() async {
+        let card = SelectionCardView()
+        var saveCalls = 0
+        var pending: [CheckedContinuation<Bool, Never>] = []
+        card.onSave = {
+            saveCalls += 1
+            return await withCheckedContinuation { pending.append($0) }
+        }
+
+        card.render(.dictionary(Self.fullCard), span: "scored")
+        saveButton(in: card)?.performClick(nil) // save A in flight
+        await spin { pending.count == 1 }
+        let staleTask = card.saveTaskForTests // save B's click will overwrite the property
+
+        card.render(.plain(translation: "最终目标", degraded: false), span: "the final goal")
+        let newButton = saveButton(in: card)
+        newButton?.performClick(nil) // save B in flight on the new card
+        await spin { pending.count == 2 }
+
+        pending[0].resume(returning: false) // stale A fails …
+        await staleTask?.value              // … and its completion has fully run
+
+        // Second rapid activation on the new card while B is genuinely in flight.
+        if let newButton { _ = newButton.sendAction(newButton.action, to: newButton.target) }
+        await spin { saveCalls > 2 } // give an illegitimate third save every chance to start
+        #expect(saveCalls == 2,
+                "a stale completion must never re-arm save — onSave would double-fire")
+
+        pending[1].resume(returning: true) // B lands normally
+        await spin { newButton?.title == "★ Saved" }
+        #expect(newButton?.title == "★ Saved")
+        for extra in pending.dropFirst(2) { extra.resume(returning: false) } // tidy a failing run
+    }
+
     // Review-fix (F-8) — the announcement fires once per content render, from
     // the mounted card only; loading/error stay silent.
     @Test("A content render posts exactly one VoiceOver announcement")
