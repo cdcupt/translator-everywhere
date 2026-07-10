@@ -1143,9 +1143,12 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         case .success(let result):
             switch result.output {
             case .card(let card):
-                mountSelectionCard(.dictionary(card), span: span)
+                mountSelectionCard(.dictionary(card), span: span, servedBy: result.servedBy)
             case .plain(let translation):
-                mountSelectionCard(.plain(translation: translation, degraded: !result.contextUsed), span: span)
+                mountSelectionCard(
+                    .plain(translation: translation, degraded: !result.contextUsed),
+                    span: span, servedBy: result.servedBy
+                )
             }
         case .failure:
             mountSelectionCard(.error, span: span) // quiet inline row — never a dialog
@@ -1159,8 +1162,12 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
     /// Mounts (or re-renders) the card in the fixed slot after the Recognized
     /// section and sizes the slot + window for the new state. The slot is
     /// constructed on the first fire only — before that, nothing exists (FR-8).
+    /// `servedBy` is the answering engine (content states only) — it rides the
+    /// card save so the notebook records who translated the span (Fig. F7).
     @MainActor
-    private func mountSelectionCard(_ state: SelectionCardView.State, span: String) {
+    private func mountSelectionCard(
+        _ state: SelectionCardView.State, span: String, servedBy: EngineKind? = nil
+    ) {
         guard let stack = resultStack, let sourceSection = sourceSectionView else { return }
         let card: SelectionCardView
         if let mounted = selectionCard {
@@ -1177,10 +1184,41 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
             selectionCard = card
             frameBeforeSelectionGrowth = panel?.frame
         }
+        // The error row's "Try again" re-fires the SAME span through the hooks
+        // — the full FIRE lifecycle again (skeleton, single-flight supersede),
+        // not a bespoke retry path (I-14).
+        card.onRetry = { [weak self] in self?.fireSelection(span: span) }
+        let saveHandler = cardSaveHandler(state: state, span: span, servedBy: servedBy)
+        card.onSave = saveHandler
         card.render(state, span: span)
+        // ⌘S routing (TECH Fig. F7): exactly one visible button holds "s"+⌘ at
+        // any moment — the card's Save control while a content state is up, the
+        // header button otherwise (loading/error never move it: there is no
+        // card translation to save yet).
+        card.setSaveKeyEquivalentActive(saveHandler != nil)
+        saveButtonController?.setKeyEquivalentActive(saveHandler == nil)
         setSelectionSlotHeight(
             SelectionCardView.fittingHeight(for: state, span: span, width: selectionSlotWidth)
         )
+    }
+
+    /// The card's async-confirm Save handler: span → `source`, the card's
+    /// contextual translation → `translation`, through the coordinator's save
+    /// hook (FR-7). `nil` — meaning the card mounts no Save control — for
+    /// loading/error (nothing to save yet) and without a notebook (AC-6,
+    /// mirroring the header's `onSave`).
+    @MainActor
+    private func cardSaveHandler(
+        state: SelectionCardView.State, span: String, servedBy: EngineKind?
+    ) -> (@MainActor () async -> Bool)? {
+        guard let save = currentSelectionHooks?.save, let servedBy else { return nil }
+        let translation: String
+        switch state {
+        case .dictionary(let card): translation = card.translation
+        case .plain(let text, _): translation = text
+        case .loading, .error: return nil
+        }
+        return { await save(span, translation, servedBy) }
     }
 
     /// The width the mounted card gets: panel content width minus the result
@@ -1264,6 +1302,9 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         if let stack = card.superview as? NSStackView { stack.removeArrangedSubview(card) }
         card.removeFromSuperview()
         selectionCard = nil
+        // The roaming ⌘S goes home (Fig. F7 step 4): with the card gone, the
+        // header Save button reclaims the key equivalent.
+        saveButtonController?.setKeyEquivalentActive(true)
         if let base = frameBeforeSelectionGrowth {
             applyPanelFrame(base, animated: false)
         }
@@ -1482,6 +1523,15 @@ private final class SaveButtonController {
         // alive by `ResultPanel.saveButtonController`.
         button.target = self
         button.action = #selector(saveTapped)
+    }
+
+    /// The header's half of the roaming ⌘S (TECH Fig. F7): while a selection
+    /// card shows a content state the key equivalent belongs to the card's
+    /// Save control, so this button goes bare — still visible and clickable,
+    /// still saving the whole capture. Dismissal hands the shortcut back.
+    func setKeyEquivalentActive(_ active: Bool) {
+        button.keyEquivalent = active ? "s" : ""
+        button.keyEquivalentModifierMask = active ? .command : []
     }
 
     @objc private func saveTapped() {

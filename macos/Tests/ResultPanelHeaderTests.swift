@@ -472,12 +472,16 @@ struct ResultPanelSelectionTests {
 
     /// Presents a result body with `selection:` hooks and hands back the panel,
     /// with growth forced synchronous (headless tests can't await an animator).
-    private func presentedPanel(selection: SelectionHooks?) -> ResultPanel {
+    /// `onSave` mounts the header's "Save to Notebook" button (the ⌘S routing
+    /// tests need both possible key-equivalent targets to exist).
+    private func presentedPanel(
+        selection: SelectionHooks?, onSave: (@MainActor () async -> Bool)? = nil
+    ) -> ResultPanel {
         let panel = ResultPanel()
         panel.reduceMotionForTests = true
         panel.showResult(
             translation: "你好，世界", source: "Hello world", badge: "AI",
-            copied: false, selection: selection
+            copied: false, onSave: onSave, selection: selection
         )
         return panel
     }
@@ -624,6 +628,97 @@ struct ResultPanelSelectionTests {
         #expect(cancelled, "\(sink.rawValue) must actually cancel the request task")
     }
 
+    // P-06 (AC-6 · FR-7) — the roaming ⌘S: content states move the key
+    // equivalent to the card's Save control; loading/error leave it on the
+    // header (there is no card translation to save yet); the dismissal sink
+    // reverts it. One shortcut, never two active targets.
+    @Test("⌘S moves to the card on content render, stays on the header for loading/error, reverts on dismissal")
+    func commandSRoutingSwapsAndReverts() throws {
+        let hooks = SelectionHooks(
+            translate: { _ in .superseded }, // outcomes injected via the render seam
+            save: { _, _, _ in true }
+        )
+        let panel = presentedPanel(selection: hooks, onSave: { true })
+        let content = try #require(panel.panelForTests?.contentView)
+        let header = try #require(headerSaveButton(in: content))
+        #expect(commandSHolders(in: content) == [header], "the header owns ⌘S before any card")
+
+        // Loading: ⌘S stays on the header — mid-lookup still saves the whole capture.
+        panel.fireSelectionForTests(span: "scored")
+        let card = try #require(panel.selectionCardForTests)
+        #expect(card.skeletonBarCountForTests > 0, "precondition: the loading fill is up")
+        #expect(cardSaveButton(in: card) == nil, "the loading fill offers no Save control")
+        #expect(commandSHolders(in: content) == [header], "loading leaves ⌘S on the header")
+
+        // Content: the card's Save control takes ⌘S; the header button stays
+        // visible but goes bare.
+        let result = SelectionResult(output: .card(Self.fullCard), servedBy: .ai, contextUsed: true)
+        panel.applySelectionOutcomeForTests(
+            .success(result), span: "scored", generation: panel.selectionUIGenerationForTests
+        )
+        let cardSave = try #require(cardSaveButton(in: card), "a content state mounts the card's Save control")
+        #expect(commandSHolders(in: content) == [cardSave], "a content state moves ⌘S to the card")
+        #expect(header.superview != nil, "the header button stays visible + clickable")
+
+        // Error: no Save control on the card — ⌘S is back on the header.
+        panel.fireSelectionForTests(span: "final goal")
+        panel.applySelectionOutcomeForTests(
+            .failure(TranslationError.timedOut), span: "final goal",
+            generation: panel.selectionUIGenerationForTests
+        )
+        #expect(cardSaveButton(in: card) == nil, "the error fill offers no Save control")
+        #expect(commandSHolders(in: content) == [header], "the error state leaves ⌘S on the header")
+
+        // Content again, then the dismissal sink reverts the key equivalent.
+        panel.fireSelectionForTests(span: "goal")
+        panel.applySelectionOutcomeForTests(
+            .success(result), span: "goal", generation: panel.selectionUIGenerationForTests
+        )
+        #expect(commandSHolders(in: content).count == 1, "never two active ⌘S targets")
+        #expect(commandSHolders(in: content).first !== header)
+
+        panel.dismissSelectionCard()
+        #expect(panel.selectionCardForTests == nil)
+        #expect(commandSHolders(in: content) == [header], "dismissal reverts ⌘S to the header")
+    }
+
+    // I-14 (FR-1 · FR-6 · DESIGN §03) — a scripted `.failure(.timedOut)` lands
+    // as the quiet inline error row (the result body stays up — no dialog),
+    // and "Try again" re-fires the SAME span through the hooks exactly once
+    // more, running the full lookup lifecycle again.
+    @Test("Timed-out lookup renders the quiet error row; Try again re-fires the same span once")
+    func timedOutRetryRefiresSameSpan() async throws {
+        var requestedSpans: [String] = []
+        let hooks = SelectionHooks(
+            translate: { span in
+                requestedSpans.append(span)
+                return .failure(TranslationError.timedOut)
+            },
+            save: nil
+        )
+        let panel = presentedPanel(selection: hooks)
+
+        panel.fireSelectionForTests(span: "scored")
+        let card = try #require(panel.selectionCardForTests)
+        await spin { buttons(in: card).contains { $0.title == "Try again" } }
+        #expect(requestedSpans == ["scored"], "one lookup fired")
+        #expect(labelStrings(in: card).contains { $0.contains("Couldn’t translate") },
+                "the failure renders the quiet inline row")
+        #expect(panel.sourceTextViewForTests != nil,
+                "the result body is untouched — the error is a row in the card, not a dialog")
+
+        let retry = try #require(buttons(in: card).first { $0.title == "Try again" })
+        retry.performClick(nil)
+        await spin { requestedSpans.count >= 2 }
+        #expect(requestedSpans == ["scored", "scored"],
+                "retry invokes translate exactly once more, with the same span")
+
+        // The re-fire runs the full lifecycle: the scripted failure lands as
+        // the quiet row again (and no extra lookup sneaks in).
+        await spin { buttons(in: card).contains { $0.title == "Try again" } }
+        #expect(requestedSpans.count == 2)
+    }
+
     // MARK: - Helpers
 
     /// Every `NSTextField` string in the subtree, in document order.
@@ -635,6 +730,37 @@ struct ResultPanelSelectionTests {
         }
         visit(root)
         return strings
+    }
+
+    /// Every `NSButton` in the subtree, in document order.
+    private func buttons(in root: NSView) -> [NSButton] {
+        var found: [NSButton] = []
+        func visit(_ view: NSView) {
+            if let button = view as? NSButton { found.append(button) }
+            view.subviews.forEach(visit)
+        }
+        visit(root)
+        return found
+    }
+
+    /// The buttons currently holding the ⌘S key equivalent — the P-06
+    /// invariant is that exactly one visible button holds it at any moment.
+    private func commandSHolders(in root: NSView) -> [NSButton] {
+        buttons(in: root).filter {
+            $0.keyEquivalent == "s" && $0.keyEquivalentModifierMask.contains(.command)
+        }
+    }
+
+    /// The header's whole-capture Save button (stable title; the card's
+    /// control carries a different tooltip).
+    private func headerSaveButton(in root: NSView) -> NSButton? {
+        buttons(in: root).first { $0.title == "Save to Notebook" }
+    }
+
+    /// The card's Save control, found by its stable tooltip (the title swaps
+    /// to "★ Saved" after a confirmed save).
+    private func cardSaveButton(in root: NSView) -> NSButton? {
+        buttons(in: root).first { $0.toolTip == "Save selection to Notebook (⌘S)" }
     }
 
     /// Any text-field descendant of the card — a deep whitelist probe target.
