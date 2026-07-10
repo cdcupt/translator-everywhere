@@ -115,6 +115,16 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         /// hook reads it — on the mouse-up when one reaches `sendEvent`, and
         /// on the mouse-down's return when a tracking loop consumed the up.
         override func sendEvent(_ event: NSEvent) {
+            // Esc is intercepted at the WINDOW level (beta round 2, F4): key
+            // routing hands Esc to the first responder, and an NSTextView —
+            // exactly what a double-click leaves focused — can swallow
+            // `cancelOperation` before it ever reaches the window. An active
+            // card slot must dismiss on Esc whatever holds focus; without a
+            // slot the event flows to `super` and the panel's pre-feature Esc
+            // behavior is untouched.
+            if event.type == .keyDown, event.keyCode == 53, onCancel?() == true {
+                return
+            }
             if event.type == .leftMouseDown, let contentView {
                 let point = contentView.convert(event.locationInWindow, from: nil)
                 let hit = contentView.hitTest(point)
@@ -608,7 +618,17 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
             self?.handleMouseInteractionEnd(anchoredAt: hitView)
         }
         panel.onCancel = { [weak self] in
-            guard let self, self.selectionCard != nil else { return false }
+            guard let self else { return false }
+            guard self.selectionCard != nil else {
+                // No active slot: stand down any pending settle so Esc can't
+                // be followed by a surprise card, then fall through — the
+                // panel's pre-feature Esc behavior is unchanged (F4).
+                self.selectionSettleTask?.cancel()
+                self.selectionSettleTask = nil
+                return false
+            }
+            // Any active slot — loading, content, or error — dismisses alone:
+            // in-flight work is cancelled, the panel stays (F4).
             self.dismissSelectionCard()
             return true
         }

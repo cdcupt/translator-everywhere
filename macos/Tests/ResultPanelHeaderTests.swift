@@ -891,6 +891,53 @@ struct ResultPanelSelectionTests {
                 "a real collapse still dismisses the card once the interaction ends")
     }
 
+    // BETA ROUND 2 · F4 (lens-B med #2 vs coverage N7) — Esc semantics must
+    // hold REGARDLESS of which view is first responder while the panel is key:
+    // any active slot (loading OR content OR error) → Esc cancels the in-flight
+    // work and dismisses ONLY the slot; the panel stays. The live discrepancy:
+    // with the Recognized text view as first responder (the state a double-
+    // click leaves behind), the Esc keyDown never reached the window's
+    // cancelOperation.
+    @Test("Esc with an active slot dismisses only the slot, whatever the first responder",
+          arguments: [false, true])
+    func escDismissesSlotOnly(renderContent: Bool) async throws {
+        var cancelled = false
+        let panel = presentedPanel(selection: parkedHooks(onCancelled: { cancelled = true }))
+        let window = try #require(panel.panelForTests)
+        let sourceTV = try #require(panel.sourceTextViewForTests)
+
+        panel.fireSelectionForTests(span: "Hello")
+        try #require(panel.selectionCardForTests != nil)
+        if renderContent {
+            let result = SelectionResult(output: .card(Self.fullCard), servedBy: .ai, contextUsed: true)
+            panel.applySelectionOutcomeForTests(
+                .success(result), span: "Hello", generation: panel.selectionUIGenerationForTests
+            )
+        }
+
+        // The exact live state after a double-click: the text view holds focus.
+        window.makeFirstResponder(sourceTV)
+        let wasVisible = window.isVisible
+
+        let esc = try #require(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber, context: nil,
+            characters: "\u{1B}", charactersIgnoringModifiers: "\u{1B}",
+            isARepeat: false, keyCode: 53
+        ))
+        window.sendEvent(esc)
+
+        #expect(panel.selectionCardForTests == nil, "Esc dismisses the slot")
+        #expect(panel.isSelectionLookupInFlightForTests == false, "Esc cancels in-flight work")
+        if !renderContent {
+            await spin { cancelled }
+            #expect(cancelled, "the parked lookup really is cancelled")
+        }
+        #expect(window.isVisible == wasVisible, "the panel itself stays — Esc consumes only the slot")
+        #expect(panel.panelForTests != nil, "the panel is not torn down")
+    }
+
     // BETA ROUND 2 · F5 (lens-B med #3) — the second double-click that extends
     // the selection word-wise WITHOUT shift (macOS click-count extension) is
     // part of the same dead-trigger family as b5b953d: the whole gesture runs
