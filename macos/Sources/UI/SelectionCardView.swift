@@ -50,6 +50,11 @@ final class SelectionCardView: NSView {
     }
 
     private let contentStack = NSStackView()
+
+    /// Masks content to the rounded card when the panel clamps the frame to
+    /// `maxHeight` (DESIGN §02: clamped, never scrolled). A separate view
+    /// because `masksToBounds` on the card's own layer would clip its shadow.
+    private let contentClipView = NSView()
     private let borderLayer = CAShapeLayer()
 
     /// Labels that wrap, re-measured against the current width in `layout()`
@@ -62,6 +67,32 @@ final class SelectionCardView: NSView {
     private weak var saveButton: NSButton?
     private var isSaveKeyEquivalentActive = false
     private var isSaving = false
+
+    /// Bumped on every `render` — the F-3-style staleness token for the card's
+    /// own async save: this one view is reused across selections (TECH F-1), so
+    /// a save resolving after a re-render belongs to a superseded card and must
+    /// not touch the rebuilt controls (AC-7).
+    private var renderGeneration = 0
+
+    /// Set on `fittingHeight`'s throwaway probe: measurement must stay
+    /// side-effect-free — the F-8 announcement belongs to the mounted card only.
+    private var isMeasurementProbe = false
+
+    /// The in-flight async-save task — internal so `@testable` tests can
+    /// deterministically join a save that resolves after a re-render.
+    private(set) var saveTaskForTests: Task<Void, Never>?
+
+    /// The F-8 announcement sink — static and swappable so tests can pin both
+    /// halves of the contract: the mounted card posts exactly once per content
+    /// render, and the `fittingHeight` probe never posts. Production keeps the
+    /// real NSAccessibility poster.
+    static var announcementPoster: (NSView, String) -> Void = { element, announcement in
+        NSAccessibility.post(
+            element: element,
+            notification: .announcementRequested,
+            userInfo: [.announcement: announcement]
+        )
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -79,16 +110,30 @@ final class SelectionCardView: NSView {
         borderLayer.lineWidth = 1
         layer?.addSublayer(borderLayer)
 
+        contentClipView.wantsLayer = true
+        contentClipView.layer?.masksToBounds = true
+        contentClipView.layer?.cornerRadius = Metrics.cornerRadius
+        contentClipView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(contentClipView)
+
         contentStack.orientation = .vertical
         contentStack.alignment = .leading
         contentStack.spacing = Metrics.rowGap
         contentStack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(contentStack)
+        // Yield to a clamped frame instead of fighting the required edge pins
+        // with a required content size: pathological content compresses (its
+        // wrapping rows truncate) and any residue is masked by the clip view.
+        contentStack.setClippingResistancePriority(.defaultLow, for: .vertical)
+        contentClipView.addSubview(contentStack)
         NSLayoutConstraint.activate([
-            contentStack.topAnchor.constraint(equalTo: topAnchor, constant: Metrics.insetTop),
-            contentStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Metrics.insetTop),
-            contentStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Metrics.insetSide),
-            contentStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Metrics.insetSide),
+            contentClipView.topAnchor.constraint(equalTo: topAnchor),
+            contentClipView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            contentClipView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            contentClipView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            contentStack.topAnchor.constraint(equalTo: contentClipView.topAnchor, constant: Metrics.insetTop),
+            contentStack.bottomAnchor.constraint(equalTo: contentClipView.bottomAnchor, constant: -Metrics.insetTop),
+            contentStack.leadingAnchor.constraint(equalTo: contentClipView.leadingAnchor, constant: Metrics.insetSide),
+            contentStack.trailingAnchor.constraint(equalTo: contentClipView.trailingAnchor, constant: -Metrics.insetSide),
         ])
 
         // One stable VoiceOver landmark below the Recognized pane — a container
@@ -105,6 +150,7 @@ final class SelectionCardView: NSView {
     /// Rebuilds the card for `state`. `span` is the user's (normalized) selection,
     /// echoed in the header row and bolded inside the example sentence.
     func render(_ state: State, span: String) {
+        renderGeneration += 1
         for view in contentStack.arrangedSubviews {
             contentStack.removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -156,6 +202,7 @@ final class SelectionCardView: NSView {
     /// swap causes no jump on the typical path.
     static func fittingHeight(for state: State, span: String, width: CGFloat) -> CGFloat {
         let probe = SelectionCardView()
+        probe.isMeasurementProbe = true // never announce from a view no one sees
         probe.render(state, span: span)
         probe.applyWrappingWidth(width - Metrics.insetSide * 2)
         let widthLimit = probe.widthAnchor.constraint(equalToConstant: width)
@@ -509,15 +556,21 @@ final class SelectionCardView: NSView {
     @objc private func saveTapped() {
         guard let onSave, !isSaving else { return }
         isSaving = true
-        saveButton?.isEnabled = false
-        Task { @MainActor in
+        let generation = renderGeneration
+        let button = saveButton
+        button?.isEnabled = false
+        saveTaskForTests = Task { @MainActor in
             let saved = await onSave()
+            // Staleness guard (the F-3 token pattern): a re-render means this
+            // result belongs to a superseded selection — leave the new card's
+            // controls (and its own in-flight `isSaving`) untouched.
+            guard generation == renderGeneration else { return }
             isSaving = false
             if saved {
-                saveButton?.title = "★ Saved"
-                saveButton?.contentTintColor = .systemPurple
+                button?.title = "★ Saved"
+                button?.contentTintColor = .systemPurple
             } else {
-                saveButton?.isEnabled = true
+                button?.isEnabled = true
             }
         }
     }
@@ -542,8 +595,11 @@ final class SelectionCardView: NSView {
     }
 
     /// VoiceOver hears the result the moment it lands: "span — translation,
-    /// POS" for content states only (loading/error announce nothing).
+    /// POS" for content states only (loading/error announce nothing, and the
+    /// off-screen `fittingHeight` probe never speaks — F-8: one announcement,
+    /// tied to the mounted render).
     private func announceIfContent(_ state: State, span: String) {
+        guard !isMeasurementProbe else { return }
         let announcement: String
         switch state {
         case .dictionary(let card):
@@ -554,11 +610,7 @@ final class SelectionCardView: NSView {
         case .loading, .error:
             return
         }
-        NSAccessibility.post(
-            element: self,
-            notification: .announcementRequested,
-            userInfo: [.announcement: announcement]
-        )
+        Self.announcementPoster(self, announcement)
     }
 
     private func applySaveKeyEquivalent() {

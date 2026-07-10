@@ -206,6 +206,120 @@ struct SelectionCardViewTests {
         #expect(dictionary <= 200)
     }
 
+    // Review-fix (AC-7 · TECH F-3 pattern) — the card is one reused instance;
+    // a save still in flight when the user re-selects must never touch the
+    // controls the re-render swapped in for the new span.
+    @Test("A save landing after a re-render never marks the new card Saved")
+    func staleSaveSuccessNeverMarksNewCardSaved() async {
+        let card = SelectionCardView()
+        var pending: [CheckedContinuation<Bool, Never>] = []
+        card.onSave = { await withCheckedContinuation { pending.append($0) } }
+
+        card.render(.dictionary(Self.fullCard), span: "scored")
+        let staleButton = saveButton(in: card)
+        staleButton?.performClick(nil) // save A in flight
+        await spin { pending.count == 1 }
+
+        // AC-7 re-selection: the same card re-renders for a different span.
+        card.render(.plain(translation: "最终目标", degraded: false), span: "the final goal")
+        let newButton = saveButton(in: card)
+        #expect(newButton !== staleButton)
+
+        pending[0].resume(returning: true) // the stale save lands late
+        await card.saveTaskForTests?.value
+
+        #expect(newButton?.title == "☆ Save ⌘S",
+                "a stale save must never label the new selection as Saved")
+        #expect(newButton?.isEnabled == true)
+    }
+
+    @Test("A stale failed save never re-enables the new card's in-flight save")
+    func staleSaveFailureNeverReenablesNewCard() async {
+        let card = SelectionCardView()
+        var pending: [CheckedContinuation<Bool, Never>] = []
+        card.onSave = { await withCheckedContinuation { pending.append($0) } }
+
+        card.render(.dictionary(Self.fullCard), span: "scored")
+        saveButton(in: card)?.performClick(nil) // save A in flight
+        await spin { pending.count == 1 }
+
+        card.render(.plain(translation: "最终目标", degraded: false), span: "the final goal")
+        let newButton = saveButton(in: card)
+        newButton?.performClick(nil) // save B in flight on the new card
+        await spin { pending.count == 2 }
+        #expect(newButton?.isEnabled == false)
+
+        pending[0].resume(returning: false) // stale A fails — would re-enable unguarded
+        pending[1].resume(returning: true)  // B lands
+        await spin { newButton?.title == "★ Saved" }
+
+        #expect(newButton?.title == "★ Saved")
+        #expect(newButton?.isEnabled == false,
+                "the stale save must not re-enable a button whose own save is in flight")
+    }
+
+    // Review-fix (F-8) — the announcement fires once per content render, from
+    // the mounted card only; loading/error stay silent.
+    @Test("A content render posts exactly one VoiceOver announcement")
+    func contentRenderAnnouncesOnce() {
+        var announced: [String] = []
+        let original = SelectionCardView.announcementPoster
+        defer { SelectionCardView.announcementPoster = original }
+        SelectionCardView.announcementPoster = { _, text in announced.append(text) }
+
+        let card = SelectionCardView()
+        card.render(.loading(mode: .wordPhrase), span: "scored")
+        #expect(announced.isEmpty)
+        card.render(.dictionary(Self.fullCard), span: "scored")
+        #expect(announced == ["scored — 攻入（进球）, verb"])
+        card.render(.plain(translation: "最终目标", degraded: true), span: "goal")
+        #expect(announced == ["scored — 攻入（进球）, verb", "goal — 最终目标"])
+        card.render(.error, span: "goal")
+        #expect(announced.count == 2)
+    }
+
+    // Review-fix (F-8) — measurement is side-effect-free: the fittingHeight
+    // probe renders off-screen and must never post the announcement the real
+    // mounted render owns.
+    @Test("fittingHeight measurement posts no VoiceOver announcement")
+    func fittingHeightIsAnnouncementFree() {
+        var announcements = 0
+        let original = SelectionCardView.announcementPoster
+        defer { SelectionCardView.announcementPoster = original }
+        SelectionCardView.announcementPoster = { _, _ in announcements += 1 }
+
+        _ = SelectionCardView.fittingHeight(
+            for: .dictionary(Self.fullCard), span: "scored", width: 408
+        )
+        _ = SelectionCardView.fittingHeight(
+            for: .plain(translation: "最终目标", degraded: true), span: "goal", width: 408
+        )
+        #expect(announcements == 0)
+    }
+
+    // Review-fix (P-04 · DESIGN §02) — the 200 pt cap is a real visual clamp
+    // on the mounted card, not just a number: forced into the capped frame,
+    // pathological content resolves inside the card — nothing paints past the
+    // rounded bounds, nothing scrolls.
+    @Test("A mounted card forced to the capped height clamps content inside its bounds")
+    func mountedCardClampsPathologicalContent() {
+        let huge = String(repeating: "字", count: 2000)
+        let state = SelectionCardView.State.plain(translation: huge, degraded: false)
+
+        let card = SelectionCardView()
+        card.render(state, span: "the final goal")
+        let height = SelectionCardView.fittingHeight(
+            for: state, span: "the final goal", width: 408
+        )
+        #expect(height == 200, "precondition: the cap must engage for this fixture")
+
+        card.frame = NSRect(x: 0, y: 0, width: 408, height: height)
+        card.layoutSubtreeIfNeeded()
+
+        let escapees = overflowingViews(in: card)
+        #expect(escapees.isEmpty, "content must be clamped inside the card: \(escapees)")
+    }
+
     // P-04 — skeleton pre-sizing: a word/phrase lookup reserves the taller
     // full-card skeleton, a long span the short plain block.
     @Test("Loading skeleton reserves more height for wordPhrase than longSpan")
@@ -240,5 +354,44 @@ struct SelectionCardViewTests {
         }
         visit(root)
         return found
+    }
+
+    /// The card's Save control, found by its stable tooltip (the title swaps
+    /// to "★ Saved" after a confirmed save).
+    private func saveButton(in root: NSView) -> NSButton? {
+        buttons(in: root).first { $0.toolTip == "Save selection to Notebook (⌘S)" }
+    }
+
+    /// Bounded main-actor drain (the KeySyncTests idiom): yields until the
+    /// condition holds — no wall-clock sleeps.
+    private func spin(_ condition: () -> Bool) async {
+        var spins = 0
+        while !condition(), spins < 1000 { await Task.yield(); spins += 1 }
+    }
+
+    /// Descendants whose *visible* rect (their frame intersected with every
+    /// masking ancestor) escapes the card's bounds — the headless notion of
+    /// "paints outside the card".
+    private func overflowingViews(in card: NSView) -> [String] {
+        var escapees: [String] = []
+        func visit(_ view: NSView) {
+            for sub in view.subviews {
+                var visible = view.convert(sub.frame, to: card)
+                var ancestor: NSView? = view
+                while let masking = ancestor, masking !== card {
+                    if masking.layer?.masksToBounds == true, let holder = masking.superview {
+                        visible = visible.intersection(holder.convert(masking.frame, to: card))
+                    }
+                    ancestor = masking.superview
+                }
+                if !visible.isEmpty,
+                   !card.bounds.insetBy(dx: -0.5, dy: -0.5).contains(visible) {
+                    escapees.append("\(type(of: sub)) \(NSStringFromRect(visible))")
+                }
+                visit(sub)
+            }
+        }
+        visit(card)
+        return escapees
     }
 }
