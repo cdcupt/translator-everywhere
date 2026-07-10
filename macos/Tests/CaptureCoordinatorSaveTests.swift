@@ -255,6 +255,16 @@ private actor GatedService: Translating {
         )
     }
 
+    /// Mechanical `Translating` conformance (TECH §03·1) — selection is not
+    /// under test here, so the stub answers with a plain degraded shape.
+    func translateSelection(span: String, context: String, pair: LanguagePair) async throws -> SelectionResult {
+        SelectionResult(
+            output: .plain(translations[pair.to.code] ?? "?"),
+            servedBy: .free,
+            contextUsed: false
+        )
+    }
+
     /// Suspends until the slow translate has parked on its gate.
     func waitUntilParked() async {
         if isParked { return }
@@ -276,6 +286,12 @@ private actor GatedService: Translating {
 private struct StubTranslating: Translating {
     let result: TranslationResult
     func translate(text: String, pair: LanguagePair) async throws -> TranslationResult { result }
+
+    /// Mechanical `Translating` conformance (TECH §03·1) — echoes the fixed
+    /// translation as a plain degraded shape; selection is not under test here.
+    func translateSelection(span: String, context: String, pair: LanguagePair) async throws -> SelectionResult {
+        SelectionResult(output: .plain(result.translation), servedBy: result.servedBy, contextUsed: false)
+    }
 }
 
 /// A `ResultPresenting` spy that records the pair/detection/save-hook handed to

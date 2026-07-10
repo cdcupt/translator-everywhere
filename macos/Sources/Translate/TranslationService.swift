@@ -5,6 +5,10 @@ import Foundation
 /// `TranslationService` is the production conformer.
 protocol Translating {
     func translate(text: String, pair: LanguagePair) async throws -> TranslationResult
+    /// Translates a selected `span` using the passage it was copied from
+    /// (TECH §03·1). The service alone decides card vs plain vs degraded;
+    /// the panel renders whatever `SelectionResult` comes back.
+    func translateSelection(span: String, context: String, pair: LanguagePair) async throws -> SelectionResult
 }
 
 /// The single place a translation happens (TECH §3-4, §8.2).
@@ -26,6 +30,10 @@ struct TranslationService: Translating {
     /// The engine the runtime AI-error safety net retries on (TECH §4). A factory
     /// so a fresh Google engine is built per retry; injected for tests.
     private let makeGoogleFallback: () -> any TranslationEngine
+    /// The selection route for a pair (TECH §03·1). Injected so tests can script
+    /// card/plain/degraded outcomes without Keychain or network; production
+    /// resolves via `resolver.resolveSelection(for:)`.
+    private let resolveSelection: (LanguagePair) -> SelectionRoute
 
     /// Production initializer — detects via a keyless Google call and falls back
     /// to a fresh `GoogleEngine` on the same session.
@@ -44,17 +52,21 @@ struct TranslationService: Translating {
 
     /// Testable initializer — injects the detector and the fallback factory so
     /// orchestration can be exercised without the network (the resolved engine
-    /// still comes from `resolver`, driven over a stubbed session).
+    /// still comes from `resolver`, driven over a stubbed session). The optional
+    /// `resolveSelection` override scripts the selection route the same way
+    /// (TECH §03·1); when nil the resolver's truth table decides.
     init(
         resolver: EngineResolver,
         settings: SettingsStore,
         detect: @escaping (String) async -> DetectedSource,
-        makeGoogleFallback: @escaping () -> any TranslationEngine
+        makeGoogleFallback: @escaping () -> any TranslationEngine,
+        resolveSelection: ((LanguagePair) -> SelectionRoute)? = nil
     ) {
         self.resolver = resolver
         self.settings = settings
         self.detect = detect
         self.makeGoogleFallback = makeGoogleFallback
+        self.resolveSelection = resolveSelection ?? { resolver.resolveSelection(for: $0) }
     }
 
     /// Translates `text` for `pair`, returning the translation plus the detected
@@ -101,6 +113,65 @@ struct TranslationService: Translating {
                 servedBy: result.servedBy,
                 viaGoogleFallback: true,
                 effectiveTo: effectiveTo
+            )
+        }
+    }
+
+    /// Translates a selected `span` in the passage it was copied from, at the
+    /// production deadline (`SelectionPolicy.requestTimeout`).
+    func translateSelection(span: String, context: String, pair: LanguagePair) async throws -> SelectionResult {
+        try await translateSelection(
+            span: span, context: context, pair: pair,
+            timeout: SelectionPolicy.requestTimeout
+        )
+    }
+
+    /// Internal overload with an injectable deadline so tests exercise timeout
+    /// behavior in milliseconds instead of 8 s (TECH §03·5 seams table).
+    ///
+    /// Sequence (TECH §03·1, Fig. B1): normalize → guard → window → route →
+    /// deadline-wrapped engine call → `SelectionResult`. Two deliberate
+    /// deviations from `translate(text:pair:)`:
+    /// - **No re-detect, no guard** — a lone span can't be reliably detected;
+    ///   the capture's already-resolved pair is pinned upstream.
+    /// - **No runtime AI→Google fallback** — degradation to Google is a
+    ///   configuration state (no key), never a runtime one; an AI failure
+    ///   surfaces to the caller instead of silently dropping context.
+    /// A `CancellationError` (selection superseded) is rethrown as-is — never
+    /// wrapped into `.network`/`.timedOut` — so the coordinator can map it to
+    /// `.superseded` (AC-7).
+    func translateSelection(
+        span: String, context: String, pair: LanguagePair, timeout: Duration
+    ) async throws -> SelectionResult {
+        let normalized = SpanNormalizer.normalize(span)
+        guard !normalized.isEmpty else { throw TranslationError.emptyInput }
+        let windowed = ContextWindow.window(
+            for: normalized, in: context, maxChars: SelectionPolicy.maxContextChars
+        )
+
+        switch resolveSelection(pair) {
+        case let .contextual(engine):
+            // Mode is decided here, once — the engine serves whatever it's told.
+            let mode = SelectionMode.mode(for: normalized)
+            let output = try await withDeadline(timeout, onTimeout: { TranslationError.timedOut }) {
+                try await engine.translateSpan(
+                    span: normalized, context: windowed, pair: pair, mode: mode
+                )
+            }
+            return SelectionResult(output: output, servedBy: .ai, contextUsed: true)
+
+        case let .contextFree(engine):
+            // Degraded: plain span-only translation — the endpoint has no
+            // context parameter, and we add none. Drives the "Context-free"
+            // chip (FR-5, AC-4).
+            let request = TranslationRequest(text: normalized, from: pair.from, to: pair.to)
+            let result = try await withDeadline(timeout, onTimeout: { TranslationError.timedOut }) {
+                try await engine.translate(request)
+            }
+            return SelectionResult(
+                output: .plain(result.translation),
+                servedBy: result.servedBy,
+                contextUsed: false
             )
         }
     }
