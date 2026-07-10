@@ -63,11 +63,27 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         override var canBecomeKey: Bool { true }
         override var canBecomeMain: Bool { true }
 
-        /// Fired after every left mouse-up — the reliable end-of-drag trigger
-        /// for a selection (`textViewDidChangeSelection` fires mid-drag; the
-        /// mouse-up is what says the drag settled — TECH Fig. F2). Observation
-        /// only: the event is always forwarded to `super`.
-        var onLeftMouseUp: (() -> Void)?
+        /// Fired when a primary-button interaction the panel dispatched has
+        /// ended, passing the view the interaction's mouse-down landed on.
+        ///
+        /// A left mouse-UP only reaches `sendEvent` for clicks that never
+        /// entered a view's mouse-tracking loop. `NSTextView.mouseDown` runs
+        /// such a loop: it dequeues the dragged/up events itself (they never
+        /// pass through `sendEvent`) and sets every mid-drag selection with
+        /// `stillSelecting`, so no selection-change notification is delivered
+        /// either — a drag-made selection used to be COMPLETELY invisible at
+        /// the panel level (the live S9 defect). The reliable signal is the
+        /// RETURN of the dispatched left mouse-DOWN: `super.sendEvent(down)`
+        /// only returns once any tracking loop has finished, by which time
+        /// the selection is final. Both paths funnel here. Observation only:
+        /// the event is always forwarded to `super`.
+        var onPrimaryMouseInteractionEnd: ((NSView?) -> Void)?
+
+        /// The view the most recent left mouse-down resolved to — the anchor
+        /// handed to `onPrimaryMouseInteractionEnd`, so the panel can tell a
+        /// text-pane interaction (may arm the selection settle) from a click
+        /// on the card/chrome (must not re-arm what it just dismissed).
+        private weak var lastLeftMouseDownHit: NSView?
 
         /// Esc handling while a selection card is active: returns `true` when
         /// the cancel was consumed (a card was dismissed). `false`/`nil` falls
@@ -82,17 +98,23 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         /// the click is seen before any subview (caption, button, language bar)
         /// can consume it; the event is always forwarded to `super` so normal
         /// dispatch (button presses, text selection, scrolling) is untouched.
-        /// A left mouse-up is noticed *after* `super` has dispatched it, so the
-        /// text view's selection is final when the selection hook reads it.
+        /// The end-of-interaction hook fires *after* `super` has dispatched the
+        /// event, so the text view's selection is final when the selection
+        /// hook reads it — on the mouse-up when one reaches `sendEvent`, and
+        /// on the mouse-down's return when a tracking loop consumed the up.
         override func sendEvent(_ event: NSEvent) {
             if event.type == .leftMouseDown, let contentView {
                 let point = contentView.convert(event.locationInWindow, from: nil)
-                if ResultPanel.shouldClearSelection(forHit: contentView.hitTest(point)) {
+                let hit = contentView.hitTest(point)
+                lastLeftMouseDownHit = hit
+                if ResultPanel.shouldClearSelection(forHit: hit) {
                     clearTextSelection(in: contentView)
                 }
             }
             super.sendEvent(event)
-            if event.type == .leftMouseUp { onLeftMouseUp?() }
+            if event.type == .leftMouseUp || event.type == .leftMouseDown {
+                onPrimaryMouseInteractionEnd?(lastLeftMouseDownHit)
+            }
         }
 
         override func cancelOperation(_ sender: Any?) {
@@ -553,7 +575,9 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         panel.delegate = self
         // Selection wiring (TECH §F-2/§F-6): both handlers are inert until a
         // result presented with hooks arms the feature — pure observation before.
-        panel.onLeftMouseUp = { [weak self] in self?.handleLeftMouseUp() }
+        panel.onPrimaryMouseInteractionEnd = { [weak self] hitView in
+            self?.handleMouseInteractionEnd(anchoredAt: hitView)
+        }
         panel.onCancel = { [weak self] in
             guard let self, self.selectionCard != nil else { return false }
             self.dismissSelectionCard()
@@ -1031,10 +1055,11 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
 
     /// Selection changes in the two result panes. The Recognized pane is the
     /// only trigger surface: a collapse dismisses the card at once (no
-    /// debounce), a mid-drag change only disarms the settle task (never fire
-    /// mid-drag — FR-1, cost guard), and a settled change (mouse or ⇧←/→)
-    /// re-arms it. A non-empty selection in the Translation pane dismisses an
-    /// active card (TECH §F-6) and triggers nothing.
+    /// debounce); any other change (mouse or ⇧←/→) (re)arms the settle task,
+    /// whose fire-time button check keeps the mid-drag cost guard (never fire
+    /// while the button is down — FR-1). A non-empty selection in the
+    /// Translation pane dismisses an active card (TECH §F-6) and triggers
+    /// nothing.
     @MainActor
     func textViewDidChangeSelection(_ notification: Notification) {
         guard currentSelectionHooks != nil,
@@ -1048,13 +1073,27 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
             dismissSelectionCard() // selection collapse kills the card, no debounce
             return
         }
-        guard NSEvent.pressedMouseButtons & 1 == 0 else {
-            // Drag in progress: stand down; the panel's mouse-up hook re-arms.
-            selectionSettleTask?.cancel()
-            selectionSettleTask = nil
-            return
-        }
+        // (Re)arm even while the button is down (a mid-drag / double-click
+        // notification): the settle re-checks the button at fire time and
+        // re-arms itself until the release, so a lookup still never fires
+        // mid-drag (FR-1) — but the chain no longer depends on a mouse-up
+        // that a text view's tracking loop may consume (the live S9 defect:
+        // the word-select notification of a double-click arrives while the
+        // button is still pressed, and standing down here left nothing to
+        // re-arm the settle).
         restartSelectionSettleTask()
+    }
+
+    /// Whether the primary mouse button is currently up.
+    /// `pressedMouseButtonsForTests` is the injection seam (mirroring
+    /// `reduceMotionForTests`): `NSEvent.pressedMouseButtons` is global
+    /// hardware state a headless test cannot press, and the live defect this
+    /// guards (a selection-change delivered while the button is still down)
+    /// only exists in that hardware ordering.
+    var pressedMouseButtonsForTests: Int?
+    @MainActor
+    private var isPrimaryMouseButtonUp: Bool {
+        (pressedMouseButtonsForTests ?? NSEvent.pressedMouseButtons) & 1 == 0
     }
 
     /// Sets (or clears) the selection observer on both panes. The Recognized
@@ -1079,11 +1118,15 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
         return (textView.string as NSString).substring(with: range)
     }
 
-    /// The panel-level mouse-up hook — the reliable end-of-drag trigger
-    /// (Fig. F2): a non-empty Recognized selection (re)arms the settle task.
+    /// The panel-level end-of-mouse-interaction hook (Fig. F2): a non-empty
+    /// Recognized selection (re)arms the settle task, but only when the
+    /// interaction was anchored *in the Recognized pane* — a click on the
+    /// card (✕ / Try again) or in the Translation pane must not re-arm the
+    /// very selection its dismissal path just retired.
     @MainActor
-    private func handleLeftMouseUp() {
+    private func handleMouseInteractionEnd(anchoredAt hitView: NSView?) {
         guard currentSelectionHooks != nil else { return }
+        guard let source = sourceTextView, hitView?.isDescendant(of: source) == true else { return }
         guard !recognizedSelection().isEmpty else { return }
         restartSelectionSettleTask()
     }
@@ -1107,7 +1150,14 @@ final class ResultPanel: NSObject, NSWindowDelegate, NSTextViewDelegate, ResultP
     private func selectionSettleDidFire() {
         selectionSettleTask = nil
         guard currentSelectionHooks != nil else { return }
-        guard NSEvent.pressedMouseButtons & 1 == 0 else { return } // mouse down again
+        guard isPrimaryMouseButtonUp else {
+            // Button still down (drag / double-click hold): the matching
+            // mouse-up may never reach `sendEvent` (a text view's tracking
+            // loop consumes it), so poll — re-arm and wait for the release
+            // instead of dying silently (the live S9 defect).
+            restartSelectionSettleTask()
+            return
+        }
         let span = SpanNormalizer.normalize(recognizedSelection())
         guard Self.shouldFireSelection(
             normalizedSpan: span, lastFired: lastFiredSpan, slotVisible: selectionCard != nil

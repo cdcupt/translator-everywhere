@@ -719,7 +719,156 @@ struct ResultPanelSelectionTests {
         #expect(requestedSpans.count == 2)
     }
 
+    // LIVE-DEFECT regression (2026-07-10, feat/contextual-selection): in the
+    // running app a mouse-made selection NEVER fired the lookup — no skeleton,
+    // no card, no growth — while all 299 spy-driven tests were green, because
+    // they all entered at `fireSelectionForTests` and skipped the trigger
+    // chain. The dead link: `NSTextView.mouseDown` runs a mouse-tracking loop,
+    // so (a) mid-drag selection changes are set with `stillSelecting: true`
+    // and deliver NO `textViewDidChangeSelection` (a drag delivers ZERO
+    // notifications end to end — verified live), (b) any notification that
+    // does arrive (double-click word select) reads the button as still
+    // pressed, which used to cancel the settle and stand down, and (c) the
+    // matching leftMouseUp is dequeued INSIDE the tracking loop and never
+    // passes through `KeyablePanel.sendEvent`, so the mouse-up "re-arm" hook
+    // was dead code. These two tests drive the REAL chain — the live
+    // presentation sequence and the real event/delegate wiring — not the fire
+    // seam.
+
+    // The drag/double-click event contract, end to end: a REAL leftMouseDown
+    // dispatched through `KeyablePanel.sendEvent` into the REAL `NSTextView`,
+    // whose tracking loop consumes a pre-posted matching mouse-up exactly as
+    // live AppKit does (sendEvent never sees it), with the button held for the
+    // whole dispatch. The selection must still fire the hooks' lookup and
+    // mount the slot once the interaction ends.
+    @Test("A mouse-made selection fires through the real event path (tracking loop eats the mouse-up)")
+    func mouseSelectionFiresThroughRealEventPath() async throws {
+        var requested: [String] = []
+        let hooks = SelectionHooks(
+            translate: { span in
+                requested.append(span)
+                return .superseded // outcome rendering is covered elsewhere
+            },
+            save: nil
+        )
+
+        // The REAL capture presentation sequence (CaptureCoordinator's order):
+        // loading body, OCR fill, then the result supersedes it in place.
+        let panel = ResultPanel()
+        panel.reduceMotionForTests = true
+        panel.showTranslating(source: nil)
+        panel.showTranslating(source: "Messi scored the final goal.")
+        panel.showResult(
+            translation: "梅西攻入了最后一球。", source: "Messi scored the final goal.",
+            badge: "AI", copied: false, selection: hooks
+        )
+        let window = try #require(panel.panelForTests)
+        let sourceTV = try #require(panel.sourceTextViewForTests)
+        #expect(sourceTV.delegate === panel,
+                "the live present path must wire the selection trigger delegate")
+        window.contentView?.layoutSubtreeIfNeeded()
+
+        // Aim a double-click at the middle of "scored" in the Recognized pane.
+        let charRange = (sourceTV.string as NSString).range(of: "scored")
+        let layoutManager = try #require(sourceTV.layoutManager)
+        let container = try #require(sourceTV.textContainer)
+        layoutManager.ensureLayout(for: container)
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: charRange, actualCharacterRange: nil)
+        var glyphRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: container)
+        glyphRect.origin.x += sourceTV.textContainerOrigin.x
+        glyphRect.origin.y += sourceTV.textContainerOrigin.y
+        let pointInWindow = sourceTV.convert(NSPoint(x: glyphRect.midX, y: glyphRect.midY), to: nil)
+
+        func mouse(_ type: NSEvent.EventType) -> NSEvent? {
+            NSEvent.mouseEvent(
+                with: type, location: pointInWindow, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber, context: nil,
+                eventNumber: 0, clickCount: 2, pressure: 1
+            )
+        }
+        let down = try #require(mouse(.leftMouseDown))
+        let up = try #require(mouse(.leftMouseUp))
+
+        // Live ordering: the button is physically down for the whole dispatch
+        // (any selection-change notification inside it reads pressed=1), and
+        // the up is consumed by the text view's tracking loop — posted to the
+        // event queue, never routed through sendEvent.
+        panel.pressedMouseButtonsForTests = 1
+        NSApp.postEvent(up, atStart: true)
+        window.sendEvent(down)
+        panel.pressedMouseButtonsForTests = 0 // dispatch over ⇒ button released
+
+        // The REAL tracking loop owns the resulting range (a queue-posted up can
+        // resolve a shifted point and extend word-wise) — the contract under
+        // test is selection → fire, so the expected span is whatever the real
+        // machinery selected, anchored on the double-clicked word.
+        let selected = (sourceTV.string as NSString).substring(with: sourceTV.selectedRange())
+        #expect(selected.hasPrefix("scored"),
+                "the real double-click dispatch selects starting at the clicked word")
+        let expected = SpanNormalizer.normalize(selected)
+        try #require(!expected.isEmpty, "precondition: the dispatch produced a selection")
+
+        await settleSpin { !requested.isEmpty }
+        #expect(requested == [expected],
+                "the settled mouse selection must fire exactly one lookup through the hooks")
+        #expect(panel.selectionCardForTests != nil, "the card slot must mount")
+    }
+
+    // The losing double-click ordering in isolation, via the REAL delegate
+    // notification (no fire-seam shortcut): the word-select notification
+    // arrives while the button is still pressed; the release produces no
+    // further notification and no panel-level mouse-up. The lookup must still
+    // fire once the button is up.
+    @Test("A selection change delivered while the button is held still fires after the release")
+    func heldButtonSelectionFiresAfterRelease() async throws {
+        var requested: [String] = []
+        let hooks = SelectionHooks(
+            translate: { span in
+                requested.append(span)
+                return .superseded
+            },
+            save: nil
+        )
+        let panel = ResultPanel()
+        panel.reduceMotionForTests = true
+        panel.showTranslating(source: nil)
+        panel.showTranslating(source: "Messi scored the final goal.")
+        panel.showResult(
+            translation: "梅西攻入了最后一球。", source: "Messi scored the final goal.",
+            badge: "AI", copied: false, selection: hooks
+        )
+        let sourceTV = try #require(panel.sourceTextViewForTests)
+
+        // Second click of a double-click: the word is selected while the
+        // button is held — setSelectedRange drives the REAL AppKit delegate
+        // notification into the panel.
+        panel.pressedMouseButtonsForTests = 1
+        sourceTV.setSelectedRange((sourceTV.string as NSString).range(of: "scored"))
+
+        // The release: consumed by the tracking loop live — no sendEvent
+        // mouse-up, no further selection-change notification.
+        panel.pressedMouseButtonsForTests = 0
+
+        await settleSpin { !requested.isEmpty }
+        #expect(requested == ["scored"],
+                "the selection must fire once the button is released")
+        #expect(panel.selectionCardForTests != nil, "the card slot must mount")
+    }
+
     // MARK: - Helpers
+
+    /// Wall-clock-capable drain for the 300 ms settle debounce (the yield-based
+    /// `spin` burns its budget in microseconds, long before a real debounce).
+    private func settleSpin(
+        timeout: Duration = .seconds(3), _ condition: () -> Bool
+    ) async {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !condition(), clock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+    }
 
     /// Every `NSTextField` string in the subtree, in document order.
     private func labelStrings(in root: NSView) -> [String] {
