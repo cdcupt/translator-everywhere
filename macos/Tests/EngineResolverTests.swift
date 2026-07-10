@@ -123,4 +123,62 @@ struct EngineResolverTests {
         #expect(resolved.engine.kind == .free)
         #expect(resolved.viaGoogleFallback == false)
     }
+
+    // MARK: - resolveSelection(for:) — selection routing truth table (slice S2)
+
+    @Test("U-28 · .openai + key + AI-capable target → .contextual(OpenAIEngine)") // FR-2
+    func selectionRouteContextualWhenAIAvailable() {
+        let resolver = EngineResolver(
+            settings: makeSettings(.openai),
+            openAIKey: { "sk-real-key" }
+        )
+        let route = resolver.resolveSelection(for: LanguagePair(from: nil, to: aiCapableTarget))
+        guard case .contextual(let engine) = route else {
+            Issue.record("expected .contextual, got .contextFree")
+            return
+        }
+        #expect(engine is OpenAIEngine)
+    }
+
+    @Test("U-29 · no OpenAI key → .contextFree(GoogleEngine)") // AC-4 · FR-5
+    func selectionRouteContextFreeWithoutKey() {
+        let resolver = EngineResolver(
+            settings: makeSettings(.openai),
+            openAIKey: { nil }
+        )
+        let route = resolver.resolveSelection(for: LanguagePair(from: nil, to: aiCapableTarget))
+        guard case .contextFree(let engine) = route else {
+            Issue.record("expected .contextFree, got .contextual")
+            return
+        }
+        #expect(engine.kind == .free)
+    }
+
+    @Test("U-30 · .free preference, key present → .contextFree — same truth table as resolve(for:)") // FR-5
+    func selectionRouteContextFreeForFreePreference() {
+        let resolver = EngineResolver(
+            settings: makeSettings(.free),
+            openAIKey: { "sk-present" } // present, but preference is .free
+        )
+        let route = resolver.resolveSelection(for: LanguagePair(from: nil, to: aiCapableTarget))
+        guard case .contextFree(let engine) = route else {
+            Issue.record("expected .contextFree, got .contextual")
+            return
+        }
+        #expect(engine.kind == .free)
+    }
+
+    @Test("U-31 · target language not aiSupported → .contextFree") // FR-5
+    func selectionRouteContextFreeForAIIncapableTarget() {
+        let resolver = EngineResolver(
+            settings: makeSettings(.openai),
+            openAIKey: { "sk-real-key" }
+        )
+        let route = resolver.resolveSelection(for: LanguagePair(from: nil, to: aiIncapableTarget))
+        guard case .contextFree(let engine) = route else {
+            Issue.record("expected .contextFree, got .contextual")
+            return
+        }
+        #expect(engine.kind == .free)
+    }
 }

@@ -189,3 +189,15 @@ struct OpenAIEngine: TranslationEngine {
         struct APIError: Decodable { let message: String }
     }
 }
+
+/// Selection capability (TECH §03·1) — the compile seam
+/// `EngineResolver.resolveSelection(for:)` needs to build `.contextual`
+/// (slice S2). The real card/span prompt variant replaces this body in slice
+/// S3; until `TranslationService.translateSelection` lands in S4 nothing
+/// calls it.
+extension OpenAIEngine: SelectionSpanTranslating {
+    func translateSpan(span: String, context: String,
+                       pair: LanguagePair, mode: SelectionMode) async throws -> SelectionOutput {
+        throw TranslationError.invalidRequest
+    }
+}

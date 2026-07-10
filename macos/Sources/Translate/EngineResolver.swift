@@ -88,4 +88,20 @@ struct EngineResolver {
             viaGoogleFallback: false
         )
     }
+
+    /// The engine route for a contextual-selection lookup (TECH §03·1).
+    ///
+    /// Same truth table as `resolve(for:)`: AI preferred + key present + target
+    /// AI-capable → `.contextual(OpenAIEngine)` (span + context prompt);
+    /// otherwise → `.contextFree(GoogleEngine)` (span-only, degraded — drives
+    /// the "Context-free" chip, FR-5).
+    func resolveSelection(for pair: LanguagePair) -> SelectionRoute {
+        if settings.enginePreference == .openai,
+           let key = openAIKey()?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !key.isEmpty,
+           pair.to.aiSupported {
+            return .contextual(OpenAIEngine(apiKey: key, session: session))
+        }
+        return .contextFree(GoogleEngine(session: session))
+    }
 }
