@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beta Report — Contextual Selection Translate</title>
+<style>
+  :root{
+    --ink:#111418; --ink-soft:#4a5361; --paper:#fbfaf7; --card:#ffffff;
+    --accent:#4338ca; --accent-soft:#eef2ff; --new:#0d9488; --new-soft:#f0fdfa;
+    --warn:#b45309; --warn-soft:#fffbeb; --fail:#b91c1c; --fail-soft:#fef2f2;
+    --line:#e5e2da; --mono:ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:0 0 6rem}
+  .wrap{max-width:960px;margin:0 auto;padding:0 1.25rem}
+  header.doc{border-bottom:3px solid var(--ink);padding:2.5rem 0 1.5rem;margin-bottom:2rem}
+  .kicker{font:600 .78rem/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:clamp(1.6rem,4vw,2.4rem);line-height:1.15;letter-spacing:-.02em;margin:.5rem 0 .75rem}
+  .meta{display:flex;flex-wrap:wrap;gap:.4rem .5rem;font:500 .78rem/1 var(--mono)}
+  .meta span{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:.35rem .7rem;color:var(--ink-soft)}
+  .meta span b{color:var(--ink);font-weight:600}
+  .meta span.hot{background:var(--warn-soft);border-color:#fde68a}.meta span.hot b{color:var(--warn)}
+  h2{font-size:1.25rem;letter-spacing:-.01em;margin:2.75rem 0 .75rem;display:flex;align-items:baseline;gap:.6rem}
+  h2 .n{font:700 .8rem/1 var(--mono);color:var(--accent)}
+  h3{font-size:1rem;margin:1.5rem 0 .5rem}
+  p{margin:.6rem 0;max-width:76ch}
+  p.soft{color:var(--ink-soft)}
+  .tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);margin:1rem 0}
+  table{border-collapse:collapse;width:100%;min-width:680px;font-size:.88rem}
+  th{background:var(--ink);color:#fff;text-align:left;padding:.55rem .8rem;font:600 .72rem/1.3 var(--mono);letter-spacing:.05em;text-transform:uppercase}
+  td{padding:.6rem .8rem;border-top:1px solid var(--line);vertical-align:top}
+  td:first-child{font:600 .8rem/1.5 var(--mono);white-space:nowrap}
+  .v{font:700 .7rem/1 var(--mono);border-radius:6px;padding:.28rem .5rem;white-space:nowrap;display:inline-block}
+  .v.p{background:var(--new-soft);color:var(--new);border:1px solid #99f6e4}
+  .v.f{background:var(--fail-soft);color:var(--fail);border:1px solid #fecaca}
+  .v.b{background:var(--warn-soft);color:var(--warn);border:1px solid #fde68a}
+  .v.x{background:var(--accent-soft);color:var(--accent);border:1px solid #c7d2fe}
+  code{font:.85em var(--mono);background:var(--accent-soft);color:var(--accent);padding:.1em .4em;border-radius:5px}
+  .decision{background:var(--warn-soft);border:1px solid #fde68a;border-radius:12px;padding:.85rem 1.1rem;margin:.75rem 0;font-size:.93rem}
+  .decision b{color:var(--warn)}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin:1rem 0}
+  .shot{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.75rem}
+  .shot img{width:100%;height:auto;border-radius:8px;border:1px solid var(--line)}
+  .shot figcaption{font:500 .75rem/1.5 var(--mono);color:var(--ink-soft);margin-top:.5rem}
+  .verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin:1rem 0}
+  .vc{border-radius:12px;padding:1rem 1.15rem;border:1px solid var(--line);background:var(--card)}
+  .vc h4{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:.4rem}
+  .vc .big{font-size:1.15rem;font-weight:700}
+  .vc.ship{border-top:4px solid var(--new)} .vc.ship .big{color:var(--new)}
+  .vc.nos{border-top:4px solid var(--fail)} .vc.nos .big{color:var(--fail)}
+  .vc.wv{border-top:4px solid var(--warn)} .vc.wv .big{color:var(--warn)}
+  .vc p{font-size:.85rem;color:var(--ink-soft);margin:.35rem 0 0}
+  ul.tight{margin:.5rem 0 .5rem 1.2rem}
+  ul.tight li{margin:.35rem 0;font-size:.93rem}
+  .fig{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1rem;margin:1rem 0;overflow-x:auto}
+  .fig svg{display:block;min-width:700px;max-width:100%;height:auto;margin:0 auto}
+  .cap{font:500 .75rem/1.5 var(--mono);color:var(--ink-soft);margin-top:.6rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="kicker">Beta Report · SDD Workflow · Step 8b</div>
+  <h1>Contextual Selection Translate — Beta Report</h1>
+  <div class="meta">
+    <span>Branch <b>feat/contextual-selection @ cb9045d</b></span>
+    <span>Suite <b>311/311 green (main: 240)</b></span>
+    <span>Date <b>2026-07-11</b></span>
+    <span class="hot">Status <b>Gate 3 — panel re-run waived by PM</b></span>
+  </div>
+</header>
+
+<h2><span class="n">★</span> At a glance</h2>
+<div class="fig">
+<svg viewBox="0 0 1120 300" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif">
+  <text x="20" y="28" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">HOW THE FEATURE GOT HERE — FOUR VERIFICATION WAVES, TEN FIX COMMITS</text>
+  <g font-size="12.5">
+    <rect x="20" y="46" width="240" height="88" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="140" y="70" text-anchor="middle" font-weight="700">Build + automated tests</text>
+    <text x="140" y="90" text-anchor="middle" fill="#4a5361">9 slices · TDD · QA-gated</text>
+    <text x="140" y="108" text-anchor="middle" fill="#4a5361">299 green ×2 — but the live app</text>
+    <text x="140" y="124" text-anchor="middle" fill="#b91c1c" font-weight="600">had a dead selection trigger</text>
+
+    <rect x="300" y="46" width="240" height="88" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="420" y="70" text-anchor="middle" font-weight="700">Live smoke → fix 1</text>
+    <text x="420" y="90" text-anchor="middle" fill="#4a5361">NSTextView eats the mouse-up;</text>
+    <text x="420" y="108" text-anchor="middle" fill="#4a5361">settle never armed. Fixed + pinned</text>
+    <text x="420" y="124" text-anchor="middle" fill="#0d9488" font-weight="600">card proven live ✓</text>
+
+    <rect x="580" y="46" width="240" height="88" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="700" y="70" text-anchor="middle" font-weight="700">Beta panel round 1</text>
+    <text x="700" y="90" text-anchor="middle" fill="#4a5361">3 testers · 20-row matrix:</text>
+    <text x="700" y="108" text-anchor="middle" fill="#4a5361">17 PASS · 2 FAIL · 1 BLOCKED</text>
+    <text x="700" y="124" text-anchor="middle" fill="#b91c1c" font-weight="600">+ 5 gating defects filed</text>
+
+    <rect x="860" y="46" width="240" height="88" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+    <text x="980" y="70" text-anchor="middle" font-weight="700" fill="#0d9488">Fix round 2 → verified</text>
+    <text x="980" y="90" text-anchor="middle" fill="#0f766e">all 5 root-caused &amp; fixed; QA re-ran</text>
+    <text x="980" y="108" text-anchor="middle" fill="#0f766e">every repro live; review blocked once,</text>
+    <text x="980" y="124" text-anchor="middle" fill="#0f766e">fixed. 311/311 green.</text>
+
+    <line x1="260" y1="90" x2="296" y2="90" stroke="#4a5361" stroke-width="1.5"/>
+    <line x1="540" y1="90" x2="576" y2="90" stroke="#4a5361" stroke-width="1.5"/>
+    <line x1="820" y1="90" x2="856" y2="90" stroke="#4a5361" stroke-width="1.5"/>
+  </g>
+  <g font-size="12.5">
+    <rect x="20" y="170" width="1080" height="54" rx="10" fill="#fffbeb" stroke="#fde68a"/>
+    <text x="40" y="192" font-weight="700" fill="#b45309">Panel round 2 aborted, re-run waived.</text>
+    <text x="40" y="211" fill="#4a5361">A machine-level network outage killed 2 of 3 testers; the surviving lens report conflicts with QA's screenshot evidence (suspect: the robot clicker drops mouse-ups). The PM cancelled further robot runs — final confirmation moves to the PM's own hands at Gate 3.</text>
+  </g>
+  <g font-size="12.5">
+    <rect x="20" y="240" width="530 " height="44" rx="10" fill="#f0fdfa" stroke="#99f6e4"/>
+    <text x="40" y="262" font-weight="700" fill="#0d9488">Every FAIL was fixed and re-verified live with screenshots</text>
+    <text x="40" y="278" fill="#4a5361">N10 + N11 + the 3 lens-B highs — commits c23fbe0 · ba621bd · 13c2991 · cb9045d</text>
+    <rect x="570" y="240" width="530" height="44" rx="10" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="590" y="262" font-weight="700" fill="#b91c1c">2 bugs proven PRE-EXISTING on main (not this feature)</text>
+    <text x="590" y="278" fill="#4a5361">Notebook window never refreshes · app OCRs its own panel on overlap — fast-follow list</text>
+  </g>
+</svg>
+<div class="cap">Fig. 0 — The beta arc: each wave found different defects, each fix was pinned by a regression test and re-verified on the running app.</div>
+</div>
+
+<div class="verdicts">
+  <div class="vc ship"><h4>Lens A · round 1 (new-user)</h4><div class="big">SHIP</div><p>"The happy path is genuinely lovely… context is clearly doing real work."</p></div>
+  <div class="vc nos"><h4>Lens B · round 1 (abuse)</h4><div class="big">DON'T SHIP</div><p>3 high-severity robustness defects — all subsequently fixed &amp; QA re-verified.</p></div>
+  <div class="vc nos"><h4>Coverage · round 1</h4><div class="big">17 / 2 / 1</div><p>PASS / FAIL / BLOCKED. Both FAILs fixed (commits below) and re-proven live.</p></div>
+  <div class="vc wv"><h4>Panel round 2</h4><div class="big">WAIVED</div><p>Aborted by network outage; PM cancelled the re-run. Hand-verify list in §05.</p></div>
+</div>
+
+<h2><span class="n">01</span> Feature coverage matrix</h2>
+<p class="soft">Round-1 verdicts, updated with post-fix status. Every row was exercised on the live app by an independent coverage tester; N10/N11 fixes were re-proven live by the fix Worker and a separate QA agent (different words, fresh builds), but did not get a fresh full-panel pass (waived).</p>
+<div class="tbl">
+<table>
+  <tr><th>Row</th><th>Feature</th><th>Round 1</th><th>Now</th><th>Evidence / note</th></tr>
+  <tr><td>N1</td><td>Single word → dictionary card (contextual sense, POS, sense line, example)</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>"scored" → 进球, verb, in-context sense, example pair (shots/fix_card_live.jpg)</td></tr>
+  <tr><td>N2</td><td>Short phrase (≤4 words) → phrase card</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>"the final goal" → 最后一个进球, noun-phrase chip</td></tr>
+  <tr><td>N3</td><td>Long span → plain contextual block</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>whole sentence → translation only, no card fields (shots/betaC_N3.jpg)</td></tr>
+  <tr><td>N4</td><td>zh→EN unspaced selection</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>制胜 → "winning", adjective, zh/EN example</td></tr>
+  <tr><td>N5</td><td>Google-only degraded card</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>dashed border + "Context-free · Google" chip (shots/betaC_N5.jpg)</td></tr>
+  <tr><td>N6</td><td>Loading skeleton (+ Reduce Motion)</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>shimmer verified by pixel delta; Reduce-Motion sub-check TCC-blocked → §05</td></tr>
+  <tr><td>N7</td><td>Dismissal: Esc / click-outside / retranslate / new capture</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>all four verified (shots/betaC_N7_esc.jpg); Esc further hardened in 13c2991</td></tr>
+  <tr><td>N8</td><td>Rapid re-selection race → only latest renders</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>打入→制胜 0.5s apart: only B rendered; cancelled-span re-fire fixed in ba621bd</td></tr>
+  <tr><td>N9</td><td>⌘S saves card to Notebook; header reclaims after</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>card → ★ Saved; Notebook row 制胜→winning (shots/betaC_N9.jpg)</td></tr>
+  <tr><td>N10</td><td>Failure → quiet error row + Try again</td><td><span class="v f">FAIL</span></td><td><span class="v x">FIXED</span></td><td>was: eternal shimmer. c23fbe0+cb9045d: outcome taxonomy + watchdog. Live: shots/fix2_error_row.jpg → recovery shots/fix2_after_retry.jpg</td></tr>
+  <tr><td>N11</td><td>Identical re-click = no-op (card stays, no re-bill)</td><td><span class="v f">FAIL</span></td><td><span class="v x">FIXED</span></td><td>was: dismissed the card. ba621bd: deferred collapse + slot-state dedupe. Live: shots/fix3_reclick_4s.jpg</td></tr>
+  <tr><td>N12</td><td>Translation pane inert (out of scope surface)</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>selection there triggers nothing</td></tr>
+  <tr><td>R1</td><td>⌃⌥Y capture → OCR → whole-text translation</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>real hotkey → crosshair → panel, AI badge, IPA</td></tr>
+  <tr><td>R2</td><td>Language bar retranslate + swap</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>⇄ remaps pair and retranslates</td></tr>
+  <tr><td>R3</td><td>Read-aloud both panes</td><td><span class="v b">BLOCKED</span></td><td><span class="v b">BLOCKED</span></td><td>TTS visibly engages (stop-square); audio itself unverifiable by robot → §05</td></tr>
+  <tr><td>R4</td><td>IPA phonetics under English panes</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>present throughout</td></tr>
+  <tr><td>R5</td><td>Whole-capture save (no card)</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>header ★ Saved + notebook row</td></tr>
+  <tr><td>R6</td><td>Preferences + engine switch</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>Free↔OpenAI takes effect next capture</td></tr>
+  <tr><td>R7</td><td>Auto-detect display</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>shown with From: Auto, hidden when explicit</td></tr>
+  <tr><td>R8</td><td>Menu-bar agent behavior</td><td><span class="v p">PASS</span></td><td><span class="v p">PASS</span></td><td>stable across ~13 captures</td></tr>
+</table>
+</div>
+
+<h2><span class="n">02</span> What the beta pass caught and fixed</h2>
+<p class="soft">Ten fix/test commits landed after the automated suite was already green — every one of these was invisible to the original spy-based tests and only surfaced by driving the real app.</p>
+<div class="tbl">
+<table>
+  <tr><th>Commit</th><th>Defect (as a user saw it)</th><th>Root cause</th></tr>
+  <tr><td>b5b953d</td><td>Selecting a word did nothing at all — ever</td><td>NSTextView's mouse-tracking loop consumes the mouse-up and suppresses mid-drag notifications; the settle chain had no live trigger</td></tr>
+  <tr><td>8ed7e6e</td><td>(test hardening)</td><td>mutation testing showed 2 of 3 fix mechanisms unpinned; now each is killed by its own test</td></tr>
+  <tr><td>c23fbe0</td><td>Failed lookups vanished silently — skeleton shimmered forever</td><td>stray cancellation-shaped errors mapped to "superseded" (renders nothing); plus a synchronous Keychain read could block below the 8s deadline → new outcome taxonomy + lookup watchdog</td></tr>
+  <tr><td>ba621bd</td><td>A failed word could never be looked up again until restart; re-clicking a carded word killed the card</td><td>span dedupe keyed on slot visibility (error row deduped against itself); re-double-click's transient caret collapse tore the card down; the fire gate read <em>global</em> OS mouse state, which sticks on this hardware → panel-tracked interaction gate + slot-state dedupe + deferred collapse</td></tr>
+  <tr><td>13c2991</td><td>Esc sometimes closed the whole panel (translation lost) or did nothing</td><td>Esc handling depended on which view had focus; now intercepted at the window level — slot-only dismissal whenever a slot is active</td></tr>
+  <tr><td>cb9045d</td><td>(review catch, pre-user)</td><td>a hung lookup rescued by the watchdog could later re-mount its stale result over the error row; generation now invalidated</td></tr>
+</table>
+</div>
+
+<h2><span class="n">03</span> Evidence gallery</h2>
+<div class="gallery">
+  <figure class="shot"><img src="shots/fix_card_live.jpg" alt="Dictionary card for scored"><figcaption>The core promise, live: "scored" → 进球 · verb · in-context sense · example pair.</figcaption></figure>
+  <figure class="shot"><img src="shots/fixA_approved.jpg" alt="Card for approved"><figcaption>Disambiguation working: "approved" in a loan sentence gets the approve-a-loan sense.</figcaption></figure>
+  <figure class="shot"><img src="shots/qa_fix_live.jpg" alt="QA independent card for goal"><figcaption>QA's independent re-proof on a different word ("goal"), fresh build.</figcaption></figure>
+  <figure class="shot"><img src="shots/fix2_error_row.jpg" alt="Quiet error row"><figcaption>Failure path after fix: quiet "Couldn't translate the selection · Try again" row — no dialog, no eternal shimmer.</figcaption></figure>
+  <figure class="shot"><img src="shots/fix2_after_retry.jpg" alt="Recovery after retry"><figcaption>Recovery: key restored → "Try again" → full card. The round-1 FAIL, closed.</figcaption></figure>
+  <figure class="shot"><img src="shots/fix3_reclick_4s.jpg" alt="Re-click no-op"><figcaption>Re-clicking the carded word: card stays, zero new requests (round-1 N11 FAIL, closed).</figcaption></figure>
+  <figure class="shot"><img src="shots/betaC_N9.jpg" alt="Notebook save"><figcaption>⌘S with a card: the selected word — not the sentence — lands in the Notebook.</figcaption></figure>
+  <figure class="shot"><img src="shots/betaC_N5.jpg" alt="Degraded card"><figcaption>No AI key: honest context-free card, dashed border, Google chip.</figcaption></figure>
+</div>
+
+<h2><span class="n">04</span> Pre-existing bugs proven on main (not this feature)</h2>
+<p>Both were reported as feature bugs by lens testers; the fix Worker reproduced both on a <code>main</code>-built binary with screenshots, so they ship today in v1.4.0 and are <b>fast-follow candidates, not blockers</b>:</p>
+<ul class="tight">
+  <li><b>Notebook window never refreshes</b> — rows saved while (or after) the window is open don't appear until app restart. Looks like data loss; isn't (the row is saved).</li>
+  <li><b>The app can OCR its own panel</b> — a new capture whose region overlaps the result panel recognizes the panel's own UI text. The select-then-recapture workflow this feature encourages makes it easier to hit.</li>
+</ul>
+
+<h2><span class="n">05</span> What only your hands can verify (Gate 3 checklist)</h2>
+<div class="decision"><b>The PM waived the final robot panel</b>, and one contradiction remains unresolved: the round-2 lens reported dead selection triggers in 6 of 12 panels on the same build where the Worker and QA proved fires working with screenshots. The prime suspect is the robot clicker itself (it drops mouse-ups, which wedges the exact code path under test — a failure mode it demonstrated in round 1). The instrumented investigation was cancelled by the PM. <b>A 60-second human test settles it.</b></div>
+<ul class="tight">
+  <li><b>The one that matters:</b> capture any sentence, double-click a word — repeat across 5–10 fresh captures. A card (or, on failure, the quiet error row) should appear <em>every</em> time. If any selection dies silently, tell the Orchestrator — that's a real bug and reopens the fix chain.</li>
+  <li>Read-aloud: click both speaker buttons — do you hear speech? (Robot can't hear; R3.)</li>
+  <li>Reduce Motion (System Settings → Accessibility): loading skeleton should be static, not shimmering. (TCC blocked the robot toggle; N6 sub-check.)</li>
+  <li>Error-path feel: Preferences → break your OpenAI key on purpose → select a word → quiet "Try again" row (not a hang); fix the key → Try again → card.</li>
+  <li>⌘S nuance to know: while a card is open, ⌘S saves the card even if another app is frontmost (and that app also receives its own ⌘S). Known trade-off of the floating panel — flagged for fast-follow.</li>
+</ul>
+
+<h2><span class="n">06</span> Fast-follow list (non-gating, prioritized)</h2>
+<ul class="tight">
+  <li><b>Notebook window live-refresh</b> (pre-existing; highest user-visible payoff)</li>
+  <li><b>Hide the panel during a new capture</b> (pre-existing self-OCR; amplified by this feature)</li>
+  <li>Discoverability hint — nothing tells users the Recognized pane is selectable (one-time ghost text suggested)</li>
+  <li>Panel width doesn't re-fit after a wide capture; card controls end up far from content</li>
+  <li>Card headline sometimes gives a generic gloss while its own sense line is in-context (prompt tweak; observed once with "tied" → 系)</li>
+  <li>Example sentence is generated instead of echoing the captured sentence; span bolding inconsistent</li>
+  <li>⌘S double-action when another app is frontmost; trailing punctuation kept in headword; panel position memory</li>
+</ul>
+
+<h2><span class="n">07</span> Verdict</h2>
+<p>The feature's content quality was praised by every tester that reached it — context disambiguation demonstrably works (football "scored", financial "bank", loan "approved", zh 制胜/打入). All five robustness defects the panel filed are fixed, pinned by regression tests (240 → 311), and re-proven on the running app with screenshot evidence. What this report cannot honestly claim is a clean full-panel pass on the final build: that run was first destroyed by a network outage, then cancelled by the PM in favor of hand verification. <b>Recommend: ship after the §05 checklist passes under your hands.</b></p>
+
+</div>
+</body>
+</html>
