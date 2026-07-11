@@ -13,6 +13,13 @@ summarize). Preferences
 Google / Apple (web OAuth) sign-in syncs the notebook across Macs via the backend.
 Distributed as a signed (+ notarized) `.dmg` via GitHub Releases.
 
+**New in 1.5.0 — contextual selection translate:** select a word or phrase in
+the result panel's Recognized pane → an in-context dictionary card (contextual
+translation, part of speech, sense, example), powered by the AI engine with the
+full recognized text as context. Long selections get a plain contextual
+translation; Google-only setups get a labeled context-free fallback; ⌘S saves
+the card to the Notebook.
+
 ## Requirements
 
 - macOS 14.0+ (deployment target)

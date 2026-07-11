@@ -87,6 +87,14 @@ OCR + translation happen in a single OpenAI vision call (`gpt-4o-mini`), so the 
 (an `OPENAI_API_KEY`) is required for this mode; the image is downscaled locally first to keep
 the request small.
 
+### Contextual selection translate (macOS app)
+
+In the [macOS app](macos/), select a word or phrase in the result panel's **Recognized** pane and
+an in-context dictionary card appears in place — contextual translation, part of speech, sense,
+and an example — powered by the AI engine with the full recognized text as context. Long
+selections get a plain contextual translation; Google-only setups get a labeled context-free
+fallback. **⌘S** saves the card to the Notebook.
+
 ## Config
 
 Set these via the environment, or in `~/.te/config` (sourced if present, so prefs persist

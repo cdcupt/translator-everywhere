@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Report — Contextual Selection Translate · Translator Everywhere</title>
+<style>
+  :root{
+    --ink:#111418; --ink-soft:#4a5361; --paper:#fbfaf7; --card:#ffffff;
+    --accent:#4338ca; --accent-soft:#eef2ff; --new:#0d9488; --new-soft:#f0fdfa;
+    --warn:#b45309; --warn-soft:#fffbeb; --line:#e5e2da; --out:#9ca3af;
+    --mono:ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:0 0 6rem}
+  .wrap{max-width:960px;margin:0 auto;padding:0 1.25rem}
+  header.doc{border-bottom:3px solid var(--ink);padding:2.5rem 0 1.5rem;margin-bottom:2rem}
+  .kicker{font:600 .78rem/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:clamp(1.6rem,4vw,2.4rem);line-height:1.15;letter-spacing:-.02em;margin:.5rem 0 .75rem}
+  .meta{display:flex;flex-wrap:wrap;gap:.4rem .5rem;font:500 .78rem/1 var(--mono)}
+  .meta span{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:.35rem .7rem;color:var(--ink-soft)}
+  .meta span b{color:var(--ink);font-weight:600}
+  .meta span.ok{background:var(--new-soft);border-color:var(--new);color:#0f766e}
+  .meta span.ok b{color:var(--new)}
+  h2{font-size:1.25rem;letter-spacing:-.01em;margin:2.75rem 0 .75rem;display:flex;align-items:baseline;gap:.6rem}
+  h2 .n{font:700 .8rem/1 var(--mono);color:var(--accent)}
+  h3{font-size:1rem;margin:1.5rem 0 .5rem}
+  p{margin:.6rem 0;color:var(--ink);max-width:72ch}
+  p.soft{color:var(--ink-soft)}
+  .fig{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1rem;margin:1rem 0;overflow-x:auto}
+  .fig svg{display:block;min-width:640px;max-width:100%;height:auto;margin:0 auto}
+  .fig.master svg{min-width:900px}
+  .cap{font:500 .75rem/1.5 var(--mono);color:var(--ink-soft);margin-top:.6rem;text-align:center}
+  .tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);margin:1rem 0}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:.9rem}
+  th{background:var(--ink);color:#fff;text-align:left;padding:.6rem .85rem;font:600 .75rem/1.3 var(--mono);letter-spacing:.05em;text-transform:uppercase}
+  td{padding:.65rem .85rem;border-top:1px solid var(--line);vertical-align:top}
+  td:first-child{font:600 .8rem/1.5 var(--mono);color:var(--accent);white-space:nowrap}
+  code{font:.85em var(--mono);background:var(--accent-soft);color:var(--accent);padding:.1em .4em;border-radius:5px}
+  .decision{background:var(--warn-soft);border:1px solid #fde68a;border-radius:12px;padding:.85rem 1.1rem;margin:.75rem 0;font-size:.93rem}
+  .decision b{color:var(--warn)}
+  .fr{border-left:4px solid var(--accent);background:var(--card);border-radius:0 12px 12px 0;padding:.85rem 1.1rem;margin:.75rem 0;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .fr b.id{font:700 .78rem/1 var(--mono);color:var(--accent);display:block;margin-bottom:.25rem}
+  .fr p{font-size:.93rem;margin:.2rem 0}
+  .pill{display:inline-block;font:700 .68rem/1 var(--mono);border-radius:6px;padding:.28rem .5rem;white-space:nowrap}
+  .pill.g{background:var(--new-soft);color:#0f766e;border:1px solid #99f6e4}
+  .pill.a{background:var(--warn-soft);color:var(--warn);border:1px solid #fde68a}
+  .pill.i{background:var(--accent-soft);color:var(--accent);border:1px solid #c7d2fe}
+  .risk{display:grid;grid-template-columns:auto 1fr;gap:.75rem;padding:.7rem 0;border-bottom:1px dashed var(--line);font-size:.93rem}
+  .risk:last-child{border-bottom:none}
+  .sev{font:700 .68rem/1 var(--mono);border-radius:6px;padding:.3rem .5rem;height:fit-content;white-space:nowrap}
+  .sev.m{background:var(--warn-soft);color:var(--warn);border:1px solid #fde68a}
+  .sev.l{background:var(--accent-soft);color:var(--accent);border:1px solid #c7d2fe}
+  td .ids{font:600 .78rem/1.6 var(--mono);color:var(--ink-soft)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="kicker">Test Report · SDD Workflow · Step 7</div>
+  <h1>Contextual Selection Translate — Test Report</h1>
+  <div class="meta">
+    <span>Product <b>Translator Everywhere (macOS)</b></span>
+    <span>Baseline <b>v1.2.10 · main@69f9186 · 240 tests</b></span>
+    <span>Branch <b>feat/contextual-selection @ 06c6a0d</b></span>
+    <span>Date <b>2026-07-09</b></span>
+    <span class="ok">Status <b>GREEN — 299/299 ×2</b></span>
+    <span>Inputs <b>PRD ✓ · DESIGN ✓ · TECH ✓ (Gate 2)</b></span>
+  </div>
+</header>
+
+<h2><span class="n">★</span> At a glance</h2>
+<div class="fig master">
+<svg viewBox="0 0 1180 700" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5361"/></marker>
+    <marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0d9488"/></marker>
+  </defs>
+
+  <!-- verdict banner -->
+  <rect x="20" y="18" width="1140" height="76" rx="12" fill="#f0fdfa" stroke="#0d9488" stroke-width="2.5"/>
+  <text x="48" y="66" font-size="34" font-weight="800" fill="#0d9488" letter-spacing="1">GREEN</text>
+  <text x="200" y="48" font-size="14" font-weight="700" fill="#111418">Regression gate passed — full suite run twice</text>
+  <text x="200" y="72" font-size="12.5" fill="#0f766e">299 tests · 41 suites · 0 failures · 0 skips · no flakes across runs · Debug build SUCCEEDED</text>
+  <g font-size="11" font-weight="700">
+    <rect x="700" y="32" width="140" height="22" rx="11" fill="#fff" stroke="#0d9488"/><text x="770" y="47" text-anchor="middle" fill="#0f766e">240 → 299 · +59 tests</text>
+    <rect x="850" y="32" width="140" height="22" rx="11" fill="#fff" stroke="#0d9488"/><text x="920" y="47" text-anchor="middle" fill="#0f766e">diff surface clean</text>
+    <rect x="1000" y="32" width="140" height="22" rx="11" fill="#fff" stroke="#0d9488"/><text x="1070" y="47" text-anchor="middle" fill="#0f766e">8/8 slices gated ✓</text>
+    <rect x="700" y="60" width="140" height="22" rx="11" fill="#fff" stroke="#b45309"/><text x="770" y="75" text-anchor="middle" fill="#b45309">manual M-01..15 → beta</text>
+    <rect x="850" y="60" width="140" height="22" rx="11" fill="#fff" stroke="#0d9488"/><text x="920" y="75" text-anchor="middle" fill="#0f766e">TDD RED-first · all slices</text>
+    <rect x="1000" y="60" width="140" height="22" rx="11" fill="#fff" stroke="#0d9488"/><text x="1070" y="75" text-anchor="middle" fill="#0f766e">frozen files untouched</text>
+  </g>
+
+  <!-- pyramid (left) -->
+  <text x="20" y="134" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">WHAT RAN — TEST PYRAMID</text>
+  <polygon points="270,152 328,215 212,215" fill="#fffbeb" stroke="#b45309" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <polygon points="212,215 328,215 390,280 150,280" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+  <polygon points="150,280 390,280 455,345 85,345" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+  <polygon points="85,345 455,345 525,415 15,415" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+  <text x="270" y="192" text-anchor="middle" font-size="11" font-weight="700" fill="#b45309">MANUAL · 15</text>
+  <text x="270" y="206" text-anchor="middle" font-size="9.5" fill="#b45309">pending → beta pass</text>
+  <text x="270" y="248" text-anchor="middle" font-size="11.5" font-weight="700" fill="#b45309">PANEL / UI · 8 rows ✓</text>
+  <text x="270" y="265" text-anchor="middle" font-size="9.5" fill="#92610a">headless AppKit — card states · growth · ⌘S</text>
+  <text x="270" y="313" text-anchor="middle" font-size="11.5" font-weight="700" fill="#0d9488">INTEGRATION · 14 rows ✓</text>
+  <text x="270" y="330" text-anchor="middle" font-size="9.5" fill="#0f766e">service routes · coordinator race · panel sinks</text>
+  <text x="270" y="382" text-anchor="middle" font-size="11.5" font-weight="700" fill="#4338ca">UNIT · 33 rows ✓</text>
+  <text x="270" y="399" text-anchor="middle" font-size="9.5" fill="#4338ca">mode · normalize · window · prompts · parse · routing</text>
+  <text x="20" y="442" font-size="10" fill="#6b7280">All 55 planned automated rows (TECH §04) implemented — shipped as 59 @Tests:</text>
+  <text x="20" y="456" font-size="10" fill="#6b7280">parameterized matrices fold rows; review-fix hardening added regression tests.</text>
+
+  <!-- two-run gate (right) -->
+  <text x="580" y="134" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">THE GATE — FULL SUITE ×2 (S9)</text>
+  <g font-size="12">
+    <rect x="580" y="152" width="180" height="66" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="670" y="177" text-anchor="middle" font-weight="700">RUN 1</text>
+    <text x="670" y="196" text-anchor="middle" fill="#4a5361" font-size="10.5">299 in 41 suites · 0 fail · 3.155 s</text>
+    <rect x="580" y="232" width="180" height="66" rx="10" fill="#fff" stroke="#111418" stroke-width="1.5"/>
+    <text x="670" y="257" text-anchor="middle" font-weight="700">RUN 2</text>
+    <text x="670" y="276" text-anchor="middle" fill="#4a5361" font-size="10.5">299 in 41 suites · 0 fail · 3.161 s</text>
+    <path d="M 760 185 Q 810 185 838 218" fill="none" stroke="#0d9488" stroke-width="2" marker-end="url(#arg)"/>
+    <path d="M 760 265 Q 810 265 838 236" fill="none" stroke="#0d9488" stroke-width="2" marker-end="url(#arg)"/>
+    <rect x="845" y="192" width="150" height="70" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="2.5"/>
+    <text x="920" y="221" text-anchor="middle" font-weight="800" fill="#0d9488" font-size="15">GATE PASS</text>
+    <text x="920" y="242" text-anchor="middle" fill="#0f766e" font-size="10.5">identical results — no flakes</text>
+    <rect x="1015" y="192" width="145" height="70" rx="10" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="1087" y="215" text-anchor="middle" font-weight="700" fill="#4338ca" font-size="11">Baseline main</text>
+    <text x="1087" y="233" text-anchor="middle" fill="#4a5361" font-size="10.5">240 tests</text>
+    <text x="1087" y="251" text-anchor="middle" fill="#4a5361" font-size="10.5">+59 from this feature</text>
+  </g>
+
+  <!-- diff surface audit -->
+  <rect x="580" y="318" width="580" height="138" rx="10" fill="#fff" stroke="#e5e2da"/>
+  <text x="600" y="344" font-size="12" font-weight="700" fill="#111418">DIFF-SURFACE AUDIT — 17 files vs main · +5947/−17 (docs HTML +2507)</text>
+  <g font-size="11" fill="#4a5361">
+    <text x="600" y="368">✓ Code surface: 8 sources + 6 test files (+3440/−17)</text>
+    <text x="600" y="388">✓ Only new sources: <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">SelectionTranslation.swift</tspan> · <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">SelectionCardView.swift</tspan> — exactly the two allowed</text>
+    <text x="600" y="408">✓ Only deletion in any test file: <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">SpyResultPanel.showResult</tspan> gains <tspan font-family="ui-monospace,Menlo,monospace" font-size="10">selection:</tspan> — the mechanical</text>
+    <text x="600" y="424">   conformance TECH Table Q6 explicitly allows · no expectation edits anywhere</text>
+    <text x="600" y="444">✓ Frozen files (Q6 list — Summarize/Phonetic/Speech/Notebook suites…) untouched</text>
+  </g>
+
+  <!-- slice rail -->
+  <text x="20" y="502" font-size="13" font-weight="700" fill="#4a5361" letter-spacing="2">SLICE RAIL — EVERY COMMIT GATED (TDD RED-FIRST · QA GATE · SWIFT-REVIEWER)</text>
+  <g font-size="10.5">
+    <!-- S1..S8 boxes -->
+    <rect x="20" y="522" width="122" height="92" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="81" y="542" text-anchor="middle" font-weight="700" fill="#4338ca">S1 · types + logic</text>
+    <text x="81" y="559" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#4a5361">67e80a4</text>
+    <text x="81" y="576" text-anchor="middle" fill="#4a5361" font-size="9">U-01..16</text>
+    <text x="81" y="598" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="9.5">QA ✓ · REV ✓ᴹ</text>
+
+    <rect x="148" y="522" width="122" height="92" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="209" y="542" text-anchor="middle" font-weight="700" fill="#4338ca">S2 · resolver route</text>
+    <text x="209" y="559" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#4a5361">ef740ba</text>
+    <text x="209" y="576" text-anchor="middle" fill="#4a5361" font-size="9">U-28..31</text>
+    <text x="209" y="598" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="9.5">QA ✓ · REV ✓</text>
+
+    <rect x="276" y="522" width="122" height="92" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="337" y="542" text-anchor="middle" font-weight="700" fill="#4338ca">S3 · OpenAI span</text>
+    <text x="337" y="559" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#4a5361">54f10db</text>
+    <text x="337" y="576" text-anchor="middle" fill="#4a5361" font-size="9">U-17..27</text>
+    <text x="337" y="598" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="9.5">QA ✓ · REV ✓</text>
+
+    <rect x="404" y="522" width="122" height="92" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="465" y="542" text-anchor="middle" font-weight="700" fill="#4338ca">S4 · service seam</text>
+    <text x="465" y="559" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#4a5361">3e58605</text>
+    <text x="465" y="576" text-anchor="middle" fill="#4a5361" font-size="9">I-01..08</text>
+    <text x="465" y="598" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="9.5">QA ✓ · REV ✓</text>
+
+    <rect x="532" y="522" width="122" height="92" rx="9" fill="#fffbeb" stroke="#b45309" stroke-width="1.5"/>
+    <text x="593" y="542" text-anchor="middle" font-weight="700" fill="#b45309">S5 · card view</text>
+    <text x="593" y="559" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#4a5361">ee5741b +2 fix</text>
+    <text x="593" y="576" text-anchor="middle" fill="#92610a" font-size="9">P-03 · P-04</text>
+    <text x="593" y="598" text-anchor="middle" font-weight="700" fill="#b45309" font-size="9.5">blocked → fixed ✓</text>
+
+    <rect x="660" y="522" width="122" height="92" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="721" y="542" text-anchor="middle" font-weight="700" fill="#0d9488">S6 · panel lifecycle</text>
+    <text x="721" y="559" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#4a5361">a1d822b</text>
+    <text x="721" y="576" text-anchor="middle" fill="#0f766e" font-size="9">P-01/02/05/07/08 · I-13</text>
+    <text x="721" y="598" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="9.5">QA ✓ · REV ✓</text>
+
+    <rect x="788" y="522" width="122" height="92" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="849" y="542" text-anchor="middle" font-weight="700" fill="#0d9488">S7 · coordinator</text>
+    <text x="849" y="559" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#4a5361">d9c5845</text>
+    <text x="849" y="576" text-anchor="middle" fill="#0f766e" font-size="9">I-09..12 · U-32/33</text>
+    <text x="849" y="598" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="9.5">QA ✓ · REV ✓</text>
+
+    <rect x="916" y="522" width="122" height="92" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="977" y="542" text-anchor="middle" font-weight="700" fill="#0d9488">S8 · ⌘S + retry</text>
+    <text x="977" y="559" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#4a5361">06c6a0d</text>
+    <text x="977" y="576" text-anchor="middle" fill="#0f766e" font-size="9">P-06 · I-14</text>
+    <text x="977" y="598" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="9.5">QA ✓ · REV ✓</text>
+
+    <rect x="1044" y="522" width="116" height="92" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="2.5"/>
+    <text x="1102" y="542" text-anchor="middle" font-weight="800" fill="#0d9488">S9 · GATE</text>
+    <text x="1102" y="559" text-anchor="middle" fill="#0f766e" font-size="9.5">build + suite ×2</text>
+    <text x="1102" y="576" text-anchor="middle" fill="#0f766e" font-size="9">299/299 · 299/299</text>
+    <text x="1102" y="598" text-anchor="middle" font-weight="700" fill="#0d9488" font-size="9.5">PASS</text>
+
+    <g stroke="#4a5361" stroke-width="1.3" fill="none">
+      <line x1="142" y1="568" x2="146" y2="568"/><line x1="270" y1="568" x2="274" y2="568"/>
+      <line x1="398" y1="568" x2="402" y2="568"/><line x1="526" y1="568" x2="530" y2="568"/>
+      <line x1="654" y1="568" x2="658" y2="568"/><line x1="782" y1="568" x2="786" y2="568"/>
+      <line x1="910" y1="568" x2="914" y2="568"/><line x1="1038" y1="568" x2="1042" y2="568"/>
+    </g>
+  </g>
+  <text x="20" y="644" font-size="10" fill="#6b7280">S5's swift-reviewer block: tests didn't actually pin the stale-save generation guard (proved by mutation testing) — guard + hardened regression tests landed as 3998ac6 + 6382ee6, then passed.</text>
+  <text x="20" y="660" font-size="10" fill="#6b7280">✓ᴹ = mutation-verified: flipping SelectionPolicy.maxWordTokens 4→5 / maxUnspacedGraphemes 8→9 made exactly the boundary tests fail. Full suite green at every slice commit.</text>
+</svg>
+<div class="cap">Fig. 0 — The whole Step-7 story on one screen: verdict, what ran per tier, the twice-run gate, the diff-surface audit, and the eight gated build slices converging on S9.</div>
+</div>
+
+<h2><span class="n">01</span> Slice-by-slice evidence</h2>
+<p>Every slice followed the same discipline: gating tests written and run failing first (RED), implementation to green, then an <em>independent</em> QA gate that re-ran the gating tests plus the full suite and checked scope (no files outside the slice's contract) and that no assertion had been weakened, then a swift-reviewer verdict. The Orchestrator merged only after all three.</p>
+<div class="tbl">
+<table>
+  <tr><th>Slice</th><th>Commit</th><th>What landed</th><th>Gating tests</th><th>QA gate</th><th>Review</th></tr>
+  <tr><td>S1</td><td><code>67e80a4</code></td><td>Contract types + pure selection logic (<code>SelectionTranslation.swift</code>: mode threshold, normalizer, context window). No protocol change — nothing existing could break.</td><td class="ids">U-01..U-16 (RED→GREEN)</td><td><span class="pill g">PASS</span></td><td><span class="pill g">PASS</span> — threshold matrix mutation-verified (4→5 / 8→9 flips failed exactly the boundary tests)</td></tr>
+  <tr><td>S2</td><td><code>ef740ba</code></td><td>Resolver selection route: <code>resolveSelection(for:)</code>, same truth table as <code>resolve(for:)</code>.</td><td class="ids">U-28..U-31 (RED→GREEN)</td><td><span class="pill g">PASS</span></td><td><span class="pill g">PASS</span></td></tr>
+  <tr><td>S3</td><td><code>54f10db</code></td><td>OpenAI structured-output span translation: card/span prompts, <code>responseFormat</code>, <code>parseCard</code> ladder, <code>translateSpan</code>.</td><td class="ids">U-17..U-27 incl. wire-body U-21</td><td><span class="pill g">PASS</span></td><td><span class="pill g">PASS</span></td></tr>
+  <tr><td>S4</td><td><code>3e58605</code></td><td><code>translateSelection</code> service orchestration + injectable resolver/timeout; <code>Translating</code> requirement + one-line stub conformances.</td><td class="ids">I-01..I-08 (new SelectionServiceTests) + full suite</td><td><span class="pill g">PASS</span></td><td><span class="pill g">PASS</span></td></tr>
+  <tr><td>S5</td><td><code>ee5741b</code></td><td><code>SelectionCardView</code> five-state card (loading / dictionary / plain / degraded / error), <code>fittingHeight</code>, AX group.</td><td class="ids">P-03 · P-04</td><td><span class="pill g">PASS</span></td><td><span class="pill a">BLOCKED</span> — reviewer proved via mutation testing that the tests did not actually pin the stale-save generation guard</td></tr>
+  <tr><td>S5-fix</td><td><code>3998ac6</code> · <code>6382ee6</code></td><td>Stale-save generation guard + regression-test hardening (tests now fail if the guard is removed).</td><td class="ids">re-run P-03 · P-04 + hardened tests + full suite</td><td><span class="pill g">PASS</span></td><td><span class="pill g">PASS</span> on re-review</td></tr>
+  <tr><td>S6</td><td><code>a1d822b</code></td><td>Panel selection observation (settle-then-fire), card slot growth/shrink, dismissal sink, <code>shouldClearSelection</code> whitelist, <code>showResult(selection:)</code>.</td><td class="ids">P-01 · P-02 · P-05 · P-07 · P-08 · I-13</td><td><span class="pill g">PASS</span></td><td><span class="pill g">PASS</span></td></tr>
+  <tr><td>S7</td><td><code>d9c5845</code></td><td>Coordinator two-token selection guard (<code>translateSelectionLatest</code>), outcome mapping, hooks wiring + save wrapper.</td><td class="ids">I-09..I-12 · U-32 · U-33</td><td><span class="pill g">PASS</span></td><td><span class="pill g">PASS</span></td></tr>
+  <tr><td>S8</td><td><code>06c6a0d</code></td><td>Roaming ⌘S key-equivalent swap + revert, Try-again re-fire, card async-confirm save.</td><td class="ids">P-06 · I-14</td><td><span class="pill g">PASS</span></td><td><span class="pill g">PASS</span></td></tr>
+  <tr><td>S9</td><td><em>gate — no commit</em></td><td>Regression gate: <code>xcodegen</code> → Debug build SUCCEEDED → full suite ×2.</td><td class="ids">299/299 · 299/299 — 0 failures, 0 skips</td><td><span class="pill g">PASS</span></td><td><span class="pill g">PASS</span></td></tr>
+</table>
+</div>
+<p class="cap">Table 1 — Build rail with gate outcomes. The one honest wrinkle: S5 was blocked once, for tests that passed but proved nothing — exactly what the mutation check exists to catch — and shipped only after the hardened tests could fail.</p>
+
+<h2><span class="n">02</span> Traceability — requirements ↔ tests ↔ status</h2>
+<p>IDs are TECH §04's plan rows (U = unit, I = integration, P = panel/UI, M = manual). Every automated row below executed green in both S9 runs. The Manual column is <em>staged, not skipped</em>: M-01..M-15 run next, by the beta panel (Step 8b), on a release-config build with a real BYOK key.</p>
+<div class="tbl">
+<table>
+  <tr><th>Req</th><th>Pinned by (automated)</th><th>Automated</th><th>Manual / beta</th></tr>
+  <tr><td>AC-1</td><td class="ids">U-01 · U-17 · U-21 · U-22 · I-01 · P-03</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-01 → beta</span> live football-sense quality is model-judged</td></tr>
+  <tr><td>AC-2</td><td class="ids">U-02 · I-01 · P-03</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-02 → beta</span></td></tr>
+  <tr><td>AC-3</td><td class="ids">U-04 · I-02 · P-03</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-03 → beta</span></td></tr>
+  <tr><td>AC-4</td><td class="ids">U-29 · U-33 · I-03 · P-03</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-04 → beta</span></td></tr>
+  <tr><td>AC-5</td><td class="ids">I-05 · I-10 · I-13 · P-01 · P-05</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-05 → beta</span></td></tr>
+  <tr><td>AC-6</td><td class="ids">U-22 · U-32 · I-12 · P-06</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-06 → beta</span></td></tr>
+  <tr><td>AC-7</td><td class="ids">I-07 · I-09 · I-11 · P-07</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-07 → beta</span> real-network race feel</td></tr>
+  <tr><td>AC-8</td><td class="ids">P-08 + full pre-existing suite ×2, expectations unmodified</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-08 → beta</span></td></tr>
+  <tr><td>AC-9</td><td class="ids">U-05 · U-06 · U-07 · U-08 · U-11</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-09 → beta</span> live zh→EN card quality</td></tr>
+  <tr><td>FR-1</td><td class="ids">U-09 · U-10 · U-12 · U-13 · I-06 · I-08 · I-14 · P-02</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-12 · M-14 · M-15 → beta</span></td></tr>
+  <tr><td>FR-2</td><td class="ids">U-14..U-21 · U-28 · I-01 · I-04 · I-12</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-01 · M-13 → beta</span> latency target ≤ ~3 s</td></tr>
+  <tr><td>FR-3</td><td class="ids">U-01..03 · U-05/06/08 · U-22..25 · U-27 · I-01 · P-03 · P-04</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-01 · M-09 · M-10 · M-11 → beta</span> motion + VoiceOver</td></tr>
+  <tr><td>FR-4</td><td class="ids">U-04 · U-07 · U-19 · U-26 · I-02 · P-03 · P-04</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-03 → beta</span></td></tr>
+  <tr><td>FR-5</td><td class="ids">U-29..U-31 · U-33 · I-03 · I-05 · P-03</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-04 → beta</span></td></tr>
+  <tr><td>FR-6</td><td class="ids">I-10 · I-11 · I-13 · I-14 · P-01 · P-05</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-05 → beta</span></td></tr>
+  <tr><td>FR-7</td><td class="ids">U-32 · U-33 · I-12 · P-06</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-06 → beta</span></td></tr>
+  <tr><td>FR-8</td><td class="ids">P-08 + regression gate (suite ×2, Table Q6 respected)</td><td><span class="pill g">GREEN</span></td><td><span class="pill a">M-08 → beta</span></td></tr>
+</table>
+</div>
+<p class="cap">Table 2 — Full traceability. No requirement rests on the pending manual tier alone; what beta uniquely proves is live-model output quality (AC-1/2/9), real latency (M-13), and the visual/temporal/accessibility feel (M-10..M-12, M-15) that headless tests deliberately do not fake.</p>
+
+<h2><span class="n">03</span> Regression evidence</h2>
+<div class="fr"><b class="id">Baseline vs branch</b>
+<p>main@69f9186 carried <b>240</b> tests. feat/contextual-selection@06c6a0d carries <b>299</b> in 41 suites — <b>+59</b>, all from this feature: new suites <code>SelectionModeTests</code> (8) and <code>SelectionServiceTests</code> (8), plus 43 added inside <code>OpenAIEngineTests</code>, <code>ResultPanelHeaderTests</code>, <code>CaptureCoordinatorSaveTests</code>, and <code>EngineResolverTests</code>. The repo is Swift Testing (<code>@Test</code>) only.</p></div>
+<div class="fr"><b class="id">Twice-run stability</b>
+<p>The full serialized suite ran twice back-to-back at the gate: both runs <b>299 tests in 41 suites, 0 failures, 0 skips</b> (3.155 s / 3.161 s of test wall-time), identical results — no ordering flakes in the non-parallel bundle. Debug build SUCCEEDED beforehand. Raw logs: <code>xcb_s9_build.log</code>, <code>xcb_s9_run1.log</code>, <code>xcb_s9_run2.log</code> under <code>/private/tmp/claude-501/-Users-erik/a62f858b-9fee-45e0-92ae-005618f9f1cc/scratchpad/</code> (per-slice RED/GREEN/full logs alongside as <code>xcb_s*_*.log</code>).</p></div>
+<div class="fr"><b class="id">Frozen-surface audit</b>
+<p>Diff vs main: 17 files, +5947/−17, of which the three workflow HTML docs are +2507; code surface is 8 sources + 6 test files (+3440/−17). The only new sources are <code>SelectionTranslation.swift</code> and <code>SelectionCardView.swift</code> — exactly the two TECH allows. The only deletion in any test file is <code>SpyResultPanel.showResult</code> gaining the <code>selection:</code> parameter — the one mechanical conformance TECH Table Q6 explicitly permits. No pre-existing <code>#expect</code> was edited; every file on the Q6 frozen list is untouched. AC-8/FR-8 therefore hold by construction <em>and</em> by execution.</p></div>
+
+<h2><span class="n">04</span> Known gaps &amp; risks</h2>
+<div class="risk"><span class="sev m">NEXT</span><div><b>Manual checklist M-01..M-15 pending → beta pass (Step 8b).</b> By design, not a hole: the 15 rows (1:1 with AC-1..9 plus motion / VoiceOver / geometry / latency / keyboard-selection checks) are the beta panel's script, run on a release-config build with a real OpenAI key and Network Link Conditioner. Until it runs, live-model output quality and the ≤ ~3 s latency target (M-13) are asserted only at the wire/prompt level.</div></div>
+<div class="risk"><span class="sev l">LOW</span><div><b>No live-API test in the suite — by design.</b> All 299 tests are network-free; OpenAI behavior is pinned by exact wire-body assertions over <code>MockURLProtocol</code> (U-21) and the <code>parseCard</code> fallback ladder (U-22..U-27). A model-side regression (e.g. weaker contextual senses from <code>gpt-4o-mini</code>) would not fail CI; it would surface in M-01/M-09.</div></div>
+<div class="risk"><span class="sev l">LOW</span><div><b>Plan-to-shipped count drift, explained.</b> TECH §04 planned 55 automated rows; the branch adds 59 <code>@Test</code>s. Parameterized matrices fold several rows into one test while expanding cases, and the S5 review fix (6382ee6) added hardening regression tests beyond the plan. All 55 planned rows are implemented; nothing was dropped.</div></div>
+<div class="risk"><span class="sev l">LOW</span><div><b>Headless UI tier can't judge feel.</b> Shimmer motion, the 180 ms growth animation, VoiceOver reading order, and screen-edge behavior are deliberately excluded from P-01..P-08 (no brittle markup assertions) and delegated to M-10..M-12 — human-judged once per gate.</div></div>
+
+<p class="soft">Prepared as Gate-3 input. Verdict: automated surface fully green and audited — proceed to the beta panel (Step 8b), which owns M-01..M-15 and the coverage matrix.</p>
+
+</div>
+</body>
+</html>
